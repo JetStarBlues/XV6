@@ -1,0 +1,7 @@
+.gdbinit
+*~
+src/vectors.S
+img/
+debug/
+bin/
+other2/

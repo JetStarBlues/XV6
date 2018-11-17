@@ -1,0 +1,70 @@
+Running
+
+	. make qemu-nox
+
+	With gdb
+		. make qemu-nox-gdb
+		. gdb (on another window)
+
+Exit
+
+	QEMU
+		. CTRL-A + X
+
+	GDB
+		. quit
+
+TODO
+
+	. 'make xv6.pdf'
+
+
+
+Miscellaneous
+
+	. objdump random binary file
+
+		'objdump -b binary -m i386 -D randomFile'
+
+	. Boot sequence:
+
+		. main()  // main.c
+			. uartinit()
+				>> "xv6..."
+
+		. mpmain()  // main.c
+			>> "cpu1: starting 1
+				cpu0: starting 0"
+			. scheduler()
+
+		. iinit()  // fs.c  (called by???)
+
+			>> "sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58"
+
+		. main()  // init.c  (called by???)
+
+			>> "init: starting sh"
+
+
+		^ Trace with gdb
+
+
+
+
+
+
+.... Update GDB cheatsheet
+
+https://youtu.be/xQ0ONbt-qPs
+
+	list - examine your source code from within the debugger
+
+	watch, rwatch - set a watch for when a variable is written or read: return to the debugger once this happens
+
+	set var name=value   set the value of variable "name" to "value"
+
+	bt - show the call frames for your program
+	frame # - set the current frame to #. Variables you reference etc. will be those within that context.
+
+
+
