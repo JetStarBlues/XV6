@@ -200,6 +200,9 @@ vectors.S: $(SRCDIR)vectors.pl
 %.o: $(SRCDIR)%.S
 	$(CC) $(ASFLAGS) -c $< -o $(BINDIR)$@
 
+vectors.o: vectors.S
+	$(CC) $(ASFLAGS) -c $(SRCDIR)$< -o $(BINDIR)$@  # JK, stackoverflow.com/q/53348134
+
 
 # JK Used to compile user code
 %.o: $(ULIBDIR)%.c
