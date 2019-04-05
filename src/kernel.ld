@@ -8,14 +8,14 @@ ENTRY(_start)
 SECTIONS
 {
 	/* Link the kernel at this address: "." means the current address */
-        /* Must be equal to KERNLINK */
+	/* Must be equal to KERNLINK */
 	. = 0x80100000;
 
 	.text : AT(0x100000) {
 		*(.text .stub .text.* .gnu.linkonce.t.*)
 	}
 
-	PROVIDE(etext = .);	/* Define the 'etext' symbol to this value */
+	PROVIDE(etext = .);  /* Define the 'etext' symbol to this value */
 
 	.rodata : {
 		*(.rodata .rodata.* .gnu.linkonce.r.*)
@@ -26,16 +26,14 @@ SECTIONS
 		PROVIDE(__STAB_BEGIN__ = .);
 		*(.stab);
 		PROVIDE(__STAB_END__ = .);
-		BYTE(0)		/* Force the linker to allocate space
-				   for this section */
+		BYTE(0)  /* Force the linker to allocate space for this section */
 	}
 
 	.stabstr : {
 		PROVIDE(__STABSTR_BEGIN__ = .);
 		*(.stabstr);
 		PROVIDE(__STABSTR_END__ = .);
-		BYTE(0)		/* Force the linker to allocate space
-				   for this section */
+		BYTE(0)  /* Force the linker to allocate space for this section */
 	}
 
 	/* Adjust the address for the data segment to the next page */
