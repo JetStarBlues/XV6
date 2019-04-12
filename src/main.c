@@ -50,7 +50,7 @@ static void mpenter ( void )
 // Common CPU setup code.
 static void mpmain ( void )
 {
-	cprintf( "cpu%d: starting %d\n", cpuid(), cpuid() );
+	cprintf( "cpu%d: starting %d\n\n", cpuid(), cpuid() );
 
 	idtinit();  // load idt register
 

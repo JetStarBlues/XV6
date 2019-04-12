@@ -363,8 +363,8 @@ int gettoken ( char **ps, char *es, char **q, char **eq )
 			break;
 
 		case '|':
-		case '( ':
-		case ' )':
+		case '(':
+		case ')':
 		case ';':
 		case '&':
 		case '<':

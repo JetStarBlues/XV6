@@ -21,15 +21,15 @@ int main ( void )
 	dup( 0 );  // stdout
 	dup( 0 );  // stderr
 
-	for( ;; )
+	for ( ;; )
 	{
-		printf( 1, "init: starting sh\n" );
+		printf( 1, "init: starting sh\n\n" );
 
 		pid = fork();
 
 		if ( pid < 0 )
 		{
-			printf( 1, "init: fork failed\n" );
+			printf( 1, "init: fork failed\n\n" );
 			exit();
 		}
 
@@ -37,7 +37,7 @@ int main ( void )
 		{
 			exec( "sh", argv );
 
-			printf( 1, "init: exec sh failed\n" );
+			printf( 1, "init: exec sh failed\n\n" );
 			exit();
 		}
 

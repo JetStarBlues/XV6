@@ -1679,7 +1679,7 @@ The first system call: exec
 	. init then starts a console shell, and
 	  handles orphaned zombies until the shell exits ??
 
-		for( ;; )
+		for ( ;; )
 		{
 			printf( 1, "init: starting sh\n" );
 

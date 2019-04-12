@@ -21,7 +21,7 @@
 #include "buf.h"
 #include "file.h"
 
-#define min ( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
+#define min( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
 static void itrunc( struct inode* );
 // there should be one superblock per disk device, but we run with
@@ -211,13 +211,14 @@ void iinit ( int dev )
 
 	cprintf(
 
-		"sb: size   %d\n"
-		"nblocks    %d\n"
-		"ninodes    %d\n"
-		"nlog       %d\n"
-		"logstart   %d\n"
-		"inodestart %d\n"
-		"bmap start %d\n",
+		"sb:\n"
+		"    size       %d\n"
+		"    nblocks    %d\n"
+		"    ninodes    %d\n"
+		"    nlog       %d\n"
+		"    logstart   %d\n"
+		"    inodestart %d\n"
+		"    bmap start %d\n\n",
 		sb.size, sb.nblocks, sb.ninodes, sb.nlog,
 		sb.logstart, sb.inodestart, sb.bmapstart
 	);

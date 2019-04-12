@@ -42,7 +42,7 @@ struct segdesc
 };
 
 // Normal segment
-#define SEG ( type, base, lim, dpl ) ( struct segdesc )  \
+#define SEG( type, base, lim, dpl ) ( struct segdesc )   \
 {                                                        \
 	( ( lim ) >> 12 ) & 0xffff,                          \
 	( uint )( base ) & 0xffff,                           \
@@ -59,7 +59,7 @@ struct segdesc
 	( uint )( base ) >> 24                               \
 }
 
-#define SEG16 ( type, base, lim, dpl ) ( struct segdesc )  \
+#define SEG16( type, base, lim, dpl ) ( struct segdesc )   \
 {                                                          \
 	( lim ) & 0xffff,                                      \
 	( uint )( base ) & 0xffff,                             \
@@ -99,13 +99,13 @@ struct segdesc
 //  \--- PDX(va) --/ \--- PTX(va) --/
 
 // page directory index
-#define PDX ( va ) ( ( ( uint )( va ) >> PDXSHIFT ) & 0x3FF )
+#define PDX( va ) ( ( ( uint )( va ) >> PDXSHIFT ) & 0x3FF )
 
 // page table index
-#define PTX ( va ) ( ( ( uint )( va ) >> PTXSHIFT ) & 0x3FF )
+#define PTX( va ) ( ( ( uint )( va ) >> PTXSHIFT ) & 0x3FF )
 
 // construct virtual address from indexes and offset
-#define PGADDR ( d, t, o ) ( ( uint )( ( d ) << PDXSHIFT | ( t ) << PTXSHIFT | ( o ) ) )
+#define PGADDR( d, t, o ) ( ( uint )( ( d ) << PDXSHIFT | ( t ) << PTXSHIFT | ( o ) ) )
 
 // Page directory and page table constants.
 #define NPDENTRIES 1024  // # directory entries per page directory
@@ -115,8 +115,8 @@ struct segdesc
 #define PTXSHIFT   12    // offset of PTX in a linear address
 #define PDXSHIFT   22    // offset of PDX in a linear address
 
-#define PGROUNDUP   ( sz ) ( ( ( sz ) + PGSIZE - 1 ) & ~ ( PGSIZE - 1 ) )
-#define PGROUNDDOWN ( a )  (               ( ( a ) ) & ~ ( PGSIZE - 1 ) )
+#define PGROUNDUP( sz )   ( ( ( sz ) + PGSIZE - 1 ) & ~ ( PGSIZE - 1 ) )
+#define PGROUNDDOWN( a )  (               ( ( a ) ) & ~ ( PGSIZE - 1 ) )
 
 // Page table/directory entry flags.
 #define PTE_P  0x001   // Present
@@ -125,8 +125,8 @@ struct segdesc
 #define PTE_PS 0x080   // Page Size
 
 // Address in page table or page directory entry
-#define PTE_ADDR  ( pte ) ( ( uint ) ( pte ) & ~ 0xFFF )
-#define PTE_FLAGS ( pte ) ( ( uint ) ( pte ) &   0xFFF )
+#define PTE_ADDR( pte )  ( ( uint ) ( pte ) & ~ 0xFFF )
+#define PTE_FLAGS( pte ) ( ( uint ) ( pte ) &   0xFFF )
 
 #ifndef __ASSEMBLER__
 
@@ -196,7 +196,7 @@ struct gatedesc
 // - dpl: Descriptor Privilege Level -
 //        the privilege level required for software to invoke
 //        this interrupt/trap gate explicitly using an int instruction.
-#define SETGATE ( gate, istrap, sel, off, d )               \
+#define SETGATE( gate, istrap, sel, off, d )                \
 {                                                           \
 	( gate ).off_15_0  = ( uint )( off ) & 0xffff;          \
 	( gate ).cs        = ( sel );                           \
