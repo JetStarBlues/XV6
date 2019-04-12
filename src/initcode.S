@@ -5,13 +5,14 @@
 #include "traps.h"
 
 
-# exec(init, argv)
+# exec( char *path, ? *argv[] )
+# exec( init, argv )
 .globl start
 start:
 
 	pushl $argv
 	pushl $init
-	pushl $0  // where caller pc would be
+	pushl $0     # where caller pc would be
 	movl  $SYS_exec, %eax
 	int   $T_SYSCALL
 

@@ -131,14 +131,16 @@ CFLAGS += -fno-pie -nopie
 endif
 
 xv6.img: bootblock kernel
-	dd if=/dev/zero of=$(IMGDIR)xv6.img count=10000
-	dd if=$(IMGDIR)bootblock of=$(IMGDIR)xv6.img conv=notrunc
-	dd if=$(IMGDIR)kernel of=$(IMGDIR)xv6.img seek=1 conv=notrunc
+	dd if=/dev/zero          of=$(IMGDIR)xv6.img count=10000          # zero out 512*count bytes
+
+	dd if=$(IMGDIR)bootblock of=$(IMGDIR)xv6.img        conv=notrunc  # first sector (512 bytes)
+	dd if=$(IMGDIR)kernel    of=$(IMGDIR)xv6.img seek=1 conv=notrunc  # second sector
 
 xv6memfs.img: bootblock kernelmemfs
-	dd if=/dev/zero of=$(IMGDIR)xv6memfs.img count=10000
-	dd if=$(IMGDIR)bootblock of=$(IMGDIR)xv6memfs.img conv=notrunc
-	dd if=$(IMGDIR)kernelmemfs of=$(IMGDIR)xv6memfs.img seek=1 conv=notrunc
+	dd if=/dev/zero            of=$(IMGDIR)xv6memfs.img count=10000          # zero out 512*count bytes
+
+	dd if=$(IMGDIR)bootblock   of=$(IMGDIR)xv6memfs.img        conv=notrunc  # first sector (512 bytes)
+	dd if=$(IMGDIR)kernelmemfs of=$(IMGDIR)xv6memfs.img seek=1 conv=notrunc  # second sector
 
 bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
 	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c $(SRCDIR)bootmain.c -o $(BINDIR)bootmain.o
@@ -279,7 +281,7 @@ print: xv6.pdf
 
 # ___ Run in emulators ______________________________________________________
 
-bochs : fs.img xv6.img
+bochs: fs.img xv6.img
 	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
 	bochs -q
 
@@ -289,9 +291,11 @@ GDBPORT = $(shell expr `id -u` % 5000 + 25000)
 QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
+
 ifndef CPUS
 CPUS := 2
 endif
+
 QEMUOPTS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
 qemu: fs.img xv6.img

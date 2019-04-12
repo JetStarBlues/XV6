@@ -156,7 +156,7 @@ pde_t* setupkvm ( void )
 		panic( "PHYSTOP too high" );
 	}
 
-	for ( k = kmap; k < &kmap[NELEM( kmap )]; k += 1 )
+	for ( k = kmap; k < &kmap[ NELEM( kmap ) ]; k += 1 )
 
 		if (
 			mappages(
@@ -214,14 +214,15 @@ void switchuvm ( struct proc *p )
 
 	mycpu()->gdt[ SEG_TSS ] = SEG16(
 
-		STS_T32A,
-		&mycpu()->ts,
-		sizeof( mycpu()->ts ) - 1,
-		0
+		STS_T32A,                   // type
+		&mycpu()->ts,               // base address
+		sizeof( mycpu()->ts ) - 1,  // limit
+		0                           // descriptor privilege level
 	);
 
-	mycpu()->gdt[ SEG_TSS ].s = 0;
+	mycpu()->gdt[ SEG_TSS ].s = 0;  // 0 = system, 1 = application
 
+	// ?
 	mycpu()->ts.ss0  = SEG_KDATA << 3;
 	mycpu()->ts.esp0 = ( uint )p->kstack + KSTACKSIZE;
 
@@ -229,9 +230,11 @@ void switchuvm ( struct proc *p )
 	// forbids I/O instructions ( e.g., inb and outb ) from user space
 	mycpu()->ts.iomb = ( ushort ) 0xFFFF;
 
+	// ?
 	ltr( SEG_TSS << 3 );
 
-	lcr3( V2P( p->pgdir ) );  // switch to process's address space
+	// switch to process's address space
+	lcr3( V2P( p->pgdir ) );
 
 	popcli();
 }

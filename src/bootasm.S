@@ -91,7 +91,7 @@ gdt:
 
 	SEG_NULLASM                                # null seg
 	SEG_ASM( STA_X | STA_R, 0x0, 0xffffffff )  # code seg
-	SEG_ASM( STA_W, 0x0, 0xffffffff )          # data seg
+	SEG_ASM( STA_W,         0x0, 0xffffffff )  # data seg
 
 gdtdesc:
 

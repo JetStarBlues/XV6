@@ -65,6 +65,7 @@ static inline void stosl ( void *addr, int data, int cnt )
 
 struct segdesc;
 
+// Load global descriptor table
 static inline void lgdt ( struct segdesc *p, int size )
 {
 	volatile ushort pd[ 3 ];
@@ -78,6 +79,7 @@ static inline void lgdt ( struct segdesc *p, int size )
 
 struct gatedesc;
 
+// Load interrupt descriptor table
 static inline void lidt ( struct gatedesc *p, int size )
 {
 	volatile ushort pd[ 3 ];
@@ -89,6 +91,7 @@ static inline void lidt ( struct gatedesc *p, int size )
 	asm volatile( "lidt ( %0 )" : : "r" ( pd ) );
 }
 
+// Load task register
 static inline void ltr ( ushort sel )
 {
 	asm volatile( "ltr %0" : : "r" ( sel ) );
@@ -134,6 +137,7 @@ static inline uint xchg ( volatile uint *addr, uint newval )
 	return result;
 }
 
+// Read CR2
 static inline uint rcr2 ( void )
 {
 	uint val;
@@ -143,6 +147,7 @@ static inline uint rcr2 ( void )
 	return val;
 }
 
+// Write CR3
 static inline void lcr3 ( uint val )
 {
 	asm volatile( "movl %0, %%cr3" : : "r" ( val ) );

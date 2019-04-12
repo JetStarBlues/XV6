@@ -940,6 +940,15 @@ Creating the first address space
 		};
 
 
+		/// mmu.h ///
+
+		// Page table/directory entry flags.
+		#define PTE_P  0x001   // Present
+		#define PTE_W  0x002   // Writeable
+		#define PTE_U  0x004   // User
+		#define PTE_PS 0x080   // Page Size
+
+
 	. entry[0]? maps virtual addresses 0 .. 0x0040_0000 to
 	  physical addresses 0 .. 0x0040_0000
 	. This mapping is required as long as entry is executing
@@ -1278,6 +1287,15 @@ Creating the first process
 		p->tf->esp    = PGSIZE;
 		p->tf->eip    = 0;  // beginning of initcode.S
 
+		. %cs to contain a segment selector for SEG_UCODE,
+		  %ds,es,ss  '''                        SEG_UDATA,
+		  all running at user privilege level (DPL_USER)
+		. The %eflags bit FL_IF is set to allow hardware interrupts
+		. %esp (stack pointer) is set to the process's largest
+		  valid virtual address, p->sz??
+		. %eip (instruction pointer) is set to the entry point
+		  of initcode (address 0)
+
 	. Now the kernel stack is completely prepared
 	  (see above diagram)
 
@@ -1294,101 +1312,456 @@ Creating the first process
 	. userinit calls 'setupkvm' to create a page table for
 	  the process
 
-{{}}
+		if ( ( p->pgdir = setupkvm() ) == 0 )
+		{
+			panic( "userinit: out of memory?" );
+		}
 
 
+	. The initial contents of the first process's user-space
+	  memory are the compiled form of 'initcode.S'
+	. As part of the kernel build process, the linker embeds
+	  the 'initcode' binary in the kernel and defines
+	  two special symbols:
+		. _binary_initcode_start: indicates location of binary
+		. _binary_initcode_size : indicates size of binary in bytes
 
-. At a high level, userinit creates a process address space
-  as shown in earlier diagram
+		https://www.devever.net/~hl/incbin
+		https://stackoverflow.com/a/53243725
 
-
-
-how does swtch get executed?
-
-userinit()
-mpmain() -> scheduler() -> swtch()
-
-
-
-BIOS -> entry() -> main()
-
-
-
-
-
-
-/// swtch.S ///
-
-swtch:
-
-	movl   4( %esp ), %eax
-	movl   8( %esp ), %edx
-
-	# Save old callee-saved registers
-	pushl  %ebp
-	pushl  %ebx
-	pushl  %esi
-	pushl  %edi
-
-	# Switch stacks
-	movl   %esp, ( %eax )
-	movl   %edx, %esp
-
-	# Load new callee-saved registers
-	popl   %edi
-	popl   %esi
-	popl   %ebx
-	popl   %ebp
-	ret
+	. userinit copies the contents of the 'initcode' binary
+	  into the new process's memory by calling 'inituvm'
+	. inituvm:
+		. allocates one page of physical memory,
+		. maps virtual address zero to that memory,
+		. and copies the binary to that page...
 
 
+		/// proc.c ///
+
+		inituvm(
+
+			p->pgdir,
+			_binary_initcode_start,
+			( int )_binary_initcode_size
+		);
+
+		p->sz = PGSIZE;
 
 
+		/// vm.c ///
 
+		// Load the initcode into address 0 of pgdir.
+		// sz must be less than a page.
+		void inituvm ( pde_t *pgdir, char *init, uint sz )
+		{
+			char *mem;
+
+			...
+
+			mem = kalloc();
+
+			memset( mem, 0, PGSIZE );
+
+			mappages( pgdir, 0, PGSIZE, V2P( mem ), PTE_W | PTE_U );
+
+			memmove( mem, init, sz );
+		}
+
+
+	~~~ ready ~~~
+
+	. Once the process is initialized, userinit marks it as
+	  available for scheduling by setting:
+
+		p->state = RUNNABLE;
 
 
 Running the first process
 
-	. 
+	. Now that the first process's state is prepared, it is time
+	  to run it
+
+	. After 'main' calls 'userint', it calls 'mpmain'
+	. 'mpmain' then calls 'scheduler' to start running the process
+
+
+	~~~ scheduler ~~~
+
+	. Changing page tables while executing in the kernel works
+	  because 'setupkvm' causes all processes' page tables to
+	  have identical mappings for kernel code and data
+
+	. scheduler looks for a process with p->state set to RUNNABLE,
+	  and there's only one: our first process
+	. It sets the per-cpu variable 'proc' to the process it found
+
+
+	~~~ switchuvm ~~~
+
+	. It then calls 'switchuvm' to tell the hardware to start using the
+	  target process's page table
+
+		for ( ;; )
+		{
+			for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+			{
+				if ( p->state != RUNNABLE )
+				{
+					continue;
+				}
+
+				c->proc = p;
+
+				switchuvm( p );
+
+				...
+			}
+		}
+
+	. 'switchuvm' also sets up a task state segment? SEG_TSS that
+	  instructs the hardware to execute system calls and interrupts
+	  on the process's kernel stack??
+
+		// Switch TSS and h/w page table to correspond to process p.
+		void switchuvm ( struct proc *p )
+		{
+			mycpu()->gdt[ SEG_TSS ] = SEG16(
+
+				STS_T32A,                   // type
+				&mycpu()->ts,               // base address
+				sizeof( mycpu()->ts ) - 1,  // limit
+				0                           // descriptor privilege level
+			);
+
+			mycpu()->gdt[ SEG_TSS ].s = 0;  // 0 = system, 1 = application
+
+			// ?
+			mycpu()->ts.ss0  = SEG_KDATA << 3;
+			mycpu()->ts.esp0 = ( uint )p->kstack + KSTACKSIZE;
+
+			// setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
+			// forbids I/O instructions ( e.g., inb and outb ) from user space
+			mycpu()->ts.iomb = ( ushort ) 0xFFFF;
+
+			// ?
+			ltr( SEG_TSS << 3 );
+
+			// switch to process's address space
+			lcr3( V2P( p->pgdir ) );
+		}
+
+
+	. scheduler now sets p->state to RUNNING and calls 'swtch'
+	  to perform a context switch to the target process's kernel thread
+
+		p->state = RUNNING;
+
+		swtch( &( c->scheduler ), p->context );
+
+
+	~~~ swtch ~~~
+
+	. swtch first saves the current registers.
+	. The current context is not a process but rather a special
+	  per-cpu scheduler context, so scheduler tells swtch to save
+	  the current hardware's registers in per-cpu storage
+	  (cpu->scheduler) rather than in any process's kernel thread
+	  context.
+
+	. swtch then loads the saved registers of the target kernel
+	  thread (p->context)
+
+		swtch:
+
+			movl   4( %esp ), %eax  # eax = old; c->scheduler
+			movl   8( %esp ), %edx  # edx = new; p->context
+
+			# Save old callee-saved registers
+			pushl  %ebp
+			pushl  %ebx
+			pushl  %esi
+			pushl  %edi
+
+			# Switch stacks
+			movl   %esp, ( %eax )  # [old] = esp; update pointer c->scheduler 
+			movl   %edx, %esp      #   esp = new; use pointer p->context
+
+			# Load new callee-saved registers
+			popl   %edi
+			popl   %esi
+			popl   %ebx
+			popl   %ebp
+
+			ret
+
+	. The final 'ret' instruction pops the target process's
+	  'eip' from the stack, finishing the context switch
+	. Now the processor is running on the kernel stack of process p
+
+
+	~~~ forkret ~~~
+
+	. allocproc had previously set initproc's
+	  p->context->eip to forkret, so the ret starts executing there
+	. On the first invocation (this one), forkret runs initialization
+	  functions that cannot be run from main because they must be
+	  run in the context of a regular process with its own kernel stack
+
+		// A fork child's very first scheduling by scheduler()
+		// will swtch here.  "Return" to user space.
+		void forkret ( void )
+		{
+			static int first = 1;
+
+			...
+
+			if ( first )
+			{
+				// Some initialization functions must be run in the context
+				// of a regular process ( e.g., they call sleep ), and thus cannot
+				// be run from main().
+				first = 0;
+
+				iinit( ROOTDEV );
+
+				initlog( ROOTDEV );
+			}
+
+			// Return to "caller", actually trapret ( see allocproc ).
+		}
+
+
+	~~~ trapret ~~~
+
+	. When allocproc returns, allocproc has arranged for trapret
+	  to begin executing
+	. trapret uses pop instructions to restore registers from the
+	  trap frame just as swtch did with the kernel context
+
+		trapret:
+
+			popal
+			popl   %gs
+			popl   %fs
+			popl   %es
+			popl   %ds
+			addl   $0x8, %esp  # trapno and errcode
+			iret
+
+		. popal restores the general purpose registers
+		. addl skips over two fields (trapno and errcode)
+		. iret pops %eip, %cs, %flags, %esp, and %ss from the stack
+		. see "struct trapframe"
+
+	. The contents of the trap frame hae been transferred to the
+	  CPU state, so the processor continues at tf->eip
+
+
+	~~~ ... ~~~
+
+	. For initproc, tf->eip points to virtual address zero, the
+	  first instruction of initcode.S
+
+	. At this point %eip holds zero, %esp holds 4096 ?? TODO
+
+		/// proc.c - userinit ///
+
+		p->tf->esp = PGSIZE;
+		p->tf->eip = 0;  // beginning of initcode.S
+
+
+	. These are virtual addresses in the process's address space
+	. The CPU's paging hardware will translate them into physical addresses
+
+	. inituvm has setup the process's page table so that virtual address
+	  zero refers to the physical memory allocated for this process
+	. It has also seta flag (PTE_U) that tells the paging hardware
+	  to allow user code to acess that memory
+
+		void inituvm ( pde_t *pgdir, char *init, uint sz )
+		{
+			char *mem;
+
+			...
+
+			mem = kalloc();
+
+			memset( mem, 0, PGSIZE );
+
+			mappages( pgdir, 0, PGSIZE, V2P( mem ), PTE_W | PTE_U );
+
+			memmove( mem, init, sz );
+		}
+
+	. The fact that userinit has setup the low bits of %cs?
+	  to run the process's user code at DPL_USER means that
+	  the user code can only use pages with PTE_U set, and cannot
+	  modify sensitive hardware registers such as %cr3.
+	  The process is constrained to using its own memory.
+
+		p->tf->cs = ( SEG_UCODE << 3 ) | DPL_USER;
+		p->tf->ds = ( SEG_UDATA << 3 ) | DPL_USER;
+
 
 The first system call: exec
 
-	.
+	. Let's look at how a user-level process re-enters the kernel
+	  to ask for services that it cannot perform itself.
 
 
+	~~~ initcode.S ~~~
+
+	. The first thing that initcode.S does, is to invoke the
+	  exec system call
+
+		# exec( char *path, ? *argv[] )
+		# exec( init, argv )
+		start:
+
+			pushl $argv
+			pushl $init
+			pushl $0     # where caller pc would be
+			movl  $SYS_exec, %eax
+			int   $T_SYSCALL
+
+		# char init[] = "/init\0";
+		init:
+
+			.string "/init\0"
+
+		# char *argv[] = { init, 0 };
+		.p2align 2
+		argv:
+
+			.long init
+			.long 0
 
 
+	. It begins by pushing three values on the stack:
+		. $argv
+		. $init
+		. 0
+	. Then sets %eax to $SYS_exec
+	. Then executes 'int T_SYSCALL'
+	  If all goes well, exec never returns
 
 
+	~~~ exec ~~~
+
+	. exec starts running the program named $init,
+	  which is a pointer to a null-terminated string.
+	  FYI, this executes /usr/prog/init.c
+	. The other argument "argv" is the array of
+	  command-line arguments. The zero at the end of the
+	  array marks its end.
+
+	. We will cover the details of exec in more detail,
+	  but at a high level, it replaces initcode with the
+	  /init binary loaded from the file system.
 
 
+	~~~ init ~~~
+
+	. init creates a new console device file if needed.
+	. It then opens the device as file descriptors 0, 1, 2.
+
+		if ( open( "console", O_RDWR ) < 0 )
+		{
+			mknod( "console", 1, 1 );
+
+			open( "console", O_RDWR );
+		}
+
+		dup( 0 );  // stdout
+		dup( 0 );  // stderr
+
+	. init then starts a console shell, and
+	  handles orphaned zombies until the shell exits ??
+
+		for( ;; )
+		{
+			printf( 1, "init: starting sh\n" );
+
+			pid = fork();
+
+			if ( pid < 0 )
+			{
+				printf( 1, "init: fork failed\n" );
+				exit();
+			}
+
+			if ( pid == 0 )
+			{
+				exec( "sh", argv );
+
+				printf( 1, "init: exec sh failed\n" );
+				exit();
+			}
+
+			// ??
+			while ( ( wpid = wait() ) >= 0 && wpid != pid )
+			{
+				printf( 1, "zombie!\n" );
+			}
+		}
 
 
+	. The system is up!
 
 
+	~~~ Road to startup ~~~
 
 
+	BIOS -> bootasm.start() -> bootmain() -> entry() -> main()
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	main()
+	     |--> ...
+	     |
+	     |--> userinit()
+	     |             |--> allocproc()
+	     |             |              |--> kalloc()
+	     |             |
+	     |             |--> setupkvm()
+	     |             |            |--> kalloc()
+	     |             |            |--> mappages()
+	     |             |
+	     |             |--> inituvm()
+	     |                          |--> kalloc()
+	     |                          |--> mappages()
+	     |
+	     |--> mpmain() -> scheduler() -> swtch() -> forkret() -> trapret() -> initcode.start() -> init.main()
 
 
 ---------------------------------------------------------------------------------------------
 Page tables
 ---------------------------------------------------------------------------------------------
+
+Title
+
+	. fsdfsf
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ---------------------------------------------------------------------------------------------
 Traps, interupts, and drivers
@@ -1584,7 +1957,7 @@ Assembly bootstrap
 
 			SEG_NULLASM                                # null seg
 			SEG_ASM( STA_X | STA_R, 0x0, 0xffffffff )  # code seg
-			SEG_ASM( STA_W, 0x0, 0xffffffff )          # data seg
+			SEG_ASM( STA_W,         0x0, 0xffffffff )  # data seg
 
 		gdtdesc:
 
@@ -1765,7 +2138,181 @@ x86 processor supports Xv6 via:
 	. page table ??
 		. translate virtual addresses to physical...
 
+	. 'ltr' instruction
+	. 'lidt' instruction
+	. 'lgdt' instruction
 
 
+---------------------------------------------------------------------------------------------
+Other2
+---------------------------------------------------------------------------------------------
 
+Makefile - ??
+
+	fs.img -> mkfs -> mkfs.c
+	                  fs.h
+	                  ulib
+	                  uprogs
+
+	xv6.img -> bootblock -> bootasm.S
+	                        bootmain.c
+	        -> kernel    -> objs
+	                        entry.S
+	                        entryother.S
+	                        initcode.S
+
+
+Makefile - ??
+
+	. 'Ttext' linker flag sets start address of .text section.
+	. Thus the following:
+
+		bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
+			...
+			$(LD) $(LDFLAGS) -Ttext 0x7C00 ...
+			...
+
+		entryother: $(SRCDIR)entryother.S
+			...
+			$(LD) $(LDFLAGS) -Ttext 0x7000 ...
+
+		initcode: $(SRCDIR)initcode.S
+			....
+			$(LD) $(LDFLAGS) -Ttext 0 ...
+			....
+
+	. Becomes:
+
+		bin/bootblock.o:
+
+			Disassembly of section .text:
+
+			00007c00 <start>:
+			    7c00:       fa                      cli
+			    7c01:       31 c0                   xor    %eax,%eax
+			    7c03:       8e d8                   mov    %eax,%ds
+			    7c05:       8e c0                   mov    %eax,%es
+			    7c07:       8e d0                   mov    %eax,%ss
+
+			00007c09 <seta20.1>:
+			    7c09:       e4 64                   in     $0x64,%al
+			    7c0b:       a8 02                   test   $0x2,%al
+			    7c0d:       75 fa                   jne    7c09 <seta20.1>
+			...
+
+		bin/bootblockother.o:
+
+			Disassembly of section .text:
+
+			00007000 <start>:
+			    7000:       fa                      cli
+			    7001:       31 c0                   xor    %eax,%eax
+			...
+
+		bin/initcode.out:
+
+			Disassembly of section .text:
+
+			00000000 <start>:
+			       0:   68 24 00 00 00              push   $0x24
+			       5:   68 1c 00 00 00              push   $0x1c
+			...
+
+	. Which is useful for relocation??
+
+
+Makefile - Creating the disk image
+
+	. Allocates space of size 512 * 10,000 (count) bytes.
+	  All the bytes are set to zero.
+	. Copy "img/bootblock" to first sector
+	. Copy "img/kernel" starting at second sector
+
+		xv6.img: bootblock kernel
+
+			dd if=/dev/zero          of=$(IMGDIR)xv6.img count=10000          # zero out 512*count bytes
+
+			dd if=$(IMGDIR)bootblock of=$(IMGDIR)xv6.img        conv=notrunc  # first sector (512 bytes)
+			dd if=$(IMGDIR)kernel    of=$(IMGDIR)xv6.img seek=1 conv=notrunc  # second sector
+
+
+EFLAGS register
+
+	. https://en.wikibooks.org/wiki/X86_Assembly/X86_Architecture
+
+	 0 - carry flag
+	 1 - x
+	 2 - parity flag
+	 3 - x
+	 4 - adjust flag
+	 5 - x
+	 6 - zero flag
+	 7 - sign flag
+	 8 - trap flag
+	 9 - interrupt flag
+	10 - stream direction flag
+	11 - overflow flag
+	12 - IO privilege level (IOPL)
+	13 - ''' 
+	14 - nested task flag
+	15 - x
+	16 - resume flag
+	17 - virtual 8086 mode
+	18 - alignment check
+	19 - virtual interrupt flag (VIF)
+	20 - virtual interrupt pending flag
+	21 - identification flag
+
+Contorol registers
+
+	. CRO
+
+	 0 - protected mode enable
+	 1 - ?
+	 2 - x87 FPU present
+	 3 - save x87 task context on task switch
+	 4 - external math co-processor
+	 5 - enable x87 error reporting
+	16 - when set, CPU can't write to read-only pages when privilege level is 0
+	18 - alignment mask
+	29 - enable write-through caching
+	30 - enable memory cache
+	31 - enable paging
+
+	. CR1 - reserved...
+
+	. CR2 - page fault linear address
+	        When a page fault occcurs, stores the address the program
+	        attempted to access
+
+	. CR3 - physical base address of page directory
+
+	. CR4
+
+		. https://en.wikipedia.org/wiki/Control_register
+		. https://wiki.osdev.org/CPU_Registers_x86
+
+	 0 - enable VIF in 8086 mode
+	 1 - enable VIF in protected mode
+	 2 - time stamp disable
+	 3 - enable something debug IO
+	 4 - page size extension (0 - page size is 4Kib, 1 - 4MiB)
+	 5 - physical address extension (translate 32bit addresses into 36bit)
+	 6 - blah
+	 7 - blah
+	 8 - blah
+	 9 - blah
+	10 - blah
+	11 - blah
+	12 - blah
+	13 - blah
+	14 - blah
+	15 - x
+	16 - blah
+	17 - blah
+	18 - blah
+	19 - x
+	20 - blah
+	21 - blah
+	22 - blah
 

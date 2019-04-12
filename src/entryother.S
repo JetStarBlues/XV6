@@ -96,7 +96,7 @@ gdt:
 
 	SEG_NULLASM
 	SEG_ASM( STA_X | STA_R, 0, 0xffffffff )
-	SEG_ASM( STA_W, 0, 0xffffffff )
+	SEG_ASM( STA_W,         0, 0xffffffff )
 
 
 gdtdesc:
