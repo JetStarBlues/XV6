@@ -18,6 +18,7 @@ int fetchint ( uint addr, int *ip )
 {
 	struct proc *curproc = myproc();
 
+	// points to address within user address space
 	if ( addr >= curproc->sz || addr + 4 > curproc->sz )
 	{
 		return - 1;
@@ -60,7 +61,7 @@ int fetchstr ( uint addr, char **pp )
 // Fetch the nth 32-bit system call argument.
 int argint ( int n, int *ip )
 {
-	return fetchint( ( myproc()->tf->esp ) + 4 + 4 * n, ip );
+	return fetchint( ( myproc()->tf->esp ) + 4 + ( 4 * n ), ip );
 }
 
 // Fetch the nth word-sized system call argument as a pointer
@@ -73,9 +74,10 @@ int argptr ( int n, char **pp, int size )
  
 	if ( argint( n, &i ) < 0 )
 	{
-		return -1;
+		return - 1;
 	}
 
+	// points to address within user address space
 	if ( size < 0 ||
 	     ( uint )i >= curproc->sz ||
 	     ( uint )i + size > curproc->sz )

@@ -774,21 +774,28 @@ Process overview
 	. Xv6 maintains a separate page table for each process that
 	  defines the process's address space
 
-	  0xFFFF_FFFF ->  ------------------
-		              ...               
-		              ------------------
-		              free memory       
-	  0x8040_0000 ->  ------------------  <-
-		              text and data         |
-	  0x8010_0000 ->  ------------------    | kernel
-		              BIOS                  |
-	  0x8000_0000 ->  ------------------  <-
-		              heap                  |
-		              ------------------    |
-		              user stack            | user
-		              ------------------    |
-		              user text and data    |
-	  0x0000_0000 ->  ------------------  <-
+	             0xFFFF_FFFF ->  -------------------
+	                             memory mapped
+	                             IO devices 
+	  (DEVSPACE) 0xFE00_0000 ->  -------------------
+	                             ...
+	                             free memory
+	                             ...
+	             0x8040_0000 ->  -------------------  <-
+	                             kernel rodata          |
+	                             -------------------    |
+	                             kernel text            |
+	             0x8010_0000 ->  -------------------    | kernel
+	                             bootloader, ?          |
+	  (KERNBASE) 0x8000_0000 ->  -------------------  <-
+	                             program data & heap    |
+	                             -------------------    |
+	              (PAGESIZE)     user stack             | user
+	                             -------------------    |
+	                             user rodata            |
+	                             -------------------    |
+	                             user text              |
+	             0x0000_0000 ->  -------------------  <-
 
 	. The address space includes the process's user memory
 	  starting at virtual address zero
@@ -917,13 +924,13 @@ Creating the first address space
 	  | virtual addr |                  | physical addr |
 
 	  0xFFFF_FFFF ->  ------------------
-		              ...               
+		              ...
 		              ------------------
 		              free memory       
 	  0x8040_0000 ->  ------------------  <- 0x0040_0000
 		              text and data     
 	  0x8010_0000 ->  ------------------  <- 0x0010_0000
-		              BIOS              
+		              BIOS, ?
 	  0x8000_0000 ->  ------------------  <- 0x0000_0000
 
 
@@ -1193,7 +1200,7 @@ Creating the first process
 	  an interrupt mechanism which is used by system calls,
 	  interrupts, and exceptions
 	. Whenever control transfers into the kernel while a
-	  process is running, the hardware and xv6 "trap entry code"??
+	  process is running, the hardware and Xv6 "trap entry code"??
 	  save user registers onto the process's kernel stack
 
 		/// x86.h ///
@@ -1615,7 +1622,7 @@ The first system call: exec
 	. The first thing that initcode.S does, is to invoke the
 	  exec system call
 
-		# exec( char *path, ? *argv[] )
+		# exec( char *path, char *argv[] )
 		# exec( init, argv )
 		start:
 
@@ -1737,39 +1744,2106 @@ The first system call: exec
 Page tables
 ---------------------------------------------------------------------------------------------
 
-Title
+Paging hardware
 
-	. fsdfsf
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+	. A x86 page table is logically an array of 2^20 page table
+	  entries (PTEs)
+	. Each PTE contains:
+		. a 20bit physical page number (PPN)
+	  	. seven flags
+	. The paging hardware translates a virtual address by:
+		. using its top 20 bits to index into the page table to
+		  find a PTE
+		. then replacing the virtual address's top 20 bits with
+		  the value (PPN) retrieved from the PTE
+	. Thus the page table gives the OS control over V2P address
+	  translations at the granularity of aligned chunks of
+	  4096 bytes. (2^(32-20) = 2^12)
+	. Such a chunk is called a page.
 
 
+	. A page table is stored in physical memory as a two-level tree.
+	. The root of the tree is a 4096 byte page directory that
+	  contains 1024 PTE-like references to page tables
+	. The hardware uses the top 10 bits of the VAaddr to select
+	  a page directory entry
+	. The next 10 bits of the Vaddr are used to select a PTE
+	  from the page table that the page directory refers to
+	. This two-level structure allows a page table to omit
+	  entire pages?? in he case where large ranges of virtual
+	  addresses have no mappings...?
+
+		Virtual address
+
+			31..22 - page directory entry (used to pick a page table)
+			21..12 - page table entry     (used to picke a PTE)
+			11..0  - offset
 
 
+		Physical address
+
+			31..12 - PPN
+			11..0  - offset
 
 
+		CR3
+
+			Holds physical base address of page directory ??
+
+
+		Page directory (points to page tables)
+
+			         -----------
+			         PTN | Flags
+			1023 ->  -----------
+			         ...
+			         -----------
+			         PTN | Flags
+			   1 ->  -----------
+			         PTN | Flags
+			   0 ->  -----------
+
+
+		PDE
+
+			31..12 - page table number (PTN)
+			11..7  - reserved
+			     6 - unused (set to zero)
+			     5 - accessed
+			     4 - cache disabled
+			     3 - 1 = write-through, 0 = write-back
+			     2 - user
+			     1 - writeable
+			     0 - present
+
+
+		Page table
+
+			         -----------
+			         PPN | Flags
+			1023 ->  -----------
+			         ...
+			         -----------
+			         PPN | Flags
+			   1 ->  -----------
+			         PPN | Flags
+			   0 ->  -----------
+
+
+		PTE
+
+			31..12 - physical page number (PPN)
+			11..7  - reserved
+			     6 - dirty
+			     5 - accessed
+			     4 - cache disabled
+			     3 - 1 = write-through, 0 = write-back
+			     2 - user      (PTE_U)
+			     1 - writeable (PTE_W)
+			     0 - present   (PTE_P)
+
+
+	. If either the PDE or PTE is not present, the paging
+	  hardware raises a fault 
+
+	. Each PTE contains flag bits that tell the paging hardware
+	  how the associated virtual address is allowed to be used
+	. PTE_P indicates whether the PTE is present.
+	  If not set, a reference to the page causes a fault
+	. PTE_W controls whether user program is allowd to use the page.
+	  If not set, only the kernel is allowd to use the page.
+
+
+Process address space
+
+	. Each process has a separate page table
+	. A process's user memory starts at virtual address zero and
+	  can grow up to KERNBASE, allowing a process to address up
+	  to 2GB of memory
+
+	. When a process asks Xv6 for more memory, Xv6:
+		. first finds free physical pages to provide the storage,
+		. then, adds PTE's to the process's page table that point
+		  to the new physical pages...
+	. Xv6 sets the PTE_U, PTE_W, PTE_P flags in these PTEs
+	. Most processes do not used the entire address space.
+	  For unused PTEs, the PTE_P flag is clear
+
+	. PHYSTOP??
+
+	. Each process sees its memory as having contiguous virtual
+	  addresses whereas the physical memory can be non-contiguous
+
+
+	. Virtual
+
+	             0xFFFF_FFFF ->  -------------------
+	                             memory mapped
+	                             IO devices 
+	  (DEVSPACE) 0xFE00_0000 ->  -------------------
+	                             ...
+	                             free memory
+	                             ...
+	             0x8040_0000 ->  -------------------  <-
+	                             kernel rodata          |
+	                             -------------------    |
+	                             kernel text            |
+	             0x8010_0000 ->  -------------------    | kernel
+	                             bootloader, ?          |
+	  (KERNBASE) 0x8000_0000 ->  -------------------  <-
+	                             program data & heap    |
+	                             -------------------    |
+	              (PAGESIZE)     user stack             | user
+	                             -------------------    |
+	                             user rodata            |
+	                             -------------------    |
+	                             user text              |
+	             0x0000_0000 ->  -------------------  <-
+
+	. Physical
+
+
+	             0xFFFF_FFFF ->  -------------------
+	                             memory mapped
+	                             IO devices 
+	             (PHYSTOP) ? ->  -------------------
+	                             ...
+	                             free memory
+	                             ...
+	             0x0040_0000 ->  -------------------
+	                             kernel rodata
+	                             -------------------
+	                             kernel text
+	    (EXTMEM) 0x0010_0000 ->  -------------------
+	                             IO devices
+	                       ? ->  -------------------
+	                             boot loader (512 bytes)
+	             0x0000_7C00 ->  -------------------
+	                             ?
+	             0x0000_0000 ->  -------------------
+
+
+Creating an address space
+
+	. main calls 'kvmalloc' to create and switch to a page table
+	  with mappings above KERNBASE required for the kernel to run
+
+		// Allocate one page table for the machine for the
+		// kernel address space for scheduler processes.
+		void kvmalloc ( void )
+		{
+			kpgdir = setupkvm();
+
+			switchkvm();
+		}
+
+	~~~ setupkvm ~~~
+
+	. Most of the work happens in 'setupkvm'
+	. It first allocates a page of memory to hold the
+	  page directory
+
+		if ( ( pgdir = ( pde_t* )kalloc() ) == 0 )
+		{
+			return 0;
+		}
+
+		memset( pgdir, 0, PGSIZE );
+
+
+	. It then calls mappages to install?? the translations that
+	  the kernel needs, which are describe in 'kmap' array
+	. The translation includes:
+		. the kernel's instructions and data
+		. physical memory up to PHYSTOP??
+		. and memory ranges which are actually IO devices
+	. setupkvm does not install any mappings for the user memory,
+	  this will happen later (inituvm?)
+
+		/// proc.c - kmap ///
+
+		extern char data [];  // defined by kernel.ld
+
+		// This table defines the kernel's mappings, which are
+		// present in every process's page table.
+		static struct kmap
+		{
+			void *virt;
+			uint  phys_start;
+			uint  phys_end;
+			int   perm;
+
+		} kmap[] = {
+
+			// I/O space
+			{
+				( void* )KERNBASE,
+				0,
+				EXTMEM,
+				PTE_W
+			},
+			// Kernel text + rodata
+			{
+				( void* )KERNLINK,
+				V2P( KERNLINK ),
+				V2P( data ),
+				0
+			},
+			// Kernel data + memory
+			{
+				( void* )data,
+				V2P( data ),
+				PHYSTOP,
+				PTE_W
+			},
+			// More devices
+			{
+				( void* )DEVSPACE,
+				DEVSPACE,
+				0,
+				PTE_W
+			}
+		};
+
+
+		/// proc.c - setupkvm ///
+
+		for ( k = kmap; k < &kmap[ NELEM( kmap ) ]; k += 1 )
+		{
+			if (
+				mappages(
+
+					pgdir,                        // page directory
+					k->virt,                      // virtual address start
+					k->phys_end - k->phys_start,  // size
+					( uint )k->phys_start,        // physical address start
+					k->perm                       // permissions
+				) < 0 )
+			{
+				freevm( pgdir );
+
+				return 0;
+			}
+		}
+
+		return pgdir;
+
+
+	~~~ mappages ~~~
+
+	. mappages installs mappings into a page table for a range of
+	  virtual address to a corresponding range of physical addresses
+	. It does this this separately for each virtual address in the
+	  range, at page intervals?
+	. For each virtual address to be mapped:
+		. it calls 'walkpgdir' to find the address of the PTE
+		  for that adddress
+		. it then initializes the PTE to hold:
+			. the relevant physical page number (PPN)
+			. desired permissions (PTE_W, PTE_U)
+			. sets PTE_P to mark the PTE as valid
+
+		a    = ( char* )PGROUNDDOWN(   ( uint )va );
+		last = ( char* )PGROUNDDOWN( ( ( uint )va ) + size - 1 );
+
+		for ( ;; )
+		{
+			if ( ( pte = walkpgdir( pgdir, a, 1 ) ) == 0 )
+			{
+				return - 1;
+			}
+
+			if ( *pte & PTE_P )
+			{
+				panic( "remap" );
+			}
+
+			*pte = pa | permissions | PTE_P;
+
+			if ( a == last )
+			{
+				break;
+			}
+
+			a  += PGSIZE;
+			pa += PGSIZE;
+		}
+
+
+	~~~ walkpgdir ~~~
+
+	. walkpgdir mimics the actions of the x86 paging hardware
+	  as it looks up the PTE for a virtual address
+	. It uses the upper 10 bits to find the page directory entry
+	. If the PDE is not present, then the required page table
+	  has not yet been allocated.
+	  If the 'alloc' argument is set, walkpdir allocates it and
+	  puts its physical address in the page directory
+	. Finally, it uses the next 10 bits of the virtual address
+	  to find the address of the PTE in the page table page
+
+
+		/// vm.c ///
+
+		static pte_t * walkpgdir( pde_t *pgdir, const void *va, int alloc )
+		{
+			pde_t *pde;
+			pte_t *pgtab;
+
+			pde = &pgdir[ PDX( va ) ];  // get pde index from va
+
+			if ( *pde & PTE_P )
+			{
+				pgtab = ( pte_t* )P2V( PTE_ADDR( *pde ) );
+			}
+			else
+			{
+				if( ! alloc || ( pgtab = ( pte_t* )kalloc() ) == 0 )
+				{
+					return 0;
+				}
+
+				// Make sure all those PTE_P bits are zero.
+				memset( pgtab, 0, PGSIZE );
+
+				// The permissions here are overly generous, but they can
+				// be further restricted by the permissions in the page table
+				// entries, if necessary.
+				*pde = V2P( pgtab ) | PTE_P | PTE_W | PTE_U;
+			}
+
+			return &pgtab[ PTX( va ) ];  // get pte index from va
+		}
+
+
+		/// mmu.h ///
+
+		#define PTXSHIFT   12    // offset of PTX in a linear address
+		#define PDXSHIFT   22    // offset of PDX in a linear address
+
+		// page directory index
+		#define PDX( va ) ( ( ( uint )( va ) >> PDXSHIFT ) & 0x3FF )
+
+		// page table index
+		#define PTX( va ) ( ( ( uint )( va ) >> PTXSHIFT ) & 0x3FF )
+
+
+Physical memory allocation
+
+	. The kernel must allocate and free physical memory at run-time for:
+		. page tables
+		. process user memory
+		. kernel stacks
+		. pipe buffers
+	. Xv6 uses the physical memory between the end of the kernel
+	  and PHYSTOP for run-time allocation
+	. It allocates and frees whole 4096-byte pages at a time
+
+	. It keeps track of which pages are free by threading a
+	  linked list through the pages themselves.
+	. Allocation consists of removing a page from the linked list
+	. Freeing consists of adding the freed page to the list
+
+	. There is a bootstrap problem.
+	. All of physical memory must be mapped in order for the
+	  alllocator to initialize the free list.
+	. But creating a page table with these mappings involves
+	  alllocating page-table pages??
+	. Xv6 solves this problem by using a separate page allocator
+	  during entry??, which allocates memory just after the end
+	  of the kernel's data segment??
+	. This allocator does not support freeing and is limited by
+	  the 4 Mbytes mapping in the entrypgdir??, but that is sufficient
+	  to allocate the first kernel page table???
+
+
+Physical memory allocation - Code
+
+	. The allocator's data structure is a list of physical memory
+	  pages that are available for allocation
+	. Each free page's list element is a "struct run"
+
+		struct run
+		{
+			struct run *next;
+		};
+
+	. Where does the allocator get the memory to hold that data
+	  structure? It stores each free page's run structure in the
+	  free page itself.
+
+	. The free list is protected by a spin lock.
+	. The list and the lock are wrapped in a struct to make clear
+	  the lock protects the fields in the struct...
+
+		struct
+		{
+			struct spinlock lock;
+			int             use_lock;
+			struct run     *freelist;
+
+		} kmem;
+
+	. main calls 'kinit1' and 'kinit2' to initialize the allocator
+
+		extern char end [];  // first address after kernel loaded from ELF file
+
+		...
+
+		int main ( void )
+		{
+			kinit1( end, P2V( 4 * 1024 * 1024 ) );  // phys page allocator
+			...
+			kinit2( P2V( 4 * 1024 * 1024 ), P2V( PHYSTOP ) );  // must come after startothers()
+			...
+		}
+
+	. The reason for two calls is that for much of main, one cannot
+	  use locks or memory above 4 Mbytes
+	. The call to kinit1 sets up for lock-less allocation in the
+	  first 4 Mbytes (4 * 1024 * 1024)
+	. The call to kinit2 enables locking and arranges for memory to
+	  be allocatable
+
+		// Initialization happens in two phases.
+		// 1. main() calls kinit1() while still using entrypgdir to place just
+		// the pages mapped by entrypgdir on free list.
+		// 2. main() calls kinit2() with the rest of the physical pages
+		// after installing a full page table that maps them on all cores.
+		void kinit1 ( void *vstart, void *vend )
+		{
+			initlock( &kmem.lock, "kmem" );
+
+			kmem.use_lock = 0;
+
+			freerange( vstart, vend );
+		}
+
+		void kinit2 ( void *vstart, void *vend )
+		{
+			freerange( vstart, vend );
+
+			kmem.use_lock = 1;
+		}
+
+	. main ought to determine how much physical memory is available,
+	  but this is difficult on x86? Insetead it assumes the machine
+	  has PHYSTOP bytes of physical memory, and uses all the memory
+	  between the end of the kernel and PHYSTOP
+
+	. kinit1 and kinit2 call 'freerange' to add memory to the free
+	  list via per-page calls to 'kfree'
+	. A PTE can only refer to a physical address that is aligned on
+	  a 4096-byte boundary, so freerange uses PGROUNDUP to ensure
+	  that it frees only aligned physical addresses
+
+		void freerange ( void *vstart, void *vend )
+		{
+			char *p;
+
+			p = ( char* )PGROUNDUP( ( uint )vstart );
+
+			for ( ; p + PGSIZE <= ( char* )vend; p += PGSIZE )
+			{
+				kfree( p );
+			}
+		}
+
+	. The allocator sometimes treats addresses as integeres in
+	  order to perform arithmetic on them.
+	  And sometimes as pointers to read and write memory.
+	. This is the main reason that the allocator code is full of
+	  C type casts.
+	. The other reason is that freeing and allocation inherently
+	  change the type of the memory?
+
+
+	~~~ kfree ~~~
+
+	. The function kfree begins by setting every byte in the
+	   memory being freed to the value 1
+	. This will cause code that uses memory after freeing it
+	  (uses "dangling references") to rad garbage instead of
+	  the old valid contents.
+	  Hopefully this causes such code to break faster.
+
+		memset( v, 1, PGSIZE );
+
+	. kfree then casts "v" to a pointer to "struct run",
+	  records the old start of the free list in "r->next",
+	  and sets the free list equal to r
+
+		r = ( struct run* )v;
+
+		r->next = kmem.freelist;
+
+		kmem.freelist = r;
+
+
+	~~~ kalloc ~~~
+
+	. kalloc removes and returns the first element in the
+	  free list.
+
+		char* kalloc ( void )
+		{
+			struct run *r;
+
+			r = kmem.freelist;
+
+			if ( r )
+			{
+				kmem.freelist = r->next;
+			}
+
+			return ( char* )r;
+		}
+
+
+Use part of an address space
+
+	  (KERNBASE) 0x8000_0000 ->  -------------------
+	                             heap
+	                             -------------------
+	              (PAGESIZE)     stack
+	                             -------------------
+	                             guard page
+	                             -------------------
+	                             rodata
+	                             -------------------
+	                             text
+	             0x0000_0000 ->  -------------------
+
+	. Each user process starts at address zero
+	. The bottom of the address space contains the text for
+	  the user program, its data, and its stack.
+	. The heap is above the stack so that the heap can expand
+	  when the process calls 'sbrk'
+
+	. The stack is a single page (4096 bytes)
+	. To guard a stack from growing beyond this size, a
+	  guard page is placed right below the stack. The page is not
+	  mapped and so if the stack overflows, the hardware will
+	  generate an exception.
+	. A real-world OS might instead allocate more space for the
+	  stack so that it can grow beyond one page
+
+
+sbrk
+
+	. 'sbrk' is the system call for a process to shrink or grow
+	  its memory - sbrk( nBytes )
+	. It is implemented by the function 'growproc'
+
+		int sys_sbrk ( void )
+		{
+			int addr;
+			int n;
+
+			...
+
+			addr = myproc()->sz;
+
+			if ( growproc( n ) < 0 )
+			{
+				return - 1;
+			}
+
+			return addr;
+		}
+
+
+	~~~ growproc ~~~
+
+	. If nBytes is positive, growproc allocates one or more
+	  physical pages and maps them at the top of the process's
+	  address space
+	. If nBytes is negative, growproc unmaps one or more
+	  pages from the process's address space and frees the
+	  corresponding physical pages.
+	. To make these changes, Xv6 modifies the process's page
+	  table via 'allocuvm' and 'deallocuvm'
+
+		int growproc ( int n )
+		{
+			uint sz;
+			struct proc *curproc = myproc();
+
+			sz = curproc->sz;
+
+			if( n > 0 )
+			{
+				if( ( sz = allocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
+				{
+					return - 1;
+				}
+			}
+			else if( n < 0 )
+			{
+				if( ( sz = deallocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
+				{
+					return - 1;
+				}
+			}
+
+			curproc->sz = sz;
+
+			switchuvm( curproc );
+
+			return 0;
+		}
+
+
+	. The x86 hardware caches page tables entries in a
+	  Translation Look-aside Buffer (TLB), and when Xv6 changes
+	  the page tables, it must invalidate the cached entries
+	. Xv6 invalidates stale cached entries by reloading cr3 (swithcuvm),
+	  the register that holds the address of the current page table
+
+
+exec
+
+	. exec is the system call that creats the user part of an
+	  address space
+	. it initializes the user part of an address space from
+	  a file stored in the filesystem
+
+	. exec opens the named binary path using 'namei'
+
+		struct elfhdr  elf;
+		struct inode  *ip;
+
+		...
+
+		ip = namei( path )
+
+
+	. Then it reads the ELF header
+
+		if ( readi( ip, ( char* )&elf, 0, sizeof( elf ) ) != sizeof( elf ) )
+		{
+			goto bad;
+		}
+
+
+	. An ELF binary consists of:
+		. an ELF header - "struct elfhdr"
+		. followed by a sequence of program section headers - "stuct proghdr"
+	. Each 'proghdr' describes a section of the application that
+	  must be loaded into memory
+	. Xv6 programs have only one ph, but other systems might have
+	  separate sections for instructions and data
+
+		struct elfhdr
+		{
+			uint   magic;       // must equal ELF_MAGIC
+
+			uchar  elf [ 12 ];  // 1 - 32bit, 2 - 64bit
+			                    // 1 - little endian, 2 - big endian
+			                    // ...
+			                    // target OS e.g. System V, Linux
+			                    // ...
+
+			ushort type;        // object file type e.g. EXEC, DYN
+			ushort machine;     // ISA e.g. x86, MIPS, ARM, RISC-V
+			uint   version;     // ...
+
+			uint   entry;       // entry point where process starts executing
+			uint   phoff;       // points to start of program header table
+			uint   shoff;       // points to start of section header table
+
+			uint   flags;       // ...
+
+			ushort ehsize;      // size of this elf header
+
+			ushort phentsize;   // size of program header entry
+			ushort phnum;       // number of entries in program header table
+
+			ushort shentsize;   // size of section header entry
+			ushort shnum;       // number of entries in section header table
+			ushort shstrndx;    // index of the section	header table entry that contains the section names
+		};
+
+		struct proghdr
+		{
+			uint type;    // type of segment e.g. LOAD, DYNAMIC
+			uint off;     // offset of the segment in the file image
+			uint vaddr;   // virtual address of the segment in memory
+			uint paddr;   // physical address of the segment in memory 
+			uint filesz;  // size in bytes of the segment in the file image
+			uint memsz;   // size in bytes of the segment in memory
+			uint flags;   // ...
+			uint align;   // 0 or 1 no alignment
+		};
+
+	. It then makes a quick check that the file probably contains an
+	  ELF binary.
+	. An ELF binary starts with the four-byte magic number:
+
+		#define ELF_MAGIC 0x464C457F  // 0x7F 'E' 'L' 'F' in little endian
+
+	. If the ELF header has the right magic number, exec assumes the
+	  binary is well-formed
+
+		if ( elf.magic != ELF_MAGIC )
+		{
+			goto bad;
+		}
+
+
+	. exec allocates a new page table with no user mappings using
+	  setupkvm
+
+		pgdir = setupkvm()
+
+
+	. exec then allocates memory for each ELF segment with 'allocuvm',
+	  and loads each segment into memory with 'loaduvm'
+
+		sz = 0;
+
+		for ( i = 0, off = elf.phoff; i < elf.phnum; i += 1, off += sizeof( ph ) )
+		{
+			readi( ip, ( char* )&ph, off, sizeof( ph ) )
+
+			...
+
+			sz = allocuvm( pgdir, sz, ph.vaddr + ph.memsz )
+
+			...
+
+			loaduvm( pgdir, ( char* )ph.vaddr, ip, ph.off, ph.filesz )
+
+			...
+		}
+
+
+	. The program section header's filesz might be less than memsz
+	  indicating that the gap between them should be filled with
+	  zeros rather than read from the file.
+	. For example, in _init, filesz is 15 bytes less than memsz
+
+
+	. readelf -a _init
+
+		ELF Header:
+		  Magic:   7f 45 4c 46 01 01 01 00 00 00 00 00 00 00 00 00
+		  Class:                             ELF32
+		  Data:                              2's complement, little endian
+		  Version:                           1 (current)
+		  OS/ABI:                            UNIX - System V
+		  ABI Version:                       0
+		  Type:                              EXEC (Executable file)
+		  Machine:                           Intel 80386
+		  Version:                           0x1
+		  Entry point address:               0x0
+		  Start of program headers:          52 (bytes into file)
+		  Start of section headers:          7684 (bytes into file)
+		  Flags:                             0x0
+		  Size of this header:               52 (bytes)
+		  Size of program headers:           32 (bytes)
+		  Number of program headers:         2
+		  Size of section headers:           40 (bytes)
+		  Number of section headers:         15
+		  Section header string table index: 12
+
+		...
+
+		Program Headers:
+		  Type           Offset   VirtAddr   PhysAddr   FileSiz MemSiz  Flg Align
+		  LOAD           0x000074 0x00000000 0x00000000 0x00b7d 0x00b8c RWE 0x4
+		  GNU_STACK      0x000000 0x00000000 0x00000000 0x00000 0x00000 RWE 0x10
+
+		...
+
+	. ph would look like,
+
+		ph->type   = ELF_PROG_LOAD
+		ph->off    = 0x00000074
+		ph->vaddr  = 0x00000000
+		ph->paddr  = 0x00000000
+		ph->filesz = 0x00000b7d
+		ph->memsz  = 0x00000b8c
+		ph->flags  = ELF_PROG_FLAG_READ | ELF_PROG_FLAG_WRITE | ELF_PROG_FLAG_EXEC
+		ph->align  = 4
+
+
+	~~~ loaduvm ~~~
+
+	. loaduvm uses walkpgdir to find the physical address of
+	  the allocated memory at which to write each page of the
+	  ELF segment...
+	. loaduvm uses readi to read from the file...
+
+		int loaduvm ( pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz )
+		{
+			uint   i, pa, n;
+			pte_t *pte;
+
+			...
+
+			for ( i = 0; i < sz; i += PGSIZE )
+			{
+				if ( ( pte = walkpgdir( pgdir, addr + i, 0 ) ) == 0 )
+				{
+					panic( "loaduvm: address should exist" );
+				}
+
+				pa = PTE_ADDR( *pte );
+
+				if ( sz - i < PGSIZE )
+				{
+					n = sz - i;
+				}
+				else
+				{
+					n = PGSIZE;
+				}
+
+				if ( readi( ip, P2V( pa ), offset + i, n ) != n )
+				{
+					return - 1;
+				}
+			}
+
+			return 0;
+		}
+
+
+	~~~ exec ~~~
+
+	. Now exec allocates and initializes the user stack
+
+	. It allocates just one stack page.
+
+	. exec places an inaccessible page just below the stack page,
+	  so that programs that stack overflow will fault
+	. This inaccessible page allows Xv6 to deal with arguments
+	  that are too large.
+	  In that situation, the 'copyout' function that exec uses
+	  to copy arguments to the stack will notice that the
+	  destination page is not accessible and return -1
+
+		/// exec.c ///
+
+		// Allocate two pages at the next page boundary.
+		// Make the first inaccessible. Use the second as the user stack.
+		sz = PGROUNDUP( sz );
+
+		if ( ( sz = allocuvm( pgdir, sz, sz + 2 * PGSIZE ) ) == 0 )
+		{
+			goto bad;
+		}
+
+		clearpteu( pgdir, ( char* )( sz - 2 * PGSIZE ) );
+
+		sp = sz;
+
+
+		/// vm.c ////
+
+		// Clear PTE_U on a page. Used to create an inaccessible
+		// page beneath the user stack.
+		void clearpteu ( pde_t *pgdir, char *uva )
+		{
+			pte_t *pte;
+
+			pte = walkpgdir( pgdir, uva, 0 );
+
+			...
+
+			*pte &= ~ PTE_U;
+		}
+
+
+	. exec copies the argument strings to the top of the stack,
+	  one at a time, recording the pointers to them in 'ustack'
+	. It places a null pointer at the end of what will be the
+	  argv list passed to main?
+	. The first three entries in ustack are:
+		. the fake return PC
+		. argc
+		. argv pointer
+
+	. TODO: not sure about push order...
+	. Ex. exec( "/init\0", [ "/init\0", 0 ] )  ??
+
+	       ---->  ---------------
+	      |       0
+	stack |       't'
+	      |       'i'
+	      |       'n'
+	      |       'i'
+	      |       '/'              argv[0]
+	      |       ---------------
+	      |       x                argv[1] if existed
+	      |       ---------------
+	      |       x                argv[2] if existed
+	      |   ->  ---------------
+	      |  |    0                end of arguments
+	'ustack' |    ---------------
+	      |  |    x                argv[2] pointer if existed ...
+	      |  |    ---------------
+	      |  |    x                argv[1] pointer if existed ...
+	      |  |    ---------------
+	      |  |    argv[0] pointer  ...
+	      |  |    ---------------
+	      |  |    ??               argv pointer?
+	      |  |    ---------------
+	      |  |    1                argc
+	      |  |    ---------------
+	      |  |    0xffffffff       fake return PC
+	      |   ->  ---------------
+	      |       ...
+	       ---->  ---------------
+
+
+	/// exec.c ///
+
+		// Push argument strings, prepare rest of stack in ustack.
+		for ( argc = 0; argv[ argc ]; argc += 1 )
+		{
+			...
+
+			// ? why & ~ 3? multiples of 4?
+			sp = ( sp - ( strlen( argv[ argc ] ) + 1 ) ) & ~ 3;
+
+			copyout(
+
+				pgdir,
+				sp,
+				argv[ argc ],
+				strlen( argv[ argc ] ) + 1
+			)
+
+			ustack[ 3 + argc ] = sp;
+		}
+
+		ustack[ 3 + argc ] = 0;  // mark end of arguments
+
+		ustack[ 0 ] = 0xffffffff;             // fake return PC
+		ustack[ 1 ] = argc;
+		ustack[ 2 ] = sp - ( argc + 1 ) * 4;  // argv pointer
+
+		sp -= ( 3 + argc + 1 ) * 4;
+
+		copyout(
+
+			pgdir,
+			sp,
+			ustack,
+			( 3 + argc + 1 ) * 4
+		)
+
+
+	/// vm.c ///
+
+	int copyout ( pde_t *pgdir, uint va, void *p, uint len )
+	{
+		char *buf, *pa0;
+		uint  n, va0;
+
+		buf = ( char* )p;
+
+		while ( len > 0 )
+		{
+			va0 = ( uint )PGROUNDDOWN( va );
+
+			pa0 = uva2ka( pgdir, ( char* )va0 );
+
+			...
+
+			n = PGSIZE - ( va - va0 );
+
+			...
+
+			memmove( pa0 + ( va - va0 ), buf, n );
+
+			len -= n;
+			buf += n;
+
+			va = va0 + PGSIZE;
+		}
+
+		...
+	}
+
+
+	. exec must wait to free the old image until it is sure the
+	  system call will succeed. If the old image is gone, the
+	  system call cannot return -1 to it.
+
+	. once the image is complete, exec can install the
+	  new image and free the old one
+
+		oldpgdir = curproc->pgdir;
+
+		curproc->pgdir   = pgdir;
+		curproc->sz      = sz;
+		curproc->tf->eip = elf.entry;  // main
+		curproc->tf->esp = sp;
+
+		switchuvm( curproc );
+
+		freevm( oldpgdir );
+
+
+	~~~ security ~~~
+
+	. exec loads bytes from the ELF file into memory at addresse
+	  specified by the ELF file
+	. Users or processes can place whatever addresses they want
+	  int an ELF file.
+	. Thus exec is risky because the addresses in the ELF file
+	  can refer to the kernel, accidentally or on purpose
+	. Xv6 performs a number of checks to avoid these risks, but
+	  it is likely it does not do a complete job
+
+
+Real world
+
+	. Xv6 doesn't implement:
+		. stuff don't care about
+		. automatically extending stacks
+	. A "real" kernel alllocator would need to handle both
+	  small and large allocations. Xv6 just does one size
+	  for all.
 
 
 ---------------------------------------------------------------------------------------------
-Traps, interupts, and drivers
+Traps, interrupts, and drivers
 ---------------------------------------------------------------------------------------------
+
+System calls, exceptions, and interrupts
+
+	. Three cases where control must be transferred from a user
+	  program to the kernel:
+		. system call
+		. exception (ex divide by zero, attempting to access
+		  memory for a PTE that is not present)
+		. interrupt
+	. The kernel handles all interrupts rather than user processes
+	  because in most cases, only the kernel has the required
+	  privilege
+
+	. The OS must arrange for the following to happen:
+		. save processor's registers
+		. setup for execution in kernel
+		. choose a place for the kernel to start executing
+		. the kernel must be able to retrieve information about
+		  the event e.g. system call arguments
+
+	. An interrupt stops the normal processor loop and starts
+	  executing a new sequence called an interrupt handler
+	. Before starting the interrupt handler, the processor saves
+	  its registers, so that the OS can restore them when it
+	  returns from the interrupt
+
+
+x86 protection
+
+	. x86 has four protection levels, numbered 0 (most privilege)
+	  to 3 (least)
+	. In practice, most OSs use only 0 (kernel) and 3 (user)
+	. The current privilege level (CPL) by which the processor
+	  executes instructions is stored in %cs register
+
+	. x86 interrupt handlers are defined in the interrupt
+	  descriptor table (IDT)
+	. The IDT has 256 entries, each giving the %cs and %eip to
+	  be used when handling the corresponding interrupt
+
+	. To make a system call, a program invokes the "int n"
+	  instruction, where n specifies the index into the IDT
+	. The int instruction performs the following steps:
+
+		. fetch the n'th descriptor from the IDT
+		. check that CPL is <= DPL (privilege level in the
+		  interrupt descriptor)
+		. save %esp and %ss in CPU-internal registers, but only
+		  if the target segment selector's PL < CPL
+		. load %ss and %esp from a task segment descriptor
+		. push %ss
+		. push %esp
+		. push %eflags
+		. push %cs
+		. push %eip
+		. clear the IF bit in %eflags, but only on an interrupt
+		. set %cs and %eip to the values in the descriptor
+
+	. The check, CPL <= DPL allows the kernel to forbid
+	  int calls to inappropriate IDT entries
+	. For example if a user program tries calling a
+	  forbidden interrupt, for example of an IO device,
+	  it will fail because the interrupt
+	  descriptor would have a DPL of 0 (kernel).
+	. The int instead is treated as "int 13" which is a
+	  general protection fault
+
+	. The int instruction cannot use the user stack to save values,
+	  becaue the process may not have a valid stack pointer.
+	  Instead, the hardware uses the stack specified in the
+	  task segment, which is set by the kernel??
+
+	. Kernel stack after an int instruction
+
+		sp from task ->  -----------  <-
+		segment          ss             |
+		                 -----------    | only present on
+		                 esp            | privilege change
+		                 -----------  <-
+		                 eflags
+		                 -----------
+		                 cs
+		                 -----------
+		                 eip
+		                 -----------
+		                 error code
+		         esp ->  -----------
+		                 ...
+		                 -----------
+
+
+	. %eip is pointing to the address specified in the descriptor
+	. The instruction at that address is the next instruction
+	  to be executed, and the first instruction of the handler for
+	  int n.
+
+	. An OS can use the 'iret' instruction to return from an
+	  'int' instruction.
+	. iret pops the saved values by int from the stack, and resumes
+	  execution at the saved %eip
+
+
+The first system call
+
+	. Previously, we ended with initcode.S invoking a system
+	  call 'exec'
+	. The process pushed the arguments for an exec call on the
+	  processor's stack, and put the system call number in %eax
+
+		start:
+
+			pushl $argv
+			pushl $init
+			pushl $0     # where caller pc would be
+			movl  $SYS_exec, %eax
+			int   $T_SYSCALL
+
+	. The system call numbers match the entries in the syscalls
+	  array, a table of function pointers
+
+		/// syscall.h ///
+
+		// System call numbers
+		#define SYS_fork     1
+		#define SYS_exit     2
+		#define SYS_wait     3
+		#define SYS_pipe     4
+		#define SYS_read     5
+		#define SYS_kill     6
+		#define SYS_exec     7
+		#define SYS_fstat    8
+		#define SYS_chdir    9
+		#define SYS_dup     10
+		#define SYS_getpid  11
+		#define SYS_sbrk    12
+		#define SYS_sleep   13
+		#define SYS_uptime  14
+		#define SYS_open    15
+		#define SYS_write   16
+		#define SYS_mknod   17
+		#define SYS_unlink  18
+		#define SYS_link    19
+		#define SYS_mkdir   20
+		#define SYS_close   21
+
+
+		/// syscall.c ///
+		static int ( *syscalls[] )( void ) = {
+
+			[ SYS_fork   ] sys_fork,
+			[ SYS_exit   ] sys_exit,
+			[ SYS_wait   ] sys_wait,
+			[ SYS_pipe   ] sys_pipe,
+			[ SYS_read   ] sys_read,
+			[ SYS_kill   ] sys_kill,
+			[ SYS_exec   ] sys_exec,
+			[ SYS_fstat  ] sys_fstat,
+			[ SYS_chdir  ] sys_chdir,
+			[ SYS_dup    ] sys_dup,
+			[ SYS_getpid ] sys_getpid,
+			[ SYS_sbrk   ] sys_sbrk,
+			[ SYS_sleep  ] sys_sleep,
+			[ SYS_uptime ] sys_uptime,
+			[ SYS_open   ] sys_open,
+			[ SYS_write  ] sys_write,
+			[ SYS_mknod  ] sys_mknod,
+			[ SYS_unlink ] sys_unlink,
+			[ SYS_link   ] sys_link,
+			[ SYS_mkdir  ] sys_mkdir,
+			[ SYS_close  ] sys_close,
+		};
+
+
+	. We need to arrange that:
+		. the int instruction switches the processor from user
+		  to kernel mode
+		. that the kernel invokes the right kernel function
+		  (ex. sys_exec)
+		. that the kernel can retrieve the arguments for the syscall
+
+
+Assembly trap handlers
+
+	. Xv6 must setup the x86 hardware to do something sensible
+	  when it encounters an int instruction, which causes the
+	  processor to generate a trap
+	. x86 allows for 256 different interrupts:
+		. 0-31 are defined for software exceptions
+	. Xv6 maps 32 hardware interrupts to the range 32-63
+	. Xv6 uses interrupt 64 as the system call interrupt
+
+		#define T_DIVIDE      0  // divide error
+		#define T_DEBUG       1  // debug exception
+		#define T_NMI         2  // non-maskable interrupt
+		#define T_BRKPT       3  // breakpoint
+		#define T_OFLOW       4  // overflow
+		#define T_BOUND       5  // bounds check
+		#define T_ILLOP       6  // illegal opcode
+		#define T_DEVICE      7  // device not available
+		#define T_DBLFLT      8  // double fault
+		// #define T_COPROC   9  // reserved (not used since 486)
+		#define T_TSS        10  // invalid task switch segment
+		#define T_SEGNP      11  // segment not present
+		#define T_STACK      12  // stack exception
+		#define T_GPFLT      13  // general protection fault
+		#define T_PGFLT      14  // page fault
+		// #define T_RES     15  // reserved
+		#define T_FPERR      16  // floating point error
+		#define T_ALIGN      17  // aligment check
+		#define T_MCHK       18  // machine check
+		#define T_SIMDERR    19  // SIMD floating point error
+
+		// These are arbitrarily chosen, but with care not to overlap
+		// processor defined exceptions or interrupt vectors.
+		#define T_SYSCALL     64  // system call
+		#define T_DEFAULT    500  // catchall
+
+		#define T_IRQ0        32  // IRQ 0 corresponds to int T_IRQ
+
+
+	~~~ tvinit ~~~
+
+	. tvinit sets up the 256 entries in the table "idt"
+	. Interrupt "i" is handled by the code at the address in
+	  "vectors[i]"
+	. tvint handles T_SYSCALL specially: it specifies the gate
+	  is of type "trap" by passing a value of 1 as the second
+	  argument to SETGATE.
+	  Trap gates do not clear the IF flag, allowing other interrupts
+	  to occur during the system call handler
+	. tvinit also sets the system call gate privilege to DPL_USER
+
+		struct gatedesc idt     [ 256 ];
+		extern uint     vectors [];  // in vectors.S: array of 256 entry pointers
+
+		void tvinit ( void )
+		{
+			int i;
+
+			for ( i = 0; i < 256; i += 1 )
+			{
+				SETGATE( idt[ i ], 0, SEG_KCODE << 3, vectors[ i ], 0 );
+			}
+
+			// If system call, do not disable interrupts.
+			// Also set privilege level to DPL_USER.
+			SETGATE( idt[ T_SYSCALL ], 1, SEG_KCODE << 3, vectors[ T_SYSCALL ], DPL_USER );
+
+			initlock( &tickslock, "time" );
+		}
+
+	. When changing protection levels, the kernel shouldn't use
+	  the stack of the user's process because it may not be valid.
+	  The user process may be malicious or contain an error that
+	  causes %esp to contain an address that is not part of it's
+	  user memory??
+	. Xv6 programs the x86 hardware to perform a stack switch on
+	  a trap by setting up a task segment descriptor through
+	  which the hardware loads a stack segment selector and a new
+	  value for %esp
+
+	. The function switchuvm stores the address? at the top
+	  of the kernel stack of the user process into the
+	  task segment descriptor??
+
+		// ?
+		mycpu()->ts.ss0  = SEG_KDATA << 3;
+		mycpu()->ts.esp0 = ( uint )p->kstack + KSTACKSIZE;
+
+
+	. When a trap occurs, if it was executing in user mode,
+	  the x86 processor:
+		. loads %esp and %ss from the task segment descriptor,
+		. and pushes the old user %esp and %ss onto the new stack
+
+	. x86 then pushes the %eflags, %cs, and %eip registers
+	. For some traps (ex page fault), x86 also pushes an error
+	  number
+
+	. x86 then loads %eip and %cs from the relevant IDT entry
+
+	. Kernel stack after an int instruction
+
+		sp from task ->  -----------  <-
+		segment          ss             |
+		(cpu->ts.esp0)   -----------    | only present on
+		                 esp            | privilege change
+		                 -----------  <-
+		                 eflags
+		                 -----------
+		                 cs
+		                 -----------
+		                 eip
+		                 -----------
+		                 error code
+		         esp ->  -----------
+		                 ...
+		                 -----------
+
+
+	~~~ vectors.pl ~~~
+
+	. Xv6 uses a Perl script (vectors.pl) to generate the
+	  entry points that the IDT entries point to (vectors.S)
+	. Each entry:
+		. pushes an error code (0) if the processor didn't
+		. pushes the interrupt(trap) number,
+		. then jumps to 'alltraps'
+
+		/// vectors.S ///
+
+		.globl vector0
+		vector0:
+			pushl $0
+			pushl $0
+			jmp alltraps
+
+		...
+
+		.globl vector8
+		vector8:
+			pushl $8
+			jmp alltraps
+
+		...
+
+		.data
+
+			.globl vectors
+			vectors:
+
+				.long vector0
+				.long vector1
+				...
+				.long vector255
+
+
+	~~~ alltraps ~~~
+
+	. 'alltraps' continues to save processor registers.
+	. It pushes %ds, %es, %fs, %gs, and the general purpose regs
+
+		alltraps:
+
+			# Build trap frame.
+			pushl   %ds
+			pushl   %es
+			pushl   %fs
+			pushl   %gs
+			pushal
+
+			...
+
+	. The result of this effort is that the kernel now contains
+	  a "struct trapframe" containing the processor's registers
+	  at the time of the trap
+
+	. Kernel stack looks like this now:
+
+	         ->  sp from task  ->  -----------  <-                 <-
+	        |    segment           ss             | only present     |
+	        |   (cpu->ts.esp0)     -----------    | on privilege     |
+	        |                      esp            | change           |
+	        |                      -----------  <-                   |
+	        |                      eflags                            | pushed
+	        |                      -----------                       | by x86
+	        |                      cs                                |
+	        |                      -----------                       |
+	        |                      eip                               |
+	        |                      -----------                       |
+	   trap |                      error code   <- can be pushed     |
+	  frame |                                      by trap vector    |
+	        |                      -----------  <--------------------
+	        |
+	        |                      trapno       <--------------------  pushed by
+	        |                                                          trap vector
+	        |                      -----------  <--------------------
+	        |                      ds                                |
+	        |                      -----------                       |
+	        |                      es                                |
+	        |                      -----------                       |
+	        |                      fs                                |
+	        |                      -----------                       |
+	        |                      gs                                |
+	        |                      -----------                       |
+	        |                      eax                               |
+	        |                      -----------                       | pushed by
+	        |                      ecx                               | alltraps
+	        |                      -----------                       |
+	        |                      edx                               |
+	        |                      -----------                       |
+	        |                      ebx                               |
+	        |                      -----------                       |
+	        |                      o_esp                             |
+	        |                      -----------                       |
+	        |                      ebp                               |
+	        |                      -----------                       |
+	        |                      esi                               |
+	        |                      -----------                       |
+	        |                      edi                               |
+	         ->            esp ->  -----------  <--------------------
+	                               ...
+	                 p->kstack ->  -----------
+
+
+	. The trap frame contains all the information necessary
+	  to restore the user mode processor registers when the
+	  kernel returns to the current process
+
+	. For our case study, the %eax saved holds the system call
+	  number (SYS_exec) for the kernel to inspect later
+
+	. With the registers saved, alltraps can finish setting
+	  up the processor to run kernel C code
+	. Since the x86 processor sets the %cs and %ss before
+	  entering the handler, alltraps sets %ds and %es
+
+		# Set up data segments.
+		movw  $( SEG_KDATA << 3 ), %ax
+		movw  %ax, %ds
+		movw  %ax, %es
+
+	. Once the segments are set properly, alltraps can
+	  call the C trap handler 'trap'
+	. It pushes %esp (which points to the trapframe it just
+	  created) onto the stack as an argument to trap
+	. Then it calls trap
+
+		# Call trap( tf ), where tf = %esp
+		pushl  %esp
+		call   trap
+		addl   $4, %esp
+
+	. After trap returns, alltraps pops the argument
+	  off the stack by adding to the stack pointer
+	. alltraps then starts executing the code at label
+	  "trapret" which restors user mode registers and
+	  then iret jumps back into user space
+
+		trapret:
+
+			popal
+			popl   %gs
+			popl   %fs
+			popl   %es
+			popl   %ds
+			addl   $0x8, %esp  # trapno and errcode
+			iret
+
+
+	~~~ kernel mode traps ~~~
+
+	. Traps can occur while the kernel is executing
+	. In this case, x86 does not:
+		. switch stacks...
+		. save the stack pointer (%esp)...
+		. save the stack segment selector (%ss)...
+	. Otherwise, the same steps occur as in traps from user mode
+	. When iret later restores a kernel mode %cs,
+	  x86 continues executing in kernel mode?
+
+
+C trap handler
+
+	. 'trap' looks at the hardware trap number tf->trapno
+	  to decide why it has been called and what needs to be done
+	. If the trap is T_SYSCALL, 'trap' calls the system call
+	  handler, 'syscall'
+
+		if ( tf->trapno == T_SYSCALL )
+		{
+			...
+
+			myproc()->tf = tf;
+
+			syscall();
+
+			...
+
+			return;
+		}
+
+
+	. After checking for a system call, 'trap' looks for
+	  hardware interrupts
+	. spurious?
+
+	. If the trap is not a system call, and not a hardware
+	  interrupt, trap assumes it was caused by incorrect
+	  behaviour (ex. divide by zero) as part of the code that
+	  was executing before the trap.
+	. If the code that caused the trap was a user program,
+	  Xv6 prints details and then sets proc->killed to remember
+	  to clean up the user process
+	. If t was the kernel running, there must be a bug in the
+	  kernel. Trap prints details about the surprise and then
+	  calls 'panic'
+
+		switch ( tf->trapno )
+		{
+			case T_IRQ0 + IRQ_TIMER:
+
+				...
+
+			case T_IRQ0 + IRQ_IDE:
+
+				...
+
+			case T_IRQ0 + IRQ_KBD:
+
+				...
+
+			case T_IRQ0 + IRQ_COM1:
+
+				...
+
+			case T_IRQ0 + 7:
+			case T_IRQ0 + IRQ_SPURIOUS:
+
+				...
+
+			default:
+
+				if ( myproc() == 0 || ( tf->cs & 3 ) == 0 )
+				{
+					// In kernel, it must be our mistake.
+					cprintf(
+
+						"unexpected trap %d from cpu %d eip %x ( cr2=0x%x )\n",
+						tf->trapno, cpuid(), tf->eip, rcr2()
+					);
+
+					panic( "trap" );
+				}
+
+				// In user space, assume process misbehaved.
+				cprintf(
+
+					"pid %d %s: trap %d err %d on cpu %d\n"
+					"eip: 0x%x addr: 0x%x --kill proc\n",
+					myproc()->pid, myproc()->name,
+					tf->trapno, tf->err, cpuid(),
+					tf->eip, rcr2()
+				);
+
+				myproc()->killed = 1;
+		}
+
+
+System calls
+
+	. For traps, 'trap' invokes 'syscall'
+	. syscall loads the system call number from the trap frame,
+	  which contains the saved %eax
+	. syscall then indexes into the system call table
+	  and invokes the appropriate entry
+
+		void syscall ( void )
+		{
+			int          num;
+			struct proc *curproc = myproc();
+
+			num = curproc->tf->eax;
+
+			curproc->tf->eax = syscalls[ num ]();
+
+			...
+		}
+
+
+	. syscall record the reurn value of the system call function
+	  in %eax
+	. When the trap returns to user space, it will load the
+	  values from curproc->tf into the machine registers.
+	. Thus when exec returns, it will return the value that
+	  the system call handler returned
+	. Convention for syscall return values:
+		. negative numbers for errors
+		. positive numbers for succcess
+
+
+	~~~ Finding syscall arguments ~~~
+
+	. Helper functions 'argint', 'argptr', 'argstr', and
+	  'argfd' retrieve the n'th system call argument as either
+	  an integer, pointer, a string, or a file descriptor
+
+	. argint uses the user-space %esp register to locate the
+	  n'th argument
+	. %esp points at the return address
+	. The arguments are right above it at %esp + 4
+	. Thus the n'th argument is at ( %esp + 4 ) + 4 * n
+
+		int argint ( int n, int *iptr )
+		{
+			return fetchint( ( myproc()->tf->esp ) + 4 + ( 4 * n ), iptr );
+		}
+
+
+	. argint calls 'fetchint' to read the balue at that
+	  address from user memory and write it to "*iptr"
+	. fetchint can simply cast the address to a pointer
+	  because the user and kernel share the same page table.
+	  However, the kernel must verify that the address lies
+	  within the user part of the adderess space.
+
+		int fetchint ( uint addr, int *ip )
+		{
+			struct proc *curproc = myproc();
+
+			if ( addr >= curproc->sz || addr + 4 > curproc->sz )
+			{
+				return - 1;
+			}
+
+			*ip = *( int* )( addr );
+
+			return 0;
+		}
+
+
+	. argptr fetches the nth system call argument and checks
+	  that this argument is a valid user-space pointer
+	. argstr interprets the nth argument as a pointer.
+	. argfd uses argint to retrieve a file descriptor number,
+	  checks if it is a valid file descriptor, and returns the
+	  corresponding "struct file"
+
+	. The system call implementations (sysproc.c and sysfile.c)
+	  are typically wrappers.
+	. They decode the arguments using the helper functions, and
+	  then call the real implementations
+
+
+Interrupts
+
+	. Let's look at the timer device and timer interrupts.
+	. We would like the timer to generate an interrupt say
+	  100 times per second
+
+	. Early computers had a simple programmable interrupt
+	  controller (PIC)
+	. With the advent of multiprocessor PC boards, a new way of
+	  handling interrupts was needed...
+	. This new approach consists of two parts:
+		. IOAPIC     - (ioapic.c) attached to the IO system...
+		. local APIC - (lapic.c)  attached to each processor...
+	. Xv6 is designed for a board with multiple processors. It
+	  ignores interrupts from the PIC, and instead configures the
+	  IOAPIC and LAPIC
+
+	. The IOAPIC has a table and the processor can program entries
+	  in the table through memory-mapped IO
+	. During initializtion, 'ioapicinit':
+		. disables all interrupts, and
+		. maps interrupt 0 to IRQ0 and so on
+
+		void ioapicinit ( void )
+		{
+			...
+
+			for ( i = 0; i <= maxintr; i += 1 )
+			{
+				ioapicwrite( REG_TABLE + 2 * i, INT_DISABLED | ( T_IRQ0 + i ) );
+
+				...
+			}
+		}
+
+
+	. Specific devices later enable particular interrupts and
+	  specify to whch processor the interrupt should be routed to
+	. For example, Xv6 routes keyboard interrupts to cpu0,
+	  and disk interrupts to the highest numbered processor
+	  on the system
+
+		/// console.c ///
+
+		void consoleinit ( void )
+		{
+			...
+			ioapicenable( IRQ_KBD, 0 );
+		}
+
+
+		/// ide.c ///
+
+		void ideinit ( void )
+		{
+			...
+			ioapicenable( IRQ_IDE, ncpu - 1 );
+			...
+		}
+
+
+	. The timer chip is inside the LAPIC so that each processor
+	  can receive timer interrupts independently...
+	. Xv6 sets it up in 'lapicinit'
+	. It tells the LAPIC to periodically generate an interrupt
+	  at IRQ_TIMER
+
+		lapicw( TIMER, PERIODIC | ( T_IRQ0 + IRQ_TIMER ) );
+
+	. The time interrupts through vector 32
+		. T_IRQ0 + IRQ_TIMER
+		  32     + 0
+
+	. When 'trap' is called for a time interrupt, it does
+	  two things:
+		. increment the ticks variable
+		. calls 'wakeup'??
+		  wakeup may cause the interrupt to return into a
+		  different process
+
+		case T_IRQ0 + IRQ_TIMER:
+
+			...
+
+			ticks += 1;
+
+			wakeup( &ticks );
+
+			...
+
+
+	. Note the only difference between vector 32 and
+	  vector 64 (for system calls) is that vector 32 is an
+	  interrupt gate instead of a trap gate.
+	. Interrupt gates disable interrupts while handling the
+	  current interrupt, while traps do not.
+
+
+Drivers
+
+	. A driver is the code in an OS that manages a particular device.
+	. It tells the device hardware to perform operations,
+	  configures the device to generate interrupts when done,
+	  and handles the resulting interrupts
+
+	. Driver code can be tricky to write because:
+		. a driver executes concurrently with the device it manages
+		. the driver must understand the device's interface
+		  (e.g. which IO ports do what). The interface can be complex
+		  and poorly documented
+
+
+Disk driver
+
+	. The disk driver copies data from and to the disk
+	. Disk hardware traditionally presents the data on the disk as
+	  a numbered sequence of 512-byte blocks (also called sectors)
+	. The block size that an OS uses for its file system might be
+	  different than the sector size that the disk uses
+		. Xv6's block size is identical to the disk's
+
+	. To represent a block, Xv6 has a "struct buf"
+	. The data stored in this structure is often out of sync with the
+	  disk.
+	. It might not yet have been read in from disk, or it might
+	  have been updated but not yet written out to disk
+	. The disk driver must ensure that the rest of Xv6 does not get
+	  confused when the structure is out of sync with the disk
+
+		struct buf {
+
+			int               flags;
+			uint              dev;
+			uint              blockno;
+			struct sleeplock  lock;
+			uint              refcnt;
+			struct buf       *prev;    // LRU cache list
+			struct buf       *next;
+			struct buf       *qnext;   // disk queue
+			uchar             data [ BSIZE ];
+		};
+
+		#define B_VALID 0x2  // buffer has been read from disk
+		#define B_DIRTY 0x4  // buffer needs to be written to disk
+
+
+	~~~ IDE device ~~~
+
+	. IDE controller provides access to connected disks
+	. Falling out of fashion in favour of SCSI and SATA
+
+	. Xv6 represents fs blocks using "struct buf"
+	. BSIZE is identical to the IDE's sector size, thus each buffer
+	  represents the contents of one sector on a particular disk
+	  device
+	. buf->dev holds the device number
+	. buf->data is an in-memorry copy of the disk sector
+	. buf->flag tracks the relationship between memory and disk:
+		. B_VALID means data has been read in
+		. B_DIRTY means data needs to be written out
+
+	. The Xv6 disk driver can handle a BSIZE that is a
+	  multiple of the device's sector size
+	. OSes often use blocks bigger than 512 bytes
+
+
+	~~~ ideinit ~~~
+
+	. The kernel initializes the disk driver at boot time by
+	  calling 'ideinit'
+	. ideinit calls ioapicenable to enable the IDE_IRQ interrupt.
+	. The interrupt is enabled only on the last CPU.
+
+		ioapicenable( IRQ_IDE, ncpu - 1 );
+
+		idewait( 0 );
+
+	. Next, ideinit probes the disk hardware.
+	. It begins by calling 'idewait' to wait for the disk to be
+	  able to accept commands
+	. A PC motherboard presents the status bits of the disk
+	  hardware on IO port 0x1F7.
+	. idewait polls the status bits until the busy bit (IDE_BSY)
+	  is clear and the ready bit (IDE_DRDY) is set
+
+		static int idewait ( int checkerr )
+		{
+			...
+
+			while ( ( ( r = inb( 0x1f7 ) ) & ( IDE_BSY | IDE_DRDY ) ) != IDE_DRDY )
+			{
+				//
+			}
+
+			...
+		}
+
+	. Now that the disk controller is ready, ideinit can check
+	  how many disks are present
+	. It assumes disk 0 is present because the boot loader and
+	  kernel were both loaded from there
+	. It writes to IO port 0x1F6 to select disk 1, and then waits
+	  a while for the status bit to show that the disk is ready.
+	. If not, ideinit assumes the disk is absent
+
+		outb( 0x1f6, 0xe0 | ( 1 << 4 ) );  // select disk 1
+
+		for ( i = 0; i < 1000; i += 1 )
+		{
+			if ( inb( 0x1f7 ) != 0 )
+			{
+				havedisk1 = 1;
+
+				break;
+			}
+		}
+
+
+	~~~ iderw ~~~
+
+	. After ideinit, the disk is not used again until the buffer
+	  cache calls 'iderw'
+
+		struct buf* bread ( uint dev, uint blockno )
+		{
+			...
+
+			if ( ( b->flags & B_VALID ) == 0 )
+			{
+				iderw( b );
+			}
+
+			...
+		}
+
+		void bwrite ( struct buf *b )
+		{
+			...
+
+			b->flags |= B_DIRTY;
+
+			iderw( b );
+		}
+
+	. iderw writes the buffer to disk if the B_DIRTY flag is set, and
+	  reads the buffer from disk if B_VALID is not set (clear)
+
+	. Disk accesses typically take milliseconds, a long time for a
+	  processor.
+	. The boot loader uses pollling (busy waiting). This is fine
+	  because there is nothing else to do.
+	. In an OS however, it is more efficient to let another process
+	  run and arrange to receive an interrupt when the disk operation
+	  has completed
+	. iderw keeps a list of pending disk requests, and uses interrupts
+	  to find out when each request has finished
+	. Although iderw maintans a queue of requests, the simple IDE
+	  controller can handle only one operation at a time
+
+	. iderw adds the buffer "b" to the end of the queue
+
+		b->qnext = 0;
+
+		for ( pp = &idequeue; *pp; pp = &( *pp )->qnext )
+		{
+			//
+		}
+
+		*pp = b;
+
+
+	. If the buffer is at the front of the queue, iderw must send
+	  it to the disk hardware by calling 'idestart'??
+	. Otherwise the buffer will be started once the buffers ahead
+	  of it are taken care of
+
+		if ( idequeue == b )
+		{
+			idestart( b );
+		}
+
+	. idestart issues either a read or a write for the buffer's
+	  device and sector, according to the flags
+	. If the operation is a write, idestart must supply the
+	  data now (using 'outsl') and the interrupt will signal
+	  that the data has been written to disk
+	. If the operation is a read, the interrupt will signal that
+	  the data is ready, and the handler will read it into b
+
+		static void idestart ( struct buf *b )
+		{
+			...
+
+			outb( ... );
+
+			...
+
+			if ( b->flags & B_DIRTY )
+			{
+				outb( 0x1f7, write_cmd );
+				outsl( 0x1f0, b->data, BSIZE / 4 );
+			}
+			else
+			{
+				outb( 0x1f7, read_cmd );
+			}
+		}	
+
+	. Having added the request to the queue and started it if
+	  necessary?, iderw must wait for the result
+	. iderw sleeps, waiting for the interrupt handler to record
+	  in the buffer's flags that the operation is done
+	. While the process is sleeping, Xv6 will schedule other
+	  processes to keep the CPU busy
+
+		while ( ( b->flags & ( B_VALID | B_DIRTY ) ) != B_VALID )
+		{
+			sleep( b, &idelock );
+		}
+
+	. Eventually, the disk will finish its operation and trigger
+	  an interrupt.
+	. trap will call 'ideintr' to handle it
+
+		case T_IRQ0 + IRQ_IDE:
+
+			ideintr();
+
+			...
+
+
+	. ideintr consults the first buffer in the queue to find out
+	  which operation was happening
+	. If the buffer was being read into and the disk controller
+	  has data waiting, ideintr reads the data into the buffer
+	  with 'insl'
+
+		if ( ! ( b->flags & B_DIRTY ) && idewait( 1 ) >= 0 )
+		{
+			insl( 0x1f0, b->data, BSIZE / 4 );
+		}
+
+	. The buffer is now ready.
+	. ideintr sets B_VALID and clears B_DIRTY, and
+	  wakes up any? process waiting on the buffer?
+
+		b->flags |= B_VALID;
+		b->flags &= ~ B_DIRTY;
+
+		wakeup( b );
+
+
+	. Finally identr must pass the next waiting buffer to the disk
+
+		idequeue = b->qnext;
+
+		...
+
+		if ( idequeue != 0 )
+		{
+			idestart( idequeue );
+		}
+
 
 ---------------------------------------------------------------------------------------------
 Locking
 ---------------------------------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ---------------------------------------------------------------------------------------------
 Scheduling
@@ -2154,7 +4228,7 @@ Makefile - ??
 	                  ulib
 	                  uprogs
 
-	xv6.img -> bootblock -> bootasm.S
+	Xv6.img -> bootblock -> bootasm.S
 	                        bootmain.c
 	        -> kernel    -> objs
 	                        entry.S
@@ -2228,12 +4302,12 @@ Makefile - Creating the disk image
 	. Copy "img/bootblock" to first sector
 	. Copy "img/kernel" starting at second sector
 
-		xv6.img: bootblock kernel
+		Xv6.img: bootblock kernel
 
-			dd if=/dev/zero          of=$(IMGDIR)xv6.img count=10000          # zero out 512*count bytes
+			dd if=/dev/zero          of=$(IMGDIR)Xv6.img count=10000          # zero out 512*count bytes
 
-			dd if=$(IMGDIR)bootblock of=$(IMGDIR)xv6.img        conv=notrunc  # first sector (512 bytes)
-			dd if=$(IMGDIR)kernel    of=$(IMGDIR)xv6.img seek=1 conv=notrunc  # second sector
+			dd if=$(IMGDIR)bootblock of=$(IMGDIR)Xv6.img        conv=notrunc  # first sector (512 bytes)
+			dd if=$(IMGDIR)kernel    of=$(IMGDIR)Xv6.img seek=1 conv=notrunc  # second sector
 
 
 EFLAGS register

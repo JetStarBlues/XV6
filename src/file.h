@@ -5,9 +5,10 @@ struct file
 		FD_NONE,
 		FD_PIPE,
 		FD_INODE
+
 	} type;
 
-	int           ref; // reference count
+	int           ref;       // reference count
 	char          readable;
 	char          writable;
 	struct pipe  *pipe;
@@ -30,7 +31,7 @@ struct inode
 	short            minor;
 	short            nlink;
 	uint             size;
-	uint             addrs[NDIRECT+1];
+	uint             addrs [ NDIRECT + 1 ];
 };
 
 // table mapping major device number to

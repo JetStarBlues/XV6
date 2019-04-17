@@ -32,6 +32,6 @@ init:
 .p2align 2
 argv:
 
-	.long init
+	.long init  # argv[0] something about name, unix.stackexchange.com/questions/315812/
 	.long 0
 

@@ -26,31 +26,6 @@ Miscellaneous
 
 		'objdump -b binary -m i386 -D randomFile'
 
-	. Boot sequence:
-
-		. main()  // main.c
-			. uartinit()
-				>> "xv6..."
-
-		. mpmain()  // main.c
-			>> "cpu1: starting 1
-				cpu0: starting 0"
-			. scheduler()
-
-		. iinit()  // fs.c  (called by???)
-
-			>> "sb: size 1000 nblocks 941 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 58"
-
-		. main()  // init.c  (called by???)
-
-			>> "init: starting sh"
-
-
-		^ Trace with gdb
-
-
-
-
 
 
 .... Update GDB cheatsheet

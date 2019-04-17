@@ -24,6 +24,7 @@ struct
 	struct spinlock lock;
 	int             use_lock;
 	struct run     *freelist;
+
 } kmem;
 
 // Initialization happens in two phases.
@@ -67,6 +68,7 @@ void kfree ( char *v )
 {
 	struct run *r;
 
+	// Not page aligned or outside valid range
 	if ( ( uint )v % PGSIZE || v < end || V2P( v ) >= PHYSTOP )
 	{
 		panic( "kfree" );

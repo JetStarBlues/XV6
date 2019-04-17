@@ -23,6 +23,8 @@ void tvinit ( void )
 		SETGATE( idt[ i ], 0, SEG_KCODE << 3, vectors[ i ], 0 );
 	}
 
+	// If system call, do not disable interrupts.
+	// Also set privilege level to DPL_USER.
 	SETGATE( idt[ T_SYSCALL ], 1, SEG_KCODE << 3, vectors[ T_SYSCALL ], DPL_USER );
 
 	initlock( &tickslock, "time" );

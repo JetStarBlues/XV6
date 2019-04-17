@@ -38,7 +38,7 @@ static pte_t * walkpgdir( pde_t *pgdir, const void *va, int alloc )
 	pde_t *pde;
 	pte_t *pgtab;
 
-	pde = &pgdir[ PDX( va ) ];
+	pde = &pgdir[ PDX( va ) ];  // get pde index from va
 
 	if ( *pde & PTE_P )
 	{
@@ -60,19 +60,19 @@ static pte_t * walkpgdir( pde_t *pgdir, const void *va, int alloc )
 		*pde = V2P( pgtab ) | PTE_P | PTE_W | PTE_U;
 	}
 
-	return &pgtab[ PTX( va ) ];
+	return &pgtab[ PTX( va ) ];  // get pte index from va
 }
 
 // Create PTEs for virtual addresses starting at va that refer to
 // physical addresses starting at pa. va and size might not
 // be page-aligned.
-static int mappages( pde_t *pgdir, void *va, uint size, uint pa, int perm )
+static int mappages( pde_t *pgdir, void *va, uint size, uint pa, int permissions )
 {
 	char  *a,
 	      *last;
 	pte_t *pte;
 
-	a    = ( char* )PGROUNDDOWN( ( uint )va );
+	a    = ( char* )PGROUNDDOWN(   ( uint )va );
 	last = ( char* )PGROUNDDOWN( ( ( uint )va ) + size - 1 );
 
 	for ( ;; )
@@ -87,7 +87,7 @@ static int mappages( pde_t *pgdir, void *va, uint size, uint pa, int perm )
 			panic( "remap" );
 		}
 
-		*pte = pa | perm | PTE_P;
+		*pte = pa | permissions | PTE_P;
 
 		if ( a == last )
 		{
@@ -130,12 +130,37 @@ static struct kmap
 	uint  phys_start;
 	uint  phys_end;
 	int   perm;
+
 } kmap[] = {
 
-	{ ( void* )KERNBASE, 0,               EXTMEM,      PTE_W },  // I/O space
-	{ ( void* )KERNLINK, V2P( KERNLINK ), V2P( data ), 0     },  // kern text+rodata
-	{ ( void* )data,     V2P( data ),     PHYSTOP,     PTE_W },  // kern data+memory
-	{ ( void* )DEVSPACE, DEVSPACE,        0,           PTE_W },  // more devices
+	// I/O space
+	{
+		( void* )KERNBASE,
+		0,
+		EXTMEM,
+		PTE_W
+	},
+	// Kernel text + rodata
+	{
+		( void* )KERNLINK,
+		V2P( KERNLINK ),
+		V2P( data ),
+		0
+	},
+	// Kernel data + memory
+	{
+		( void* )data,
+		V2P( data ),
+		PHYSTOP,
+		PTE_W
+	},
+	// More devices
+	{
+		( void* )DEVSPACE,
+		DEVSPACE,
+		0,
+		PTE_W
+	}
 };
 
 // Set up kernel part of a page table.
@@ -157,7 +182,7 @@ pde_t* setupkvm ( void )
 	}
 
 	for ( k = kmap; k < &kmap[ NELEM( kmap ) ]; k += 1 )
-
+	{
 		if (
 			mappages(
 
@@ -172,6 +197,7 @@ pde_t* setupkvm ( void )
 
 			return 0;
 		}
+	}
 
 	return pgdir;
 }
@@ -296,6 +322,7 @@ int loaduvm ( pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz )
 			return - 1;
 		}
 	}
+
 	return 0;
 }
 
@@ -432,7 +459,7 @@ void clearpteu ( pde_t *pgdir, char *uva )
 		panic( "clearpteu" );
 	}
 
-	*pte &= ~PTE_U;
+	*pte &= ~ PTE_U;
 }
 
 // Given a parent process's page table, create a copy
@@ -526,6 +553,7 @@ int copyout ( pde_t *pgdir, uint va, void *p, uint len )
 	while ( len > 0 )
 	{
 		va0 = ( uint )PGROUNDDOWN( va );
+
 		pa0 = uva2ka( pgdir, ( char* )va0 );
 
 		if ( pa0 == 0 )
@@ -544,7 +572,8 @@ int copyout ( pde_t *pgdir, uint va, void *p, uint len )
 
 		len -= n;
 		buf += n;
-		va   = va0 + PGSIZE;
+
+		va = va0 + PGSIZE;
 	}
 
 	return 0;
