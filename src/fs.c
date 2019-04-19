@@ -190,10 +190,11 @@ static void bfree ( int dev, uint b )
 // dev, and inum.  One must hold ip->lock in order to
 // read or write that inode's ip->valid, ip->size, ip->type, &c.
 
-struct
-{
+struct {
+
 	struct spinlock lock;
-	struct inode    inode[ NINODE ];
+	struct inode    inode [ NINODE ];
+
 } icache;
 
 void iinit ( int dev )

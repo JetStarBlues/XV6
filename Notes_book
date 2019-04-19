@@ -8,8 +8,8 @@ System calls
 	. exit   () ...................... Terminate the current process
 	. wait   () ...................... Wait for a child process to exit
 	. kill   ( pid ) ................. Terminate process pid
-	. getpid () ...................... Return the current process’s pid
-	. sbrk   ( n ) ................... Grow process’s memory by n bytes
+	. getpid () ...................... Return the current process's pid
+	. sbrk   ( n ) ................... Grow process's memory by n bytes
 
 	. open   ( filename, flags ) ..... Open a file; the flags indicate read/write
 	. read   ( fd, buf, n ) .......... Read n bytes from an open file into buf
@@ -24,7 +24,7 @@ System calls
 	. unlink ( filename ) ............ Remove a file
 
 	. exec   ( filename, *argv ) ..... Load a file and execute it
-	. pipe   ( p ) ................... Create a pipe and return fd’s in p
+	. pipe   ( p ) ................... Create a pipe and return fd's in p
 
 	. sleep  ( n ) ................... Sleep for n clock ticks
 
@@ -3815,39 +3815,816 @@ Disk driver
 Locking
 ---------------------------------------------------------------------------------------------
 
+Intro
+
+	. Xv6 runs on multiprocessors
+	. The CPUs share RAM, and Xv6 exploits this sharing to
+	  maintain data structures that all CPUs read and write
+
+	. Any code that accesses shred data concurrently must have
+	  a strategy for maintaining correctness despite concurrency
+	. Concurrency can arise from accesses by multiple cores,
+	  multiple threads, or by interrupt code
+
+	. Locking is one strategy used to handle concurrency
+	. A lock provides mutual exclusion, ensuring that only one
+	  CPU at a time can hold the lock
 
 
+Race conditions
+
+	. A race condition is s situation in which a memory location
+	  is accessed concurrently, and at least one access is a write
+	. Leads to:
+		. lost update, or
+		. a read of incompletely updated data
+
+	. For example, unsecure
+
+		struct list {
+
+			int          data;
+			struct list *next;
+		}
+
+		struct list *list = 0;
+
+		void insert ( int data )
+		{
+			struct list *l;
+
+			l = malloc( sizeof *l );
+
+			l->data = data;
+			l->next = list;
+
+			list = l;
+		}
+
+		. If two CPUs execute "insert" at the same time, ...
+
+	. For example, secure
+
+		struct list {
+
+			int          data;
+			struct list *next;
+		}
+
+		struct list *list = 0;
+		struct lock  listlock;
+
+		void insert ( int data )
+		{
+			struct list *l;
+
+			acquire( &listlock );
+
+			l = malloc( sizeof *l );
+
+			l->data = data;
+			l->next = list;
+
+			list = l;
+
+			release( &listlock );
+		}
+
+	. The sequence of instructions between 'acquire' and
+	  'release' is often called a "critical section"
+	. A lock ensures that only one CPU at a time can
+	  operate on the data structure? in the critical section  
 
 
+Locks
+
+	. Xv6 has two types of locks: spin-locks and sleep-locks
+
+	. Xv6 represents a spin-lock as a "struct spinlock"
+
+		struct spinlock {
+
+			uint        locked;      // Is the lock held?
+
+			// For debugging:
+			char       *name;        // Name of lock
+			struct cpu *cpu;         // The cpu holding the lock
+			uint        pcs [ 10 ];  // The call stack (an array of program counters)
+			                         // that locked the lock
+		};
+
+	. spinlock->locked is:
+		. zero when the lock is available
+		. non-zero when it is held
 
 
+	~~~ acquire ~~~
+
+	. One would think that Xv6 should acquire a lock as follows:
+
+		void acquire ( struct spinlock *lk )
+		{
+			for ( ;; )  // spin/loop until acquire lock
+			{
+				if ( ! lk->locked )
+				{
+					lk->locked = 1;
+
+					break;
+				}
+			}
+		}
+
+	. However, this approach does not guarantee mutual exclusion
+	. It could happen that two CPUs simultaneously reach the
+	  line "if ( ! lk->locked )" and both seeing the condition
+	  as true, each grab the lock by executing "lk->locked = 1"
+	. At this point, two different CPUs hold the lock
+
+	. To avoid this situation, we want the two actions
+	  "if ( ! lk->locked )" and "lk->locked = 1", to be executed
+	  at the same time as one step
+	. To accomplish this, Xv6 relies on the x86 "xchg" instruction
+	. xchg swaps a word in memory with the contents of a register
+	. acquire repeats xchg in a loop:
+		. each iteration simulataneously reads lk->locked and
+		  sets its value to 1
+		. if the lock is already held, lk-locked will already
+		  be 1, so the xchg returns 1 and the loop continues
+		. if the lock is not held, xchg returns 0 and the
+		  loop breaks
+
+		/// spinlock.c ///
+
+		void acquire ( struct spinlock *lk )
+		{
+			...
+
+			while( xchg( &lk->locked, 1 ) != 0 )
+			{
+				//
+			}
+
+			...
+		}
 
 
+		/// x86.h ///
+
+		static inline uint xchg ( volatile uint *addr, uint newval )
+		{
+			uint result;
+
+			// The + in "+m" denotes a read-modify-write operand.
+			asm volatile(
+
+				"lock; xchgl %0, %1" :
+				"+m" ( *addr ), "=a" ( result ) :
+				"1" ( newval ) :
+				"cc"
+			);
+
+			return result;
+		}
+
+	. Once the lock is acquired, acquire records for debugging
+	  the CPU and the stack trace that acquired the lock.
+	. If a process forgets to release a lock, this information
+	  can help identify the culprit
+	. These debugging fields are protected by the lock? and
+	  must only be edited while holding the lock
+
+		lk->cpu = mycpu();
+
+		getcallerpcs( &lk, lk->pcs );
 
 
+	~~~ release ~~~
+
+	. 'release' is the opposite of acquire:
+		. it clears the debugging fields, and
+		. releases the lock
+	. It too uses an assembly instruction to clear locked,
+	  because clearing this field should be atomic (one instruction)
+
+		void release ( struct spinlock *lk )
+		{
+			...
+
+			lk->pcs[ 0 ] = 0;
+			lk->cpu      = 0;
+
+			...
+
+			// Release the lock, equivalent to lk->locked = 0
+			asm volatile( "movl $0, %0" : "+m" ( lk->locked ) :  );
+
+			...
+		}
 
 
+	~~~ ... ~~~
+
+	. Xv6's implementation of spin-locks is x86-specific.
 
 
+Using locks
+
+	. In the disk driver, CPUs can add new requests to the
+	  queue concurrently
+	. To protect the list, iderw acquires 'idelock' and
+	  releases it at the end of the function
+
+		static struct spinlock idelock;
+
+		void ideintr ( void )
+		{
+			acquire( &idelock );
+
+			...
+
+			release( &idelock );
+		}
+
+	. A hard part of using locks is deciding how many locks to use
+	  and which data each lock protects
+	. It is important for efficiency not to lock too much as
+	  locks reduce parallelism
+
+	. Xv6 uses the following locks:
+
+		. buf's b->lock (buf.h)
+			. serializes operations on each block buffer
+
+		. bcache.lock (bio.c)
+			. protects allocation of block buffer cache entries
+
+		. cons.lock (console.c)
+			. serializes access to console hardware,
+			  avoids intermixed output
+
+		. ftable.lock (file.c)
+			. serializes allocation of a struct file in file table
+
+		. icache.lock (fs.c)
+			. protects allocation of inode cache entries
+
+		. inode's ip->lock (file.h)
+			. serializes operations on each inode and its content
+
+		. idelock (ide.c)
+			. serializes access to disk hardware and disk queue
+
+		. kmem.lock (kalloc.c)
+			. serializes allocation of memory
+
+		. log.lock (log.c)
+			. serializes operations on the transaction log
+
+		. pipe's p->lock (pipe.c)
+			. serializes operations on each pipe
+
+		. ptable.lock (proc.c)
+			. serializes context switching, and operations
+			  on proc->state and proctable
+
+		. tickslock (trap.c)
+			. serializes operations on the ticks counter
 
 
+Deadlock and lock ordering
+
+	. If a code path through the kernel must hold several
+	  locks at the same time, it is important that all code
+	  paths acquire the locks in the same order to avoid deadlock
+	. For example:
+		. suppose a thread_1 executes one code path and
+	      acquires lock_a
+	    . suppose a thread_2 executs another code path and
+	      acquires lock_b
+	    . thread_1 then tries to acquire lock_b. It cannot because
+	      thread_2 holds it
+	    . thread_2 won't release lock_b because it is waiting
+	      to acquire lock_a...
+	    . Both acquires will block indefinitely because each
+	      thread holds the lock needed by the other, but won't
+	      release it until its acquire returns
+	    . This can be avoided if both threads acquire the locks
+	      in the same order
+
+	. The need for a global lock acquisition order means that
+	  callers must invoke functions in a way that causes locks
+	  to be acquired in the agreed-on order
+
+	. For example, creating a file requires simulataneously holding:
+		. a lock on the directory,
+		. a lock on the new file's inode,
+		. a lock on a disk block buffer,
+		. idelock,
+		. and ptable->lock
+	. To avoid deadlock, file system code always acquires locks in
+	  the above order...
 
 
+Interrupt handlers
+
+	. Xv6 uses spinlocks to protect data that is used by both
+	  interrupt handles and threads.
+	. For example, a timer interrupt might increment 'ticks' at
+	  the same time that a kernel thread reads ticks in 'sys_sleep'.
+	. The lock 'tickslock' serializes the two accesses.
+
+		/// trap.c ///
+
+		case T_IRQ0 + IRQ_TIMER:
+
+			acquire( &tickslock );
+
+			ticks += 1;
+
+			...
+
+			release( &tickslock );
 
 
+		/// sysproc.c ///
+
+		int sys_sleep ( void )
+		{
+			...
+
+			acquire( &tickslock );
+
+			ticks0 = ticks;
+
+			...
+
+			release( &tickslock );
+
+			...
+		}
 
 
+	. Interrupts can cause deadlocks
+	. For example,
+		. suppose iderw holds the idelock and then gets
+		  interrupted to run ideintr.
+		. ideintr would try to acquire idelock, see it was held,
+	      and wait for it to be released.
+		. In this situation, idelock will never be released.
+		  Only iderw can realease it, and it will not continue
+		  until ideintr returns
+
+	. To avoid this situation, if a spinlock is used by
+	  an interrupt handler, a processor must never hold that
+	  lock with interrupts enabled
+	. However, interrupts can still occur on other CPUs???
+	  An interrupt handler can wait for a thread on another
+	  CPU to release a spinlock....???
+
+	. Xv6 re-enables interrupts when a processor holds no spinlocks
+	. It must do a little bookkeeping to cope with nested
+	  critical sections
+	. acquire calls 'pushcli' and release calls 'popcli'
+	  to track the nesting level of locks on the current processor
+	. When that count reaches zero, popcli restores the interrupt
+	  enable state that existed at the start of the outermost
+	  critical section
+
+		void pushcli ( void )
+		{
+			...
+
+			cli();
+
+			// Save interrupt state at start of outermost
+			if ( mycpu()->ncli == 0 )
+			{
+				mycpu()->intena = eflags & FL_IF;
+			}
+
+			mycpu()->ncli += 1;  // track depth of pushcli nesting
+		}
+
+		void popcli ( void )
+		{
+			...
+
+			mycpu()->ncli -= 1;
+
+			...
+
+			// Reached outermost, so restore interrupt state
+			if ( mycpu()->ncli == 0 && mycpu()->intena )
+			{
+				sti();
+			}
+		}
 
 
+Instruction and memory ordering
+
+	. This chapter has assumed that code executes in the order
+	  in which it appears in the program
+	. Many compilers and processors however, execute code out of
+	  order to acheive higher performance
+	. For example if an instruction takes many cycles to complete,
+	  a CPU may want to issue the instruction early so
+	  that it can overlap with other instructions
+
+	. To tell the hardware and compiler not to perform such
+	  re-orderings, Xv6 uses GCC's "__sync_synchronize()"
 
 
+Sleep locks
+
+	. Sometimes Xv6 needs to hold a lock for a long time
+	. For example, the file system keeps a file locked while
+	  reading and writing its content on the disk, and these
+	  disk operations can take tens of milliseconds
+	. Efficieny demands that the processor be yielded while
+	  waiting so that other threads can use it
+	. This means that Xv6 needs locks that work well when held
+	  across context switches...
+
+		struct sleeplock {
+
+			uint            locked;  // Is the lock held?
+			struct spinlock lk;      // spinlock protecting this sleep lock
+
+			// For debugging:
+			char           *name;    // Name of lock
+			int             pid;     // Process holding lock
+		};
 
 
+	. Xv6 sleeplocks support yielding the processor during
+	  their critical sections
+	. This property poses a design challenge:
+		. if thread_1 holds lock_a and has yielded the processor,
+		  and thread_2 wishes to acquire lock_a,
+		. we have to ensure that thread_1 can execute while
+		  thread_2 is waiting??, so that thread_1 can realease
+		  lock_a
+		. thread_2 cannot use the spinlock acquire function
+		  because it would spin with interrupts turned off,
+		  which would prevent thread_1 from running???
+
+	. sleeplock's variant of acquire - acquiresleep' - yields
+	  the processor while waiting, but does not disable interrupts.
+	. At a high level:
+		. a sleeplock has "locked" field that is protected by a
+		  spinlock
+		. acquiresleep's call to 'sleep' atomically yields the
+		  CPU and releases the spinlock
+		. the result is that other threads can execute while
+		  acquiresleep waits
+
+		void acquiresleep ( struct sleeplock *lk )
+		{
+			acquire( &lk->lk );
+
+			while ( lk->locked )
+			{
+				sleep( lk, &lk->lk );
+			}
+
+			lk->locked = 1;
+			lk->pid    = myproc()->pid;
+
+			release( &lk->lk );
+		}
+
+	. Because sleeplocks leave interrupts enabled, they cannot
+	  be used in interrupt handlers
+	. Because acquiresleep may yield the processor, sleeplocks
+	  cannot be used inside spinlock critical sections??
+
+	. Xv6 uses spinlocks in most situations
+	. It uses sleeplocks only in the file system where it is
+	  convenient to be able to hold locks across lengthy disk
+	  operations
+
+
+Limitations of locks
+
+	. Sometimes a function uses data which must be guarded by
+	  a lock, but the function is called both from code that
+	  already holds the lock and from code that wouldn't otherwise
+	  need the lock
+
+	. One way to handle this is to have two variants of the
+	  function: one that acquires the lock, and one that expects
+	  the calller to already hold the lock
+	. For example "wakeup" acquires a needed lock, whereas
+	  "wakeup1" expects the caller to hold the lock
+
+	. Another approach is to require the caller to hold the
+	  lock regardless of whether the caller needs it or not
+	. For example "sched" expects ptable->lock to always be
+	  held by its caller
+
+	. A situation in which locks are insufficient is when one
+	   thread needs to wait for another thread's update to a
+	   data structure
+	. For example,
+	 	. when a pipe's reader waits for some other thread
+	 	  to write the pipe...
+	 	. the waiting thread (reader) cannot hold the lock
+	 	  on the data, since this would prevent the update (write)
+	 	  it is waiting for
+	. Instead Xv6 provides a separate mechanism that jointly
+	  manages the lock and event wait: see "sleep" and "wakeup"??
+
+
+Real world
+
+	~~~ Pthreads ~~~
+
+	. Most OSs support POSIX threads (Pthreads) which allow a
+	  user process to have several threads running concurrently
+	  on different CPUs
+	. Pthreads has support for user-level locks, barriers
+	  (__sync_synchronize) etc.
+	. Pthreads require support from the OS. For example:
+		. it should be the case that if one Pthread blocks in
+		  a system call?, another Pthread of the same process
+		  should be able to run on that processor
+		. if a Pthread changes its process's address space
+		  (ex grow or shrink it), the kernel must arrange that
+		  other CPUs that run threads of the same process
+		  update their hardware page tables to reflect the
+		  change in the address space.
+		  On x86 this involves shooting dow the translation
+		  look-aside buffer (TLB) of other CPUs using
+		  inter-processor interrupts (IPIs)
+
+
+	~~~ ... ~~~
+
+	. Locks can be expensive in many CPUs try to acquire the
+	  same lock at the same time
+	. If one CPU has the lock cached in its local cache, and
+	  another CPU must acquire the lock, then the atomic
+	  instruction to update the cache line that holds the
+	  lock must move the ... from one processor's cache to the
+	  other processor's cache ... Fetching a cache line from
+	  another process is expensive...
 
 
 ---------------------------------------------------------------------------------------------
 Scheduling
 ---------------------------------------------------------------------------------------------
+
+Intro
+
+	. An OS is likely to run with more processes than the
+	  computer has processors
+	. A plan is needed to time-share the processors among
+	  the processes
+	. Ideally sharing would be transparent to user processes.
+	  A common approach is to provide each process with the
+	  illusion that it has its own virtual CPU by multiplexing
+	  the processes onto ?
+
+
+Multiplexing
+
+	. Multiplexing creates the illusion that each process has
+	  its own CPU
+	. Xv6 multiplexes by switching each CPU from one process
+	  to another in two situations:
+		. 'sleep' and 'wakeup'
+		. periodically when a process is executing user instructions
+
+	. Implementing multiplexing poses a few challenges:
+		. How to switch from one process to another
+			. Xv6 uses the standard mechanism of context switching?
+			. Although the idea is simple, the implementation is
+			  not straightforward
+		. How to do context switching transparently?
+			. Xv6 uses the standard technique of using the timer
+			  interrupt handler to drive context switches
+		. Many CPUs may be switching amoung processes concurrently.
+		  A locking plan is necessary to avoid races.
+		. When a process has exited, its memory and other
+		  resources must be freed, but it cannot do all of this
+		  itself because (for example) it cannot free its own
+		  kernel stack while still using it?
+		. When a CPU switches from one process to another, it must
+		  know which process it is running so that it can save its
+		  state in the correct proc structure...
+
+	. Xv6 must provide ways for processes to coordinate among
+	  themselves
+	. For example:
+		. a parent process may neeed to wait for one of
+	      its children to exit
+	    . a process reading a pipe may need to wait for some
+	      other process to write the pipe
+	. Rather than making the waiting process waste CPU by
+	  repeatedly checking whether the desired event has happened,
+	  Xv6 allows a process to give up the CPU and sleep waiting
+	  for an event.
+
+	. As an example, this chapter explores the implementation
+	  of pipes
+
+
+Context switching
+
+	. Steps involved in switching from one user processor to
+	  another:
+		1. user-kernel transition (system call or interrupt) to
+		   the old process's kernel thread
+		2. context switch to the local CPU's scheduler thread
+		3. context switch to the new process's kernel thread
+		4. a trap return to the user-level of the new process
+
+	. For example:
+
+		shell (user)
+		|
+		| ? save
+		v
+		shell (kernel)
+		|
+		| swtch
+		v
+		scheduler (kernel)
+		|
+		| swtch
+		v
+		cat (kernel)
+		|
+		| ? restore
+		v
+		cat (user)
+
+
+	. Xv6 uses two context switches because the scheduler runs
+	  on its own stack in order to simplify cleaning up the
+	  user processes (as we will see when looking at 'exit'
+	  and 'kill')
+
+	. Every Xv6 process has its own kernel stack and register set
+	. Each CPU has a separate scheduler thread for use when
+	  it is executing the scheduler rather than using any
+	  process's kernel thread
+	. Switching from one thread to another involves:
+		. saving the old thread's CPU registers, and
+		. restoring the previously-saved registers of the new thread
+	. The fact that %esp and %eip are saved and restored means
+	  that the CPU will switch stacks and switch what code is
+	  executing
+
+
+	~~~ swtch ~~~
+
+	. 'swtch' doesn't directly know about threads
+	. It just saves and restores register sets, called contexts
+	. When it is time for a process to give up the CPU,
+	  the process's kernel thread calls swtch to save its own
+	  context and  return to the scheduler context
+
+	. Each context is represented by a "struct context*", a
+	  pointer to a structure stored on the kernel stack involved
+
+		struct context
+		{
+			uint edi;
+			uint esi;
+			uint ebx;
+			uint ebp;
+			uint eip;
+		};
+
+	. swtch takes two arguments:
+		. "struct context **old"
+		. "struct context *new"
+	. It,
+		. pushes the current CPU register onto the stack,
+	  	. saves the stack pointer in *old,
+	  	. then copies 'new' to %esp,
+	  	. pops previously saved registers,
+	  	. and returns
+
+
+		# void swtch ( struct context **old, struct context *new );
+		swtch:
+
+			...
+
+			# Save old callee-saved registers
+			pushl  %ebp
+			pushl  %ebx
+			pushl  %esi
+			pushl  %edi
+
+			# Switch stacks
+			movl   %esp, ( %eax )  # [old] = esp
+			movl   %edx, %esp      # esp = new
+
+			# Load new callee-saved registers
+			popl   %edi
+			popl   %esi
+			popl   %ebx
+			popl   %ebp
+
+			ret
+
+
+	. 'swtch' pushes (saves) register states (ebp, ebx, esi, edi)
+	  creating a "struct context" on the current stack
+	. %eip has already been saved on the stack by the caller
+	. swtch saves %esp indirectly as the (struct context)
+	  address pointed to by 'old'
+
+		pushl ...
+
+		movl %esp, ( %eax )  # [old] = esp
+
+	. Having saved the old context, swtch moves to the new one
+	. It moves the pointer to the new context into %esp
+	. It pops the values from the (struct context in the) stack
+	  of the new process onto registers (i.e. restores state)
+
+		movl %edx, %esp  # esp = new
+
+		popl ...
+
+	. 'yield' calls 'sched' which calls 'swtch' to:
+		. save the current context in proc->context, and
+		. switch to the scheduler context previously saved
+		  in cpu->scheduler
+	. cpu->scheduler was saved by the call 'scheduler'
+	  previously made to swtch
+
+
+		void yield ( void )
+		{
+			myproc()->state = RUNNABLE;
+
+			sched();
+
+			...
+		}
+
+		void sched ( void )
+		{
+			...
+
+			swtch( &p->context, mycpu()->scheduler );
+
+			...
+		}
+
+		void scheduler ( void )
+		{
+			...
+
+			swtch( &( c->scheduler ), p->context );
+
+			...
+		}
+
+
+Scheduling
+
+	. hj
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ---------------------------------------------------------------------------------------------
 File system

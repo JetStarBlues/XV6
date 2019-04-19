@@ -78,6 +78,7 @@ struct segdesc
 
 #endif
 
+#define DPL_KERN 0x0  // Kernel DPL (JK)
 #define DPL_USER 0x3  // User DPL
 
 // Application segment type bits

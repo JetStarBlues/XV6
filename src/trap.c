@@ -20,7 +20,7 @@ void tvinit ( void )
 
 	for ( i = 0; i < 256; i += 1 )
 	{
-		SETGATE( idt[ i ], 0, SEG_KCODE << 3, vectors[ i ], 0 );
+		SETGATE( idt[ i ], 0, SEG_KCODE << 3, vectors[ i ], DPL_KERN );
 	}
 
 	// If system call, do not disable interrupts.
@@ -121,9 +121,9 @@ void trap ( struct trapframe *tf )
 		//PAGEBREAK: 13
 		default:
 
-			if ( myproc() == 0 || ( tf->cs & 3 ) == 0 )
+			// In kernel, it must be our mistake.
+			if ( myproc() == 0 || ( tf->cs & 3 ) == DPL_KERN )
 			{
-				// In kernel, it must be our mistake.
 				cprintf(
 
 					"unexpected trap %d from cpu %d eip %x ( cr2=0x%x )\n",

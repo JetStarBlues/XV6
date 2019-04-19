@@ -9,8 +9,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
-void
-initlock ( struct spinlock *lk, char *name )
+void initlock ( struct spinlock *lk, char *name )
 {
 	lk->name   = name;
 	lk->locked = 0;
@@ -33,7 +32,7 @@ void acquire ( struct spinlock *lk )
 	// The xchg is atomic.
 	while( xchg( &lk->locked, 1 ) != 0 )
 	{
-		//
+		// spin, waiting for lock to become available
 	}
 
 	// Tell the C compiler and the processor to not move loads or stores
@@ -128,12 +127,13 @@ void pushcli ( void )
 
 	cli();
 
+	// Save interrupt state at start of outermost
 	if ( mycpu()->ncli == 0 )
 	{
 		mycpu()->intena = eflags & FL_IF;
 	}
 
-	mycpu()->ncli += 1;
+	mycpu()->ncli += 1;  // track depth of pushcli nesting
 }
 
 void popcli ( void )
@@ -143,11 +143,14 @@ void popcli ( void )
 		panic( "popcli - interruptible" );
 	}
 
-	if ( --mycpu()->ncli < 0 )
+	mycpu()->ncli -= 1;
+
+	if ( mycpu()->ncli < 0 )
 	{
 		panic( "popcli" );
 	}
 
+	// Reached outermost, so restore interrupt state
 	if ( mycpu()->ncli == 0 && mycpu()->intena )
 	{
 		sti();
