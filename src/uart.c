@@ -1,4 +1,5 @@
-// Intel 8250 serial port ( UART ).
+// Intel 8250 serial port (UART).
+// JK - also see https://wiki.osdev.org/Serial_Ports
 
 #include "types.h"
 #include "defs.h"

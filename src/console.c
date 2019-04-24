@@ -35,7 +35,7 @@ static void printint ( int xx, int base, int sign )
 
 	if ( sign && ( sign = xx < 0 ) )
 	{
-		x = -xx;
+		x = - xx;
 	}
 	else
 	{
@@ -93,6 +93,7 @@ void cprintf ( char *fmt, ... )
 		if ( c != '%' )
 		{
 			consputc( c );
+
 			continue;
 		}
 
@@ -434,7 +435,7 @@ void consoleinit ( void )
 	initlock( &cons.lock, "console" );
 
 	devsw[ CONSOLE ].write = consolewrite;
-	devsw[ CONSOLE ].read = consoleread;
+	devsw[ CONSOLE ].read  = consoleread;
 
 	cons.locking = 1;
 

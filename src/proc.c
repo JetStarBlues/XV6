@@ -69,6 +69,7 @@ struct proc* myproc ( void )
 	pushcli();
 
 	c = mycpu();
+
 	p = c->proc;
 
 	popcli();
@@ -364,9 +365,9 @@ int wait ( void )
 
 			havekids = 1;
 
+			// Found one
 			if ( p->state == ZOMBIE )
 			{
-				// Found one.
 				pid = p->pid;
 
 				kfree( p->kstack );
@@ -395,7 +396,7 @@ int wait ( void )
 			return - 1;
 		}
 
-		// Wait for children to exit.  ( See wakeup1 call in proc_exit. )
+		// Wait for children to exit. (See wakeup1 call in proc_exit.)
 		sleep( curproc, &ptable.lock );  //DOC: wait-sleep
 	}
 }
@@ -547,16 +548,17 @@ void sleep ( void *chan, struct spinlock *lk )
 	// change p->state and then call sched.
 	// Once we hold ptable.lock, we can be
 	// guaranteed that we won't miss any wakeup
-	// ( wakeup runs with ptable.lock locked ),
+	// (wakeup runs with ptable.lock locked),
 	// so it's okay to release lk.
 	if ( lk != &ptable.lock )  //DOC: sleeplock0
 	{
 		acquire( &ptable.lock );  //DOC: sleeplock1
+
 		release( lk );
 	}
 
 	// Go to sleep.
-	p->chan = chan;
+	p->chan  = chan;
 	p->state = SLEEPING;
 
 	sched();
@@ -568,6 +570,7 @@ void sleep ( void *chan, struct spinlock *lk )
 	if ( lk != &ptable.lock )  //DOC: sleeplock2
 	{
 		release( &ptable.lock );
+
 		acquire( lk );
 	}
 }
@@ -592,7 +595,9 @@ static void wakeup1 ( void *chan )
 void wakeup ( void *chan )
 {
 	acquire( &ptable.lock );
+
 	wakeup1( chan );
+
 	release( &ptable.lock );
 }
 

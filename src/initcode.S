@@ -5,7 +5,7 @@
 #include "traps.h"
 
 
-# exec( char *path, ? *argv[] )
+# exec( char *path, char? *argv[] )
 # exec( init, argv )
 .globl start
 start:

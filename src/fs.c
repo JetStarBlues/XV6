@@ -577,6 +577,7 @@ int readi ( struct inode *ip, char *dst, uint off, uint n )
 		{
 			return - 1;
 		}
+
 		return devsw[ ip->major ].read( ip, dst, n );
 	}
 
@@ -584,6 +585,7 @@ int readi ( struct inode *ip, char *dst, uint off, uint n )
 	{
 		return - 1;
 	}
+
 	if ( off + n > ip->size )
 	{
 		n = ip->size - off;
@@ -618,6 +620,7 @@ int writei ( struct inode *ip, char *src, uint off, uint n )
 		{
 			return - 1;
 		}
+
 		return devsw[ ip->major ].write( ip, src, n );
 	}
 
@@ -625,6 +628,7 @@ int writei ( struct inode *ip, char *src, uint off, uint n )
 	{
 		return - 1;
 	}
+
 	if ( off + n > MAXFILE * BSIZE )
 	{
 		return - 1;

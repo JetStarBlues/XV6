@@ -2985,6 +2985,8 @@ The first system call
 			[ SYS_close  ] sys_close,
 		};
 
+	. Also see "usys.S"
+
 
 	. We need to arrange that:
 		. the int instruction switches the processor from user
@@ -3364,6 +3366,24 @@ C trap handler
 
 System calls
 
+	. User calls to system calls generate traps
+	. See "usys.S":
+
+		.globl fork
+		fork:
+			movl $SYS_fork, %eax
+			int  $T_SYSCALL
+			ret
+
+		.globl exit
+		exit:
+			movl $SYS_exit, %eax
+			int  $T_SYSCALL
+			ret
+
+		...
+
+
 	. For traps, 'trap' invokes 'syscall'
 	. syscall loads the system call number from the trap frame,
 	  which contains the saved %eax
@@ -3383,7 +3403,7 @@ System calls
 		}
 
 
-	. syscall record the reurn value of the system call function
+	. syscall record the return value of the system call function
 	  in %eax
 	. When the trap returns to user space, it will load the
 	  values from curproc->tf into the machine registers.
@@ -4427,9 +4447,6 @@ Multiplexing
 	  Xv6 allows a process to give up the CPU and sleep waiting
 	  for an event.
 
-	. As an example, this chapter explores the implementation
-	  of pipes
-
 
 Context switching
 
@@ -4588,25 +4605,789 @@ Context switching
 			...
 		}
 
+	. swtch returns on the scheduler's stack as though
+	  scheduler's swtch had returned
+
 
 Scheduling
 
-	. hj
+	. A process that wants to give up the CPU must:
+		. acquire the process table lock, ptable->lock
+		. release any other locks it is holding
+		. update its own state (proc->state)
+		. then call 'sched'
+	. 'yield, 'sleep', and 'exit' follow this convention
+
+		void yield ( void )
+		{
+			acquire( &ptable.lock );
+
+			myproc()->state = RUNNABLE;
+
+			sched();
+
+			release( &ptable.lock );
+		}
+
+		void sleep ( void *chan, struct spinlock *lk )
+		{
+			...
+
+			if ( lk != &ptable.lock )
+			{
+				acquire( &ptable.lock );
+				release( lk );
+			}
+
+			...
+
+			p->state = SLEEPING;
+
+			sched();
+
+			...
+		}
+
+		void exit ( void )
+		{
+			...
+
+			acquire( &ptable.lock );
+
+			...
+
+			curproc->state = ZOMBIE;
+
+			sched();
+
+			...
+		}
 
 
+	. sched double checks these conditions
+
+		if ( ! holding( &ptable.lock ) )
+		{
+			panic( "sched ptable.lock" );
+		}
+
+		if ( mycpu()->ncli != 1 )
+		{
+			panic( "sched locks" );
+		}
+
+		if ( p->state == RUNNING )
+		{
+			panic( "sched running" );
+		}
+
+	. Since a lock is held, the CPU should be running with
+	  interrupts disabled
+
+		if ( readeflags() & FL_IF )
+		{
+			panic( "sched interruptible" );
+		}
+
+	. sched then calls swtch
+	. swtch returns on the scheduler's stack as though
+	  scheduler's swtch had returned
+	. scheduler continues the for loop,
+	  finds a process to run, switches to it, and the cycle repeats
+
+		for ( ;; )
+		{
+			sti();
+
+			acquire( &ptable.lock );
+
+			for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+			{
+				if ( p->state != RUNNABLE )
+				{
+					continue;
+				}
+
+				c->proc = p;
+
+				switchuvm( p );
+
+				p->state = RUNNING;
+
+				swtch( &( c->scheduler ), p->context );
+
+				switchkvm();
+
+				c->proc = 0;
+			}
+
+			release( &ptable.lock );
+		}
+
+	. Something about why when using swtch, control of the
+	  ptable->lock is passed to switched-to code...
+
+	. A kernel thread always gives up its processor in sched,
+	  and always switches to the same location in scheduler
+	. scheduler then almost (almost) always switches to some
+	  kernel thread that previously called swtch
+	. sched and scheduler are said to be "co-routines" of each other
+
+	. There is one case where scheduler's call to swtch does
+	  not end up in sched
+	. When a new process is first scheduled, it begins at forkret
+	. forkret exists to release the ptable->lock. Otherwise, the
+	  new process could start at trapret
+
+	. scheduler runs a simple loop:
+		. find a process to run
+		. run it until it stops
+		. repeat
+	. It holds ptable->lock for most of its actions
+
+	. It releases the lock (and explicitly) enables interrupts
+	  once in each iteration of its outer loop
+	. This is important for the special case in which the CPU
+	  is idle (can find no RUNNABLE process)
+	. If an idling scheduler looped with the lock continously
+	  held, no other CPU that was running could ever,
+		. perform a context switch
+		. perform a process-related system call (see sysproc.c)
+		. mark a process as RUNNABLE so as to break the idling
+		  CPU out of its scheduling loop
+	. Interrupts are periodically enabled on an idling CPU
+	  because it might be the case that existing processes
+	  are not RUNNABLE because they are waiting on IO
+
+	. Something about invariants ptable->lock protects...
+	. revisit...
 
 
+mycpu and myproc
+
+	. In many places in Xv6, a CPU? must identify which
+	  process it is running
+	. To accomplish this, Xv6 relies on hardware support
+	. It maintains an array of "struct cpu"
+	. Each entry contains per-CPU state such as
+		. the currently running process
+		. the CPU's hardware identifier (apicid)
+	. When a CPU needs to find its state, it reads its
+	  identifier from its local APIC and uses that identifier
+	  to find its state in the array
+
+		/// mp.c ///
+
+		struct cpu cpus [ NCPU ];
 
 
+		/// proc.h ///
+
+		struct cpu
+		{
+			uchar             apicid;         // Local APIC ID
+			struct context   *scheduler;      // swtch() here to enter scheduler
+			struct taskstate  ts;             // Used by x86 to find stack for interrupt
+			struct segdesc    gdt [ NSEGS ];  // x86 global descriptor table
+			volatile uint     started;        // Has the CPU started?
+			int               ncli;           // Depth of pushcli nesting.
+			int               intena;         // Were interrupts enabled before pushcli?
+			struct proc      *proc;           // The process running on this cpu or null
+		};
 
 
+	. The kernel uses 'mycpu' to find its apicid
+	. mycpu in turn calls 'lapicid'
+	. lapicid returns the hardware identifier for the CPU
+	  and mycpu uses it to find its "struct cpu"
 
 
+		/// proc.c ///
+
+		struct cpu* mycpu ( void )
+		{
+			int apicid, i;
+
+			...
+
+			apicid = lapicid();
+
+			for ( i = 0; i < ncpu; ++i )
+			{
+				if ( cpus[ i ].apicid == apicid )
+				{
+					return &cpus[ i ];
+				}
+			}
+
+			...
+		}
 
 
+		/// lapic.c ///
+
+		int lapicid ( void )
+		{
+			...
+
+			return lapic[ ID ] >> 24;
+		}
 
 
+		/// mp.c ///
 
+		void mpinit ( void )
+		{
+			struct mpconf   *conf;
+
+			...
+
+			conf = mpconfig( &mp )
+
+			...
+
+			lapic = ( uint* )conf->lapicaddr;
+
+			...
+		}
+
+
+	. The kernel uses 'myproc' to find the "struct proc"
+	  of the process that is running on the CPU
+	. When a CPU switches to a new process in scheduler,
+	  it sets c->proc to the new process's "struct proc"
+
+		struct proc* myproc ( void )
+		{
+			...
+
+			c = mycpu();
+			p = c->proc;
+
+			...
+		}
+
+
+sleep and wakeup
+
+	. Scheduling and locks help conceal the existence of one
+	  process from another, but so far we have no abstractions
+	  that help processes intentionally interact
+	. sleep and wakeup fill that void, allowing one process to
+	  sleep waiting for an event and another process to wake it
+	  up once that event has happened
+
+
+	~~~ raison d'etre ~~~
+
+	. For example, consider a simple producer/consumer queue.
+	. The queue allows one process to send a nonzero pointer to
+	  another process
+	. If there was only one sender, one receiver, and they executed
+	  on different CPUs, then the following implementation would
+	  be correct:
+
+		struct queue
+		{
+			void *ptr;
+		}
+
+		void* send ( struct queue *q, void *ptr )
+		{
+			// Loop until the queue is empty
+			while ( q->ptr != 0 )
+			{
+				//
+			}
+
+			// Put ptr in queue
+			q->ptr = ptr;
+		}
+
+		void* receive ( struct queue *q )
+		{
+			void *ptr;
+
+			// Loop until the queue is not empty
+			while ( q->ptr == 0 )
+			{
+				//
+			}
+
+			// Take ptr out of queue
+			ptr = q->ptr;
+
+			q->ptr = 0;
+
+			return p;
+		}
+
+	. Even though both modify q->ptr, it works because send
+	  only writes the pointer when it is zero, and receive when
+	  it is non-zero, so no updates are lost
+
+	. The implementation is expensive. If the sender rarely
+	  sends, the receiver will spend most of its time spinning
+	  in the while loop hoping for a pointer.
+	. The receiver's CPU could be doing other useful work instead
+	  of busy waiting
+	. Avoiding busy waiting requires a way for the receiver to
+	  yield the CPU and resume only when send delivers
+
+	. _sleep( fdsdf )
+		. puts calling process to sleep, releasing CPU for other work
+	. _wakeup( fksdjf )
+		. wakes all processes sleeping on .., causing their sleep
+		  calls to return
+
+		void* send ( struct queue *q, void *ptr )
+		{
+			// Loop until the queue is empty
+			while ( q->ptr != 0 )
+			{
+				//
+			}
+
+			// Put ptr in queue
+			q->ptr = ptr;
+
+			_wakeup( q );
+		}
+
+		void* receive ( struct queue *q )
+		{
+			void *ptr;
+
+			// Loop until the queue is not empty
+			while ( q->ptr == 0 )
+			{
+				_sleep( q );
+			}
+
+			// Take ptr out of queue
+			ptr = q->ptr;
+
+			q->ptr = 0;
+
+			return p;
+		}
+
+	. receive now gives up the CPU instead of spinning
+	. something about ... ?? deadlock
+
+		struct queue
+		{
+			struct spinlock  lock;
+			void            *ptr;
+		}
+
+		void* send ( struct queue *q, void *ptr )
+		{
+			acquire( &q->lock );
+
+			// Loop until the queue is empty
+			while ( q->ptr != 0 )
+			{
+				//
+			}
+
+			// Put ptr in queue
+			q->ptr = ptr;
+
+			_wakeup( q );
+
+			release( &q->lock );
+		}
+
+		void* receive ( struct queue *q )
+		{
+			void *ptr;
+
+			acquire( &q->lock );
+
+			// Loop until the queue is not empty
+			while ( q->ptr == 0 )
+			{
+				_sleep( q );
+			}
+
+			// Take ptr out of queue
+			ptr = q->ptr;
+
+			q->ptr = 0;
+
+			release( &q->lock );
+
+			return p;
+		}
+
+	. ghgjhgj
+	. ghgjhgj
+
+		struct queue
+		{
+			struct spinlock  lock;
+			void            *ptr;
+		}
+
+		void* send ( struct queue *q, void *ptr )
+		{
+			acquire( &q->lock );
+
+			// Loop until the queue is empty
+			while ( q->ptr != 0 )
+			{
+				//
+			}
+
+			// Put ptr in queue
+			q->ptr = ptr;
+
+			_wakeup( q );
+
+			release( &q->lock );
+		}
+
+		void* receive ( struct queue *q )
+		{
+			void *ptr;
+
+			acquire( &q->lock );
+
+			// Loop until the queue is not empty
+			while ( q->ptr == 0 )
+			{
+				_sleep( q, &q->lock );
+			}
+
+			// Take ptr out of queue
+			ptr = q->ptr;
+
+			q->ptr = 0;
+
+			release( &q->lock );
+
+			return p;
+		}
+
+	. hkjhhk
+
+
+	~~~ Xv6 implementation ~~~
+
+	. Basic idea:
+		. sleep marks the current process as SLEEPING and then
+		  calls sched to release the CPU
+		. wakeup looks for a process sleeeping on the given ?
+		  and marks it as RUNNABLE
+		. callers of sleep and wakeup can use any mutually
+		  convenient number as the ?
+		  Xv6 often uses the address of a kernel data structure
+		  involved in the waiting?
+
+	. sleep begins with a few sanity checks:
+		. there must be a current process
+		. sleep must have been passed a lock
+
+		struct proc *p = myproc();
+
+		if ( p == 0 )
+		{
+			panic( "sleep" );
+		}
+
+		if ( lk == 0 )
+		{
+			panic( "sleep without lk" );
+		}
+
+
+	. sleep then acquires ptable->lock
+	. Now the process going to sleep holds both ptable->lock and lk
+
+		if ( lk != &ptable.lock )
+		{
+			acquire( &ptable.lock );
+			release( lk );
+		}
+
+	. Because sleep now holds ptable->lock, it is safe to release lk
+	. Some other process may start a call to wakeup(chan)
+	  but wakeup will not run until it can acquire ptable->lock
+	. This keeps wakeup from missing the sleep, because wakeup must
+	  wait until sleep has finished putting the process to sleep
+
+	. Now that sleep holds ptable->lock, it can put the process
+	  to sleep by recording the sleep channel, changing the process
+	  state, and calling sched
+
+		p->chan  = chan;
+		p->state = SLEEPING;
+
+		sched();
+
+	. At some point later, a process will call wakeup(chan)
+	. wakeup acquires ptable->lock and calls wakeup1 which
+	  does the real work
+
+		void wakeup ( void *chan )
+		{
+			acquire( &ptable.lock );
+
+			wakeup1( chan );
+
+			release( &ptable.lock );
+		}
+
+	. wakeup1 is a separate function because sometimes the
+	  scheduler needs to execute a wakeup when it already
+	  holds ptable->lock
+	. wakeup1 loops over the process table.
+	. When it finds a process in state SLEEPING with a matching
+	  'chan', it changes that process's state to RUNNABLE.
+	. The next time the scheduler runs, it will see that the
+	  process is ready to run.
+
+		for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+		{
+			if( p->state == SLEEPING && p->chan == chan )
+			{
+				p->state = RUNNABLE;
+			}
+		}
+
+	. Xv6 always calls wakeup while holding the lock that guards
+	  the sleep condition
+	. gjhjtyfyfjg
+
+	. gjhjtyfyfjg
+
+
+Pipes
+
+	. The queue shown earlier is a simple example
+	. Xv6 has two queues that use sleep and wakeup to synchronize
+	  readers and writers:
+		. IDE driver
+			. a process adds a disk request to a queue and then
+			  calls sleep
+			. the IDE interrupt handler uses wakeup to alert the
+			  process that its request has completed
+		. Pipes
+
+	. Each pipe is represented by a "struct pipe", which contains
+	  a lock and a data buffer
+	. The fields 'nread' and 'nwrite' count the number of bytes
+	  read from and written to the buffer
+
+		struct pipe {
+
+			struct spinlock lock;
+			char            data [ PIPESIZE ];
+			uint            nread;      // number of bytes read
+			uint            nwrite;     // number of bytes written
+			int             readopen;   // read fd is still open
+			int             writeopen;  // write fd is still open
+		};
+
+	. The buffer wraps around: the next byte written after
+	  [PIPESIZE - 1] is [0]
+	. The counts do not wrap
+	. This convention allows identifying:
+		. a full buffer   (nwrite == nread + PIPESIZE)
+		. an empty buffer (nwrite == nread)
+	. Indexing into the buffer must use [nread % PIPESIZE] instead of
+	  just [nread]. Ditto nwrite
+
+
+	~~~ piperead and pipewrite ~~~
+
+	. Suppose 'pipwrite' and 'piperead' are running simultaneously on
+	  two different CPUs
+	. pipewrite begins by acquiring a pipe's lock, which protects
+	  its counts, data, and associated invariants
+	. piperead then tries to acquire the lock too, but cannot.
+	  It spins in 'acquire' waiting for the lock
+
+	. While piperead waits, pipewrite loops over the bytes being
+	  written, adding each to the pipe in turn
+	. During this loop, it could happen that the buffer fills.
+	. In this case, pipewrite calls wakeup to alert any sleeping
+	  readers to the fact that there is data waiting in the buffer
+	. piperead then sleeps on &p->nwrite to wait for a reader to
+	  take some bytes our of the buffer
+	. sleep releases p->lock as part of putting pipewrite's process
+	  to sleep
+
+		for ( i = 0; i < n; i += 1 )
+		{
+			// If buffer is full, wait for bytes to be read off it
+			while ( p->nwrite == p->nread + PIPESIZE )
+			{
+				// ...
+				if ( p->readopen == 0 || myproc()->killed )
+				{
+					release( &p->lock );
+
+					return - 1;
+				}
+
+				// Alert any sleeping readers that there is data waiting to be read
+				wakeup( &p->nread );
+
+				// Sleep, waiting for a reader to take some bytes off the buffer
+				sleep( &p->nwrite, &p->lock );
+			}
+
+			// Otherwise, write byte to buffer
+			p->data[ p->nwrite % PIPESIZE ] = addr[ i ];
+
+			p->nwrite += 1;
+		}
+
+		// Alert any sleeping readers that there is data waiting to be read
+		wakeup( &p->nread );
+
+		release( &p->lock );
+
+
+	. Now that p->lock is available, piperead manages to acquire it
+	  and enters its critical section.
+	. It finds that the buffer is not empty (p->nread != p->nwrite) as
+	  pipewrite went to sleep because the buffer was full
+	. piperead thus falls through to the for loop,
+	  copies data out of the pipe,
+	  and increments nread by the number of bytes copied
+
+		// Otherwise, read bytes from buffer
+		for ( i = 0; i < n; i += 1 )
+		{
+			if ( p->nread == p->nwrite )
+			{
+				break;
+			}
+
+			addr[ i ] = p->data[ p->nread % PIPESIZE ];
+
+			p->nread += 1;
+		}
+
+	. The number of bytes read are now available for writing, so
+	  piperead calls wakeup to wake any sleeping writers, before
+	  it returns to its caller
+	. wakeup finds a process sleeping on &p->write, the process
+	  that was running pipewrite but stopped when the buffer filled.
+
+		// Alert any sleeping writers that some bytes in the buffer have been freed
+		wakeup( &p->nwrite );
+
+		release( &p->lock );
+
+
+	. The pipe code uses separate sleep channels for reader and
+	  writer (p->nread, p->nwrite)
+	. This might make the system more efficient in the unlikely event
+	  that there are lots of readers and writers waiting on the same
+	  pipe...
+	. The pipe code sleeps inside a loop checking the sleep condition
+	. If there are multipler readers or writers, only the first
+	  process to wake up will see the condition is no longer true.
+	  The rest will continue to sleep?
+
+
+wait, exit, and kill
+
+	~~~ wait ~~~
+
+	. sleep and wakeup can be used for many kinds of waiting
+	. One example is the 'wait' system call that a parent process
+	  uses to wait for a child to exit
+
+	. When a child exits, it does not die immediately.
+	. Instead, it changes the process state to ZOMBIE until the
+	  parent calls 'wait' to learn of the exit
+	. The parent is then responsible for freeing the memory
+	  associated with the process and preparing the "struct proc"
+	  for reuse??
+
+		if ( p->state == ZOMBIE )
+		{
+			pid = p->pid;
+
+			kfree( p->kstack );
+
+			p->kstack = 0;
+
+			freevm( p->pgdir );
+
+			p->pid       = 0;
+			p->parent    = 0;
+			p->name[ 0 ] = 0;
+			p->killed    = 0;
+			p->state     = UNUSED;
+
+			release( &ptable.lock );
+
+			return pid;
+		}
+
+
+	. wait begins by acquiring a ptable->lock
+	. It then scans the process table looking for children
+	. If wait finds the current process has children but that
+	  none have exited, it calls sleep to wait for one of them
+	  to exit... and scans again
+
+		for ( ;; )
+		{
+			// Scan through table looking for exited children.
+			havekids = 0;
+
+			for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+			{
+				if ( p->parent != curproc )
+				{
+					continue;
+				}
+
+				havekids = 1;
+
+				// Found one
+				if ( p->state == ZOMBIE )
+				{
+					...
+				}
+			}
+
+			// No point waiting if we don't have any children.
+			if ( ! havekids || curproc->killed )
+			{
+				release( &ptable.lock );
+
+				return - 1;
+			}
+
+			// Wait for children to exit. (See wakeup1 call in proc_exit.)
+			sleep( curproc, &ptable.lock );
+		}
+
+
+	. If the parent exits before the child, the 'init' process
+	  adopts the child and waits for it, so that every child
+	  has a parent to clean up after it
+
+		while ( ( wpid = wait() ) >= 0 && wpid != pid )
+		{
+			printf( 1, "zombie!\n" );
+		}
+
+
+	~~~ exit ~~~
+
+	. exit acquires ptable->lock and then wakes up any process
+	  sleeping on a wait channel equal to the current process's
+	  parent proc
+	. 
 
 
 
