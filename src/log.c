@@ -33,8 +33,8 @@
 // and to keep track in memory of logged block# before commit.
 struct logheader
 {
-	int n;
-	int block [ LOGSIZE ];
+	int n;                  // n logged blocks
+	int block [ LOGSIZE ];  // ?
 };
 
 struct log
@@ -42,15 +42,15 @@ struct log
 	struct spinlock  lock;
 	int              start;
 	int              size;
-	int              outstanding; // how many FS sys calls are executing.
-	int              committing;  // in commit(), please wait.
+	int              outstanding;  // how many FS sys calls are executing.
+	int              committing;   // in commit(), please wait.
 	int              dev;
 	struct logheader lh;
 };
 struct log log;
 
 static void recover_from_log ( void );
-static void commit ();
+static void commit           ();
 
 void initlog ( int dev )
 {
@@ -79,16 +79,15 @@ static void install_trans ( void )
 
 	for ( tail = 0; tail < log.lh.n; tail += 1 )
 	{
-		struct buf *lbuf = bread( log.dev, log.start + tail + 1 );  // read log block
+		struct buf *from = bread( log.dev, log.start + tail + 1 );  // log block
+		struct buf *to   = bread( log.dev, log.lh.block[ tail ] );  // dst
 
-		struct buf *dbuf = bread( log.dev, log.lh.block[ tail ] );  // read dst
+		memmove( to->data, from->data, BSIZE );  // copy log block to dst
 
-		memmove( dbuf->data, lbuf->data, BSIZE );  // copy block to dst
+		bwrite( to );  // write dst to disk
 
-		bwrite( dbuf );  // write dst to disk
-
-		brelse( lbuf );
-		brelse( dbuf );
+		brelse( from );
+		brelse( to );
 	}
 }
 
@@ -97,7 +96,8 @@ static void read_head ( void )
 {
 	int i;
 
-	struct buf       *buf = bread( log.dev, log.start );
+	struct buf *buf = bread( log.dev, log.start );
+
 	struct logheader *lh = ( struct logheader * ) ( buf->data );
 
 	log.lh.n = lh->n;
@@ -117,14 +117,15 @@ static void write_head ( void )
 {
 	int i;
 
-	struct buf       *buf = bread( log.dev, log.start );
-	struct logheader *hb  = ( struct logheader * ) ( buf->data );
+	struct buf *buf = bread( log.dev, log.start );
 
-	hb->n = log.lh.n;
+	struct logheader *lh = ( struct logheader * ) ( buf->data );
+
+	lh->n = log.lh.n;
 
 	for ( i = 0; i < log.lh.n; i += 1 )
 	{
-		hb->block[ i ] = log.lh.block[ i ];
+		lh->block[ i ] = log.lh.block[ i ];
 	}
 
 	bwrite( buf );
@@ -136,11 +137,11 @@ static void recover_from_log ( void )
 {
 	read_head();
 
-	install_trans(); // if committed, copy from log to disk
+	install_trans();  // if committed, copy from log to disk
 
 	log.lh.n = 0;
 
-	write_head(); // clear the log
+	write_head();     // clear the log
 }
 
 // called at the start of each FS system call.
@@ -224,12 +225,12 @@ static void write_log ( void )
 
 	for ( tail = 0; tail < log.lh.n; tail += 1 )
 	{
-		struct buf *to   = bread( log.dev, log.start + tail + 1 );  // log block
 		struct buf *from = bread( log.dev, log.lh.block[ tail ] );  // cache block
+		struct buf *to   = bread( log.dev, log.start + tail + 1 );  // log block
 
 		memmove( to->data, from->data, BSIZE );
 
-		bwrite( to );  // write the log
+		bwrite( to );  // write log to disk
 
 		brelse( from );
 		brelse( to );
@@ -240,15 +241,15 @@ static void commit ()
 {
 	if ( log.lh.n > 0 )
 	{
-		write_log();     // Write modified blocks from cache to log
+		write_log();      // Write modified blocks from cache to log
 
-		write_head();    // Write header to disk -- the real commit
+		write_head();     // Write header to disk -- the real commit
 
-		install_trans(); // Now install writes to home locations
+		install_trans();  // Now install writes to home locations
 
 		log.lh.n = 0;
 
-		write_head();    // Erase the transaction from the log
+		write_head();     // Erase the transaction from the log
 	}
 }
 
@@ -269,6 +270,7 @@ void log_write ( struct buf *b )
 	{
 		panic( "too big a transaction" );
 	}
+
 	if ( log.outstanding < 1 )
 	{
 		panic( "log_write outside of trans" );
@@ -288,11 +290,10 @@ void log_write ( struct buf *b )
 
 	if ( i == log.lh.n )
 	{
-		log.lh.n += 1;
+		log.lh.n += 1;  // only if unique blockno
 	}
 
 	b->flags |= B_DIRTY;  // prevent eviction
 
 	release( &log.lock );
 }
-

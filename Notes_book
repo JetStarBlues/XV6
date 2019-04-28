@@ -4934,10 +4934,10 @@ sleep and wakeup
 	. Avoiding busy waiting requires a way for the receiver to
 	  yield the CPU and resume only when send delivers
 
-	. _sleep( fdsdf )
+	. _sleep( chan )
 		. puts calling process to sleep, releasing CPU for other work
-	. _wakeup( fksdjf )
-		. wakes all processes sleeping on .., causing their sleep
+	. _wakeup( chan )
+		. wakes all processes sleeping on chan, causing their sleep
 		  calls to return
 
 		void* send ( struct queue *q, void *ptr )
@@ -5021,7 +5021,7 @@ sleep and wakeup
 			return p;
 		}
 
-	. ghgjhgj
+	. Incorrect because ghgjhgj
 	. ghgjhgj
 
 		struct queue
@@ -5071,6 +5071,7 @@ sleep and wakeup
 		}
 
 	. hkjhhk
+	. revisit
 
 
 	~~~ Xv6 implementation ~~~
@@ -5297,40 +5298,80 @@ Pipes
 
 wait, exit, and kill
 
-	~~~ wait ~~~
 
 	. sleep and wakeup can be used for many kinds of waiting
 	. One example is the 'wait' system call that a parent process
 	  uses to wait for a child to exit
 
-	. When a child exits, it does not die immediately.
-	. Instead, it changes the process state to ZOMBIE until the
+
+	~~~ exit ~~~
+
+	. exit acquires ptable->lock and then wakes up any process
+	  sleeping on a wait channel equal to the current process's
+	  parent proc...
+
+		/// exit /// 
+
+		acquire( &ptable.lock );
+
+		// Parent might be sleeping in wait()
+		wakeup1( curproc->parent );
+
+
+		/// wait /// 
+
+		// Wait for children to exit
+		sleep( curproc, &ptable.lock );
+
+
+	. Something about above parent wakeup before changing child
+	  state works cause lock still held...
+
+
+	. Before exit reschedules, it reparents all of the exiting
+	  process's children, passing them to initproc (the first user
+	  process)...
+
+		// Pass abandoned children to init.
+		for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+		{
+			if ( p->parent == curproc )
+			{
+				p->parent = initproc;
+
+				if ( p->state == ZOMBIE )
+				{
+					wakeup1( initproc );
+				}
+			}
+		}
+
+
+	. init waits on the abandoned children, so that every child
+	  has a parent to clean up after it
+
+		while ( ( wpid = wait() ) >= 0 && wpid != pid )
+		{
+			printf( 1, "zombie!\n" );
+		}
+
+
+	. When a process exits, it does not die immediately.
+	. Instead, it changes the process state to ZOMBIE until its
 	  parent calls 'wait' to learn of the exit
 	. The parent is then responsible for freeing the memory
 	  associated with the process and preparing the "struct proc"
-	  for reuse??
+	  for reuse
 
-		if ( p->state == ZOMBIE )
-		{
-			pid = p->pid;
+		curproc->state = ZOMBIE;
 
-			kfree( p->kstack );
 
-			p->kstack = 0;
+	. Finally, exit calls sched to relinquish the CPU
 
-			freevm( p->pgdir );
+		sched();
 
-			p->pid       = 0;
-			p->parent    = 0;
-			p->name[ 0 ] = 0;
-			p->killed    = 0;
-			p->state     = UNUSED;
 
-			release( &ptable.lock );
-
-			return pid;
-		}
-
+	~~~ wait ~~~
 
 	. wait begins by acquiring a ptable->lock
 	. It then scans the process table looking for children
@@ -5372,58 +5413,2502 @@ wait, exit, and kill
 		}
 
 
-	. If the parent exits before the child, the 'init' process
-	  adopts the child and waits for it, so that every child
-	  has a parent to clean up after it
+	. If wait finds a child that has exited, it:
+		. records the child's pid,
+		. then cleans up the child's "struct proc", freeing
+		  the memory associated with the process
 
-		while ( ( wpid = wait() ) >= 0 && wpid != pid )
+		if ( p->state == ZOMBIE )
 		{
-			printf( 1, "zombie!\n" );
+			pid = p->pid;
+
+			kfree( p->kstack );
+
+			p->kstack = 0;
+
+			freevm( p->pgdir );
+
+			p->pid       = 0;
+			p->parent    = 0;
+			p->name[ 0 ] = 0;
+			p->killed    = 0;
+			p->state     = UNUSED;
+
+			release( &ptable.lock );
+
+			return pid;
+		}
+
+	. Cleanup is done by the parent because p->kstack and p->pgdir
+	  can only be freed when the child has finished running...
+
+
+	~~~ kill ~~~
+
+	. While exit allows a process to terminate itself, 'kill'
+	  lets one process request that another be terminated
+	. kill just:
+		. sets the victim's p->killed
+		. and if the victim is sleeping, wakes it up
+
+		for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+		{
+			if ( p->pid == pid )
+			{
+				p->killed = 1;
+
+				// Wake process from sleep if necessary.
+				if( p->state == SLEEPING )
+				{
+					p->state = RUNNABLE;
+				}
+
+				...
+			}
 		}
 
 
-	~~~ exit ~~~
+	. Eventually the victim will enter or leave the kernel
+	  (for ex. via a system call or timer interrupt), at
+	  which point code in trap will call exit if p->killed is set
 
-	. exit acquires ptable->lock and then wakes up any process
-	  sleeping on a wait channel equal to the current process's
-	  parent proc
-	. 
-
-
-
-
+		if ( myproc() && myproc()->killed && ( tf->cs & 3 ) == DPL_USER )
+		{
+			exit();
+		}
 
 
+	. If the victim process is in sleep, the call to wakeup?? will
+	  cause the victim to return from sleep
+	. This is potentially dangerous ...
+	. Xv6 calls to sleep are always wrapped in a while loop that
+	  re-tests the condition after sleep returns
+
+	. fdsfd delay killing in thte middle of a multi-step...
 
 
+Real world
 
+	. Xv6 scheduler is round robin. Most OSs use priority
 
+	. Preventing lost wakeups...
 
+	. Scanning entire process list in 'wakeup' for processes with
+	  a matching 'chan' is inefficient
+	. A better solution is to replace 'chan' with a data structure
+	  that holds a list of processes sleeping on that structure
 
+	. Thundering herd...
+	. 'signal/broadcast' condition for 'wakeup'... wakeup one or all
+	  waiting on chan
 
-
-
-
-
+	. Semaphores...
 
 
 ---------------------------------------------------------------------------------------------
 File system
 ---------------------------------------------------------------------------------------------
 
----------------------------------------------------------------------------------------------
-Summary
----------------------------------------------------------------------------------------------
+Intro
 
----------------------------------------------------------------------------------------------
-PC hardware
----------------------------------------------------------------------------------------------
+	. A file system must address several challenges:
+		. it needs on-disk data structures to:
+			. represent the tree of named directories and files
+			. record the identities of the blocks that hold each
+			  file's content
+			. record which areas of disk are free
+		. it must support crash recovery.
+		  If a crash occurs (ex. power failure), the fs must still
+		  work correctly after a restart.
+		  The risk is that a crash might interrupt a sequence of
+		  updates and leave inconsistent on-disk data structure
+		  (ex. a block that is both used in a file and marked free)
+		. it must coordinate to maintain invariants as different
+		  processes may operate on the fs at the same time.
+		. it must maintain an in-memory cache of popular blocks as
+		  accessing a disk is orders of magnitude slower than memory
+
+
+Overview
+
+	. The Xv6 file system implementation is organized in seven layers:
+
+		file descriptor
+		---------------
+		pathname
+		---------------
+		directory
+		---------------
+		inode
+		---------------
+		logging
+		---------------
+		buffer cache
+		---------------
+		disk
+		---------------
+
+	. The disk layer reads and writes blocks on an IDE hard drive
+	. The buffer cache layer:
+		. caches disk blocks and,
+		. synchronizes access to them, making sure that only one
+		  kernel process at a time can modify the data stored in
+		  any particular block
+	. The logging layer:
+		. allows higher layers to wrap updates to several blocks
+		  in a "transaction", and
+		. ensures that the blocks are updated atomically in the
+		  face of crashes (i.e. all updated or none)
+	. The inode layer provides indivdual files, each represented
+	  as an inode with a unique i-number and some blocks holding
+	  the file's data
+	. The directory layer implements each directory as a special
+	  kind of inode whose content is a sequence of directory
+	  entries, each of which contains a file's name and i-number
+	. The pathname layer provides hierarchical path names like
+	  "/usr/foo/bar.c", and resolves them with recursive lookup
+	. The file descriptor layer abstracts many Unix resources
+	  (ex. pipes, devices, files) using the file system interface
+
+
+	. The fs must have a plan for where it stores inodes and content
+	  blocks on the disk.
+	. To do so, Xv6 divides the disk into several sections:
+
+		            ------------
+		            data blocks
+		block ? ->  ------------
+		            bit map
+		block ? ->  ------------
+		            inode blocks
+		block ? ->  ------------
+		            log blocks
+		block 2 ->  ------------
+		            super block
+		block 1 ->  ------------
+		            boot block
+		block 0 ->  ------------
+
+
+	. The fs does not use block 0 as it holds the boot sector
+
+	. Block 1 is called the "superblock"
+	. It contains metadata about the filesystem such as:
+		. the fs size in blocks
+		. the number of data blocks
+		. the number of inodes
+		. the number of locks in the log?
+
+		struct superblock
+		{
+			uint size;         // Size of file system image (blocks)
+			uint nblocks;      // Number of data blocks
+			uint ninodes;      // Number of inodes.
+			uint nlog;         // Number of log blocks
+			uint logstart;     // Block number of first log block
+			uint inodestart;   // Block number of first inode block
+			uint bmapstart;    // Block number of first free map block
+		};
+
+	. It is filled in by a serparate program ("mkfs.c"), which
+	  builds the initial file system
+
+	. Blocks starting at 2 hold the log
+
+	. After the log are the inodes, with multiple inodes per block
+
+	. After the inodes are the bitmap blocks which track which
+	  data blocks are in use
+
+	. The remaining blocks are data blocks.
+	. Each is either marked free in the bitmap block, or holds
+	  content for a file or directory
+
+
+Buffer cache layer
+
+	. The buffer cache has two jobs:
+		. synchronize access to disk blocks to ensure that:
+			. only one copy of a block is in memory
+			. only one kernel thread at a time uses that copy
+		. cache popular blocks so that they don't need to be
+		  re-read from the slow disk
+
+	. The main interface exported by the buffer cache consists
+	  of 'bread' and 'bwrite'
+	. bread obtains a 'buf' containing a copy of a block which
+	  can be read and modified in memory
+	. bwrite writes a modified buffer to the appropriate block
+	  on the disk
+	. A kernel thread must release a buffer by calling 'brelse'
+	  when it is done with it
+
+	. The buffer cache uses a per-buffer sleeplock (buf->lock) to
+	  ensure that only one thread at a time uses each buffer (and
+	  thus each disk block)
+	. bread returns a locked buffer
+	. brelse releases the lock
+
+	. The buffer cache has a fixed number of buffers to hold disk blocks
+	. This means that if the fs asks for a block that is not already
+	  in cache, the buffer cache must recycle a buffer currently
+	  holding some other block
+	. The buffer cache recyles the least recently used (LRU) buffer
+	  for the new block
+
+	. The buffer cache is a doubly-linked list of buffers
+	. 'binit' (called by main) initializes the list with the NBUF
+	  buffers in the static array bcache->buf
+	. All other access to the buffer cache refer to the linked list
+	  via bcache->head, not the buf array...
+
+		/// buf.h ///
+
+		struct buf {
+
+			int               flags;
+			uint              dev;
+			uint              blockno;
+			struct sleeplock  lock;
+			uint              refcnt;
+			struct buf       *prev;    // LRU cache list
+			struct buf       *next;    // MRU cache list
+			struct buf       *qnext;   // disk queue
+			uchar             data [ BSIZE ];
+		};
+
+
+		/// bio.c ///
+
+		struct {
+
+			struct spinlock lock;
+			struct buf      buf [ NBUF ];
+			struct buf      head;
+
+		} bcache;
+
+
+		void binit ( void )
+		{
+			struct buf *b;
+
+			initlock( &bcache.lock, "bcache" );
+
+			// Create linked list of buffers
+			bcache.head.prev = &bcache.head;
+			bcache.head.next = &bcache.head;
+
+			for ( b = bcache.buf; b < bcache.buf + NBUF; b += 1 )
+			{
+				b->next = bcache.head.next;
+				b->prev = &bcache.head;
+
+				initsleeplock( &b->lock, "buffer" );
+
+				bcache.head.next->prev = b;
+				bcache.head.next       = b;
+			}
+		}
+
+
+	. A buffer has two state bits associated with it:
+		. B_VALID - indicates that the buffer contains a copy of
+		            the block
+		. B_DIRTY - indicates that the buffer content has been
+		            modified and needs to be written to disk
+
+
+	~~~ bread and bget ~~~
+
+	. bread calls 'bget' to get a buffer for the given sector
+
+		struct buf* bread ( uint dev, uint blockno )
+		{
+			struct buf *b;
+
+			b = bget( dev, blockno );
+
+			...
+		}
+
+	. bget scans the buffer list (MRU order) for a buffer with
+	  the given device and sector numbers
+	. If there is such a buffer, bget acquires the sleeplock
+	  for the buffer and returns the locked buffer
+
+		for ( b = bcache.head.next; b != &bcache.head; b = b->next )
+		{
+			if ( b->dev == dev && b->blockno == blockno )
+			{
+				b->refcnt += 1;
+
+				release( &bcache.lock );
+
+				acquiresleep( &b->lock );
+
+				return b;
+			}
+		}
+
+
+	. If there is no cached buffer for the given sector, bget must
+	  make one
+	. It scans the buffer list a second time (LRU order) looking for
+	  a buffer that is not locked and not dirty
+	. If found, bget edits the buffer metadata to record the new
+	  device and sector number
+	. It then acquires the buffer's sleeplock and returns the locked
+	  buffer
+
+		for ( b = bcache.head.prev; b != &bcache.head; b = b->prev )
+		{
+			if ( b->refcnt == 0 && ( b->flags & B_DIRTY ) == 0 )
+			{
+				b->dev     = dev;
+				b->blockno = blockno;
+				b->flags   = 0;
+				b->refcnt  = 1;
+
+				release( &bcache.lock );
+
+				acquiresleep( &b->lock );
+
+				return b;
+			}
+		}
+
+
+	. Setting buf->flags to zero clears B_VALID, ensuring that
+	  bread will read the block data from disk rather than
+	  incorrectly using the buffer's previous contents
+
+		if ( ( b->flags & B_VALID ) == 0 )
+		{
+			iderw( b );
+		}
+
+
+	. If all the buffers are busy, then too many processes are
+	  simulataneously executing file system calls, so bget panics
+	. A more graceful response might be to sleep until a buffer
+	  becomes free, though there would then be a possibility of
+	  deadlock
+
+		panic( "bget: no buffers" );
+
+
+	. A non-zero value for buf->refcnt prevents the buffer from
+	  being re-used for a different disk block...
+	. The sleeplock buf->lock protects reads and writes of the
+	  block's buffered content...
+	. The spinlock bcache->lock protects information about which
+	  blocks are cached...
+
+
+	~~~ bwrite ~~~
+
+	. Once bread has read the disk (if needed) and returned the
+	  buffer to its caller, the caller has exclusive use of the
+	  buffer and can read or write the data bytes
+
+	. If the caller modifies the buffer, it must call bwrite to
+	  to write the changed data to disk before releasing the buffer
+	. bwrite calls 'iderw' to talk to the disk hardware, after
+	  setting B_DIRTY to indicate that iderw should write (rather
+	  than read)
+
+		void bwrite ( struct buf *b )
+		{
+			if ( ! holdingsleep( &b->lock ) )
+			{
+				panic( "bwrite" );
+			}
+
+			b->flags |= B_DIRTY;
+
+			iderw( b );
+		}
+
+
+	~~~ brelse ~~~
+
+	. When the caller is done with a buffer, it must call brelse
+	  to release it
+	. brelse releases buf->lock and moves the buffer to the
+	  front of the linked list
+
+		void brelse ( struct buf *b )
+		{
+			...
+
+			releasesleep( &b->lock );
+
+			acquire( &bcache.lock );
+
+			b->refcnt -= 1;
+
+			if ( b->refcnt == 0 )
+			{
+				// no one is waiting for it.
+				b->next->prev = b->prev;
+				b->prev->next = b->next;
+
+				b->next = bcache.head.next;
+				b->prev = &bcache.head;
+
+				bcache.head.next->prev = b;
+				bcache.head.next       = b;
+			}
+
+			release( &bcache.lock );
+		}
+
+
+	. Moving the buffer causes the list to be ordered by how
+	  recently the buffers were used (released)
+	. The first buffer in the list is the most recently used, and
+	  the last is the least recently used
+	. The two loops in bget take advantage of this:
+		. The scan for an existing buffer must process the entire
+	      list in the worst case, but checking the most recently
+	      used (MRU) buffers first (start at head and follow next
+	      pointers) will reduce scan time when there is locality of
+	      reference
+	    . The scan to pick a buffer to reuse picks the least
+	      recently used (LRU) buffer by scanning backward (start at
+	      tail and follow prev pointers)
+
+
+Logging layer
+
+	. One of the most interesting problems in fs design is crash recovery
+	. The problem arises because many fs operations involve multiple
+	  write to the disk, and a crash after a subset of the writes
+	  may leave the on-disk file system in an incosistent state
+
+	. For example, suppose a crash occurs during file truncation
+	  (setting the length of a file to zero and freeing its content
+	  blocks)
+	. Depending on the order of the disk writes, the crash may leave:
+		. an inode with a reference to a content block that is
+		  marked free
+		. an allocated but unreferenced content block
+
+	. An inode that referes to a freed block is likely to cause
+	  serious problems after a reboot.
+	. The kernel might allocate that block to another file, and
+	  now we have tow different files unintentionally pointing to
+	  the same block
+	. If Xv6 supported multiple users, this situation could also be
+	  a security problem
+
+	. Xv6 solves the problem of crashes during fs operations with
+	  a simple form of logging
+	. An Xv6 system call does not directly write the on-disk fs
+	  data structures.
+	. Instead:
+		. It places a description of all the disk writes it
+	      wishes to make in a log on the disk
+		. Once it has logged all of its writes, it writes a
+	      special commit record to the disk indicating that
+	      the log contains a complete operation
+		. It now copies the writes to the on-disk fs data structures
+		. After those writes have completed, it erases the log on disk
+
+	. If the system should crash and reboot, the fs code recovers
+	  from the crash as follows, before running any processes:
+		. If the log is marked as containing a complete operation,
+		  then the recovery code copies the writes where they
+		  belong in the on-disk fs.
+		. If the log is not marked as containing a complete operation,
+		  then the recovery code ignores the log
+		. The recovery code finishes by erasing the log
+
+	. Why does this approach solve the problem of crashes?
+	. If the crash occurs before the operation commits, then:
+		. the log on disk will not be marked as complete
+		. no writes are made to disk
+		. the recovery code ignores the log
+	. If the crash occurs after the operation commits, then:
+		. the recovery will replay all of the operation's writes,
+		  perhaps repeating them if the operation had started to
+		  write them to the on-disk data structure
+	. With this approach, either all of the operation's writes appear
+	  on the disk or none of them
+
+
+	~~~ log header ~~~
+
+	. The log resides in a known fixed location, specified in the
+	  superblock (sb->logstart)
+
+		struct log
+		{
+			struct spinlock  lock;
+			int              start;
+			int              size;
+			int              outstanding;  // how many FS sys calls are executing.
+			int              committing;   // in commit(), please wait.
+			int              dev;
+			struct logheader lh;
+		};
+
+		void initlog ( int dev )
+		{
+			...
+
+			readsb( dev, &sb );
+
+			log.start = sb.logstart;
+			log.size  = sb.nlog;
+			log.dev   = dev;
+
+			...
+		}
+
+	. It consists of a header block, followed by a sequence of
+	  updated block copies ("logged blocks") ??
+
+	. The header block contains an array of sector numbers,
+	  one for each of the logged blocks ??
+	. The header block also contains the count of logged blocks
+
+		struct logheader
+		{
+			int n;                  // n logged blocks
+			int block [ LOGSIZE ];  // ?
+		};
+
+
+	. Xv6 writes the header block when a transaction commits... ??
+	. It sets the count to zero after copying the logged blocks
+	  to the fs
+	. Thus a crash midway through a transaction will result in a
+	  count of zero in the log's header block ???
+	. And a crash after a commit will result in a non-zero count ???
+
+
+	~~~ group commits ~~~
+
+	. Each system call's code indicates the start and end of the
+	  sequence of writes that must be atomic with respect to crashes...
+
+	. To allow concurrent execution of fs operations by different
+	  processes, the logging system can accumulate the writes of
+	  multiple system calls into one transaction...
+	. Thus a single commit may involve the writes of multiple
+	  complete system calls
+
+	. To avoid splitting a system call across transactions, the
+	  logging system only commits when no fs calls are underway... ??
+
+	. The idea of committing several transactions together is known
+	  as a group commit
+	. Group commits reduce the number of disk operations because...
+	. They also hand the disk more concurrent writes, allowing the
+	  disk to write them all during a single rotation... ?
+	. Xv6's IDE driver doesn't support this kind of batching, but
+	  the file system design does
+
+
+	~~~ log space ~~~
+
+	. Xv6 dedicates a fixed amount of space on the disk to hold
+	  the log
+	. The total number of blocks written by system calls in a
+	  transaction must fit in that space.
+
+		#define MAXOPBLOCKS 10                   // max # of blocks any FS op writes
+		#define LOGSIZE     ( MAXOPBLOCKS * 3 )  // max data blocks in on-disk log
+
+
+	. This has two consequences:
+		. The logging system cannot allow a system call to start
+		  unless it is certain that the system call's writes will
+		  fit in the space remaining in the log
+		. No single system call can be allowed to write more
+		  distinct blocks than there is space in the log
+
+	. 'write' and 'unlink' can potentially write more blocks
+	  than ...
+	. A large file write may write many data and bitmap blcoks,
+	  as well as an inode block...
+	. Unlinking a large file might write many bitmap blocks and
+	  an inode block...  
+	. Xv6's write system call breaks up large writes into
+	  multiple smaller writes that fit into the log
+	. Xv6's unlink system call doesn't cause problems because Xv6
+	  only uses one bitmap block
+
+
+	~~~ ... ~~~
+
+	. A typical use of the log in a system call looks like this:
+
+		begin_op();
+
+		...
+
+		bp = bread( ... );
+
+		bp->data[ ... ] = ...;
+
+		log_write( bp );
+
+		...
+
+		end_op();
+
+
+	~~~ log_write ~~~
+
+	. 'log_write' acts as a proxy for bwrite ??
+	. It records the block's sector number in memory, reserving it
+	  a slot in the log on disk ??
+
+		log.lh.block[ i ] = b->blockno;
+
+	. It also marks the buffer B_DIRTY to prevent the block cache
+	  from evicting it
+	. The block must stay in the cache until committed because
+	  until then, the cached copy is the only record of the
+	  modification
+
+		b->flags |= B_DIRTY;  // prevent eviction
+
+
+	. log_write notices when a block is written multiple times
+	  during a single transaction?? and allocates that block
+	  the same slot in the log
+	. This optimization is often called absorption
+
+	. It is common that for example, the disk block containing
+	  inodes of several files is written several times within a
+	  transaction
+	. By absorbing several disk writes into one, the fs can save
+	  log space and can achieve better performance because only
+	  one copy of the disk block is written to disk
+
+		for ( i = 0; i < log.lh.n; i += 1 )
+		{
+			if ( log.lh.block[ i ] == b->blockno )  // log absorbtion
+			{
+				break;
+			}
+		}
+
+		log.lh.block[ i ] = b->blockno;
+
+		if ( i == log.lh.n )
+		{
+			log.lh.n += 1;  // only if unique blockno
+		}
+
+
+	~~~ begin_op ~~~
+
+	. 'begin_op' waits until:
+		. the logging system is not currently committing and,
+		. there is enough free log space to hold the writes from
+		  this call and all currently executing system calls
+
+		if ( log.committing )
+		{
+			sleep( &log, &log.lock );
+		}
+		else if ( log.lh.n + MAXOPBLOCKS * ( log.outstanding + 1 ) > LOGSIZE )
+		{
+			sleep( &log, &log.lock );
+		}
+
+	. log->outstanding counts the number of system calls
+	. Incrementing log->outstanding:
+		. reserves space ??
+		. prevents a commit from occuring during this system call ??
+	. The code is conservative, and assumes that each system call
+	  might write up to MAXOPBLOCKS distinct blocks
+
+		else
+		{
+			log.outstanding += 1;
+
+			release( &log.lock );
+
+			break;
+		}
+
+
+	~~~ end_op ~~~
+
+	. 'end_op' first decrements log->outstanding
+	. If log->outstanding is now zero, it commits the current
+	  transaction by calling 'commit' ??
+
+		void end_op ( void )
+		{
+			int do_commit = 0;
+
+			...
+
+			log.outstanding -= 1;
+
+			...
+
+			if ( log.outstanding == 0 )
+			{
+				do_commit = 1;
+
+				log.committing = 1;
+			}
+			else
+			{
+				...
+			}
+
+			...
+
+			if ( do_commit )
+			{
+				commit();
+
+				...
+
+				log.committing = 0;
+
+				...
+			}
+		}
+
+	. hjkhj
+
+
+	~~~ commit ~~~~
+
+	. 'commit' has four stages:
+
+		. write the modified blocks from cache to the log
+			. via 'write_log'
+
+		. write the log header to disk
+			. via 'write_head'
+			. This is the true point at which the current transaction
+			  commits
+
+		. write the modified blocks from the log to their intended
+		  destination in the fs
+			. via 'install_trans'
+
+		. erase the transaction from the log
+			. via clearing 'log.lh.n' and calling 'write_head' ??
+
+		static void commit ()
+		{
+			if ( log.lh.n > 0 )
+			{
+				write_log();
+
+				write_head();
+
+				install_trans();
+
+				log.lh.n = 0;
+
+				write_head();
+			}
+		}
+
+
+	~~~ write_log ~~~
+
+	. write_log copies each modified block from its buffer cache ??
+	  to the log
+
+		static void write_log ( void )
+		{
+			int tail;
+
+			for ( tail = 0; tail < log.lh.n; tail += 1 )
+			{
+				struct buf *from = bread( log.dev, log.lh.block[ tail ] );  // cache block
+				struct buf *to   = bread( log.dev, log.start + tail + 1 );  // log block
+
+				memmove( to->data, from->data, BSIZE );
+
+				bwrite( to );  // write log to disk
+
+				brelse( from );
+				brelse( to );
+			}
+		}
+
+
+	~~~ install_trans ~~~
+
+	. install_trans reads each (committed) block from the log
+	  and writes it to the proper place in the fs
+
+		static void install_trans ( void )
+		{
+			int tail;
+
+			for ( tail = 0; tail < log.lh.n; tail += 1 )
+			{
+				struct buf *from = bread( log.dev, log.start + tail + 1 );  // log block
+				struct buf *to   = bread( log.dev, log.lh.block[ tail ] );  // dst
+
+				memmove( to->data, from->data, BSIZE );  // copy log block to dst
+
+				bwrite( to );  // write dst to disk
+
+				brelse( from );
+				brelse( to );
+			}
+		}
+
+
+	~~~ write_head ~~~
+
+	. write_head writes the in-memory log header to disk
+
+	. This is the true point at which the current transaction commits
+	. A crash after write_head will result in recovery replaying the
+	  transaction's writes
+
+		static void write_head ( void )
+		{
+			int i;
+
+			struct buf *buf = bread( log.dev, log.start );
+
+			struct logheader *lh = ( struct logheader * ) ( buf->data );
+
+			lh->n = log.lh.n;
+
+			for ( i = 0; i < log.lh.n; i += 1 )
+			{
+				lh->block[ i ] = log.lh.block[ i ];
+			}
+
+			bwrite( buf );  // write to disk
+
+			brelse( buf );
+		}
+
+
+	~~~ read_head ~~~
+
+	. read_head reads the in-disk log header to memory
+
+		static void read_head ( void )
+		{
+			int i;
+
+			struct buf *buf = bread( log.dev, log.start );
+
+			struct logheader *lh = ( struct logheader * ) ( buf->data );
+
+			log.lh.n = lh->n;
+
+			for ( i = 0; i < log.lh.n; i += 1 )
+			{
+				log.lh.block[ i ] = lh->block[ i ];
+			}
+
+			brelse( buf );
+		}
+
+
+	~~~ recover_from_log ~~~
+
+	. 'recover_from_log' is called from 'initlog'
+	. initlog is called during boot before the first user process runs
+
+		/// log.c ///
+
+		void initlog ( int dev )
+		{
+			...
+
+			recover_from_log();
+		}
+
+
+		/// proc.c ///
+
+		void forkret ( void )
+		{
+			...
+
+			if ( first )
+			{
+				...
+
+				iinit( ROOTDEV );
+
+				initlog( ROOTDEV );
+			}
+		}
+
+	. recover_from_log reads the log header
+	. If the header indicates that the log contains a committed
+	  transaction (log.lh.n > 0), then its subsequent call to
+	  install_trans copies the comitted blocks from the log to
+	  the file system
+
+		static void recover_from_log ( void )
+		{
+			read_head();
+
+			install_trans();  // if committed, copy from log to disk
+
+			log.lh.n = 0;
+
+			write_head();     // clear the log
+		}
+
+
+	~~~ ... ~~~
+
+	. An example use of logging occurs in 'filewrite'
+	. The transaction looks like:
+
+		int maxn = MAXOPBLOCKS ...
+		int i    = 0;
+
+		while ( i < n )
+		{
+			n1 = min( n - i, maxn );
+
+			begin_op();
+
+			ilock( f->ip );
+
+			r = writei( f->ip, ..., n1 );
+
+			iunlock( f->ip );
+
+			end_op();
+
+			i += r;
+		}
+
+
+	. The code is wrapped in a loop that breaks up large
+	  writes into individual transactions of just a few sectors
+	  at a time
+
+	. The call to 'writei' writes many blocks as part of this
+	  transaction:
+		. the file's inode
+		. one or more bitmap blocks
+		. some data blocks
+
+
+Block allocator
+
+	. File and directory content is stored in disk blocks,
+	  which must be allocated from a free pool ??
+
+	. Xv6's block allocator maintains a free bitmap on disk,
+	  with one bit per block
+	. A zero indicates the corresponding block is free,
+	  a one that it's in use
+
+	. The program "mkfs.c" sets the bits correspoding to the:
+		. boot sector
+		. super block
+		. log blocks
+		. inode blocks
+		. bitmap blocks
+
+{{}}
+
+
+	~~~ balloc ~~~
+
+	. 'balloc' allocates a new disk block
+
+	. The loop in balloc considers every block, starting at
+	  zero up to sb->size (the number of blocks in the fs)
+	. It looks for a block whose bitmap is zero (free)
+	. If it finds such a block, it updates the bitmap (sets to one)
+	  and returns the block
+
+		/// param.h ///
+
+		#define FSSIZE 1000  // size of file system in blocks
+
+
+		/// fs.h ///
+
+		// Bitmap bits per block
+		#define BPB ( BSIZE * 8 )
+
+		// Block of free map containing bit for block b
+		// JK - Because FSSIZE is 1000 and BPB is 4096,
+		//      this will always evaluate to 0 + sb.bmapstart
+		//      i.e. one bitmap block
+		#define BBLOCK( b, sb ) ( b / BPB + sb.bmapstart )
+
+
+		/// fs.c ///
+
+		static uint balloc ( uint dev )
+		{
+			...
+
+			bp = 0;
+
+			for ( b = 0; b < sb.size; b += BPB )  // for every block in the fs
+			{
+				bp = bread( dev, BBLOCK( b, sb ) );  // get the corresponding bitmap block
+
+				for ( bidx = 0; bidx < BPB && ( b + bidx < sb.size ); bidx += 1 )  // for every bit in the bitmap block
+				{
+					bitmask = 1 << ( bidx % 8 );
+
+					if ( ( bp->data[ bidx / 8 ] & bitmask ) == 0 )  // Is block free?
+					{
+						bp->data[ bidx / 8 ] |= bitmask;  // Mark block in use.
+
+						log_write( bp );
+
+						brelse( bp );
+
+						bzero( dev, b + bidx );  // zero the block
+
+						return b + bidx;
+					}
+				}
+
+				brelse( bp );
+			}
+
+			...
+		}
+
+
+	~~~ bfree ~~~
+
+	. 'bfree' frees a disk block
+
+	. It finds the right bitmap block and clears the right bit
+
+		static void bfree ( int dev, uint b )
+		{
+			...
+
+			bp = bread( dev, BBLOCK( b, sb ) );
+
+			bidx = b % BPB;
+
+			bitmask = 1 << ( bidx % 8 );
+
+			...
+
+			bp->data[ bidx / 8 ] &= ~ bitmask;  // Mark block as free
+
+			log_write( bp );
+
+			brelse( bp );
+		}
+
+
+Inode layer
+
+	. The term inode can have one of two related meanings:
+		. the on-disk data strucutre containing a file's size and
+		  list of data block numbers
+		. an in-memory inode? which contains a copy of the on-disk
+		  inode? as well as extra information needed within the kernel
+
+	. The on-disk inodes are packed into a contiguous area of disk
+	  called the inode blocks.
+	. Every inode is the same size. As such, it is easy to find
+	  the nth inode on the disk
+	. This number 'n' is called the inode number or i-number
+
+	. The on-disk inode is defined by a "struct dinode"
+
+		struct dinode
+		{
+			short type;                   // File type
+			short major;                  // Major device number (T_DEV only)
+			short minor;                  // Minor device number (T_DEV only)
+			short nlink;                  // Number of links to inode in file system
+			uint  size;                   // Size of file (bytes)
+			uint  addrs [ NDIRECT + 1 ];  // Data block addresses
+		};
+
+	. dinode->type
+		. Distinguishes between files, directories, and
+		  special files (devices)
+		. A type of zero indicates that an on-disk inode is free...
+	. dinode->nlink
+		. Counts the number of directory entries that
+		  refer to this inode
+		. It is used to determine whether the dinode and its data
+		  blocks should be freed
+	. dinode->size
+		. Records the number of bytes of content in the file
+	. dinode->addrs
+		. Array records the block numbers of the disk blocks
+		  holding the file's contents
+
+	. The kernel keeps the set of active inodes in memory
+	. "struct inode" is the in-memory copy of a "struct dinode" that
+	  is on-disk
+	. The kernel stores an inode in memory only if there are
+	  C pointers referring to that inode
+
+		struct inode
+		{
+			uint             dev;    // Device number
+			uint             inum;   // Inode number
+			int              ref;    // Reference count
+			struct sleeplock lock;   // protects everything below here
+			int              valid;  // inode has been read from disk?
+
+			// copy of disk inode
+			short            type;
+			short            major;
+			short            minor;
+			short            nlink;
+			uint             size;
+			uint             addrs [ NDIRECT + 1 ];
+		};
+
+	. inode->ref
+		. Counts the number of C pointers referring to the
+		  in-memory inode
+		. The kernel discards the inode from memory if the count
+		  drops to zero, and re-uses the cache entry for a different
+		  inode
+
+	. 'iget' and 'iput' functions acquire and release pointers to
+	  an inode, modifying inode->ref count
+	. Pointers to an inode can come from file descriptors, current
+	  working directories, and transient kernel code such as exec ?
+
+	. inode->lock ensures exclusive access to the inode's fields
+	  and to the inode's file or directory content blocks
+
+	. icache->lock protects the invariant that:
+		. an inode is present in the cache at most once
+		. a cached inode's ref counts the number of in-memory
+		  pointers to the cached inode...
+
+		struct {
+
+			struct spinlock lock;
+			struct inode    inode [ NINODE ];
+
+		} icache;
+
+
+	. The main job of the inode cache is synchronizing access by
+	  multiple processes; caching is secondary
+	. If an inode is used frequently, the buffer cache will
+	  probably keep it in memory if it isn't kept by the inode cache ??
+	. The inode cache is write-through, which means that code that
+	  modifies a cached inode must immediately write it to disk with
+	  'iupdate'
+
+
+	~~~ iget ~~~
+
+	. A "struct inode" pointer returned by iget is guaranteed to be
+	  valid until the corresponding call to iput.
+	. That is, the inode won't be deleted, and the memory referred
+	  to by the pointer won't be re-used for a different inode
+
+	. iget provides non-exclusive access to an inode, so that there
+	  can be many pointers to the same inode
+	. Many parts of the fs code depend on this behaviour, both to
+		. hold long-term references to inodes (as open files and
+		  directories)
+		. prevent races while avoiding deadlock in code that
+		  manipulates multiple inodes (such as pathname lookup) ??
+
+	. The "struct inode" pointer returned by iget may not have
+	  useful content
+	. In order to ensure that it holds a copy of the on-disk inode,
+	  code must call 'ilock'
+	. ilock locks the inode and reads the inode from the disk, if
+	  it has not already been read
+	. 'iunlock' releases the lock
+	. Separating acquisition of inode pointers from locking helps
+	  avoid deadlock in some situations (ex. during directory lookup)
+	. Multiple processes can hold a C pointer to an inode, but only
+	  one process can lock the inode at a time...
+
+
+	~~~ ialloc ~~~
+
+	. 'ialloc' is used to allocate a new inode (ex. when creating
+	  a file)
+	. ialloc is similar to balloc
+	. It loops over the inode structures on the disk, one block at
+	  a time, looking for one that is marked free
+	. When it finds one, it claims it by writing the new type to
+	  the disk
+	. It then returns an entry from the inode cache (via iget)
+
+		/// fs.h ///
+
+		// Inodes per block.
+		#define IPB ( BSIZE / sizeof( struct dinode ) )
+
+		// Block containing inode i
+		#define IBLOCK( i, sb ) ( ( i ) / IPB + sb.inodestart )
+
+
+		/// fs.c ///
+
+		struct inode* ialloc ( uint dev, short type )
+		{
+			int            inum;
+			struct buf    *bp;
+			struct dinode *dip;
+
+			for ( inum = 1; inum < sb.ninodes; inum += 1 )  // for each inode
+			{
+				bp = bread( dev, IBLOCK( inum, sb ) );
+
+				dip = ( struct dinode* )bp->data + ( inum % IPB );
+
+				// a free inode
+				if ( dip->type == 0 )
+				{  
+					memset( dip, 0, sizeof( *dip ) );  // clear contents
+
+					dip->type = type;
+
+					log_write( bp );   // mark it allocated on the disk
+
+					brelse( bp );
+
+					return iget( dev, inum );  // return in-memory copy
+				}
+
+				brelse( bp );
+			}
+
+			...
+		}
+
+	. ialloc depends on the fact that only one process at a time
+	  can be holding a reference to bp ...
+	. The prevents another process from simultaneously seeing that
+	  the inode is available and try to claim it...
+
+
+	~~~ ilock ~~~
+
+	. Code must lock the inode before reading or writing its 
+	  metadata or content
+	. ilock uses a sleeplock for this purpose
+	. Once ilock has exclusive access to the inode, it reads the
+	  inode from disk (more likely the buffer cache?) if needed
+
+		void ilock ( struct inode *ip )
+		{
+			...
+
+			acquiresleep( &ip->lock );
+
+			if ( ip->valid == 0 )
+			{
+				bp = bread( ip->dev, IBLOCK( ip->inum, sb ) );
+
+				dip = ( struct dinode* )bp->data + ( ip->inum % IPB );
+
+				ip->type  = dip->type;
+				ip->major = dip->major;
+				ip->minor = dip->minor;
+				ip->nlink = dip->nlink;
+				ip->size  = dip->size;
+
+				memmove( ip->addrs, dip->addrs, sizeof( ip->addrs ) );
+
+				brelse( bp );
+
+				ip->valid = 1;
+
+				...
+			}
+		}
+
+
+	~~~ iunlock ~~~
+
+	. iunlock releases the inode's sleeplock
+	. This may cause any processes sleeping on it to wakeup ??
+
+		void iunlock ( struct inode *ip )
+		{
+			...
+
+			releasesleep( &ip->lock );
+		}
+
+
+	~~~ iget ~~~
+
+	. iget returns an in-memory copy of an on-disk inode
+	. It looks through the inode cache for an active entry
+	  (inode->ref > 0), which has the desired device and inode number
+	. If it finds one, it returns a new reference to the inode
+
+	. As it scans, it records the position of the first empty slot
+	. If iget doesn't find a match, it uses the empty slot to
+	  create a new cache entry
+
+		static struct inode* iget ( uint dev, uint inum )
+		{
+			...
+
+			empty = 0;
+
+			// Is the inode already cached?
+			for ( ip = &icache.inode[ 0 ]; ip < &icache.inode[ NINODE ]; ip += 1 )
+			{
+				if ( ip->ref > 0 && ip->dev == dev && ip->inum == inum )
+				{
+					ip->ref += 1;
+
+					release( &icache.lock );
+
+					return ip;
+				}
+
+				if ( empty == 0 && ip->ref == 0 )  // Remember empty slot.
+				{
+					empty = ip;
+				}
+			}
+
+			// Recycle an inode cache entry.
+			if ( empty == 0 )
+			{
+				panic( "iget: no inodes" );
+			}
+
+			ip = empty;
+
+			ip->dev   = dev;
+			ip->inum  = inum;
+			ip->ref   = 1;
+			ip->valid = 0;
+
+			release( &icache.lock );
+
+			return ip;
+		}
+
+
+	~~~ iput ~~~
+
+	. iput releases a C pointer to an inode by decrementing the
+	  reference count
+
+	. If this is the last reference, the inode cache is now free
+	  and can be re-used for a different inode
+
+	. If iput sees no C pointer references to an inode, and that
+	  the inode has no links to it, then the inode and its data
+	  blocks must be freed on disk
+	. iput calls 'itrunc' to truncate the file size to zero bytes,
+	  freeing the data blocks
+	. It then sets the inode type to 0 (unallocated)
+	. Then writes the changes to disk with iupdate
+
+		void iput ( struct inode *ip )
+		{
+			...
+
+			if ( ip->valid && ip->nlink == 0 )
+			{
+				...
+
+				int r = ip->ref;
+
+				...
+
+				// inode has no links and no other references: truncate and free.
+				if ( r == 1 )
+				{
+					itrunc( ip );
+
+					ip->type = 0;
+
+					iupdate( ip );
+
+					ip->valid = 0;
+				}
+			}
+
+			...
+
+			ip->ref -= 1;
+
+			...
+		}
+
+
+	. Something about the locking protocol used when iput frees
+	  an inode...
+	. Something concurrent thread might be waiting in ilock to
+	  use the inode iput is about to free ...
+	. Something concurrent thread calling ialloc might choose
+	  same inode about to free ...
+
+	. Something about all system call that use the fs must be
+	  wrapped in transactions...
+
+
+	~~~ ... ~~~
+
+	. A challenging interaction arises between iput and crashes
+	. iput doesn't truncate a file immediately when the link
+	  count for the file drops to zero because some process might
+	  still hold a reference to it (ex. open file or is current
+	  working directory)
+	. If a crash happens before the last process closes the
+	  file descriptor, then the file will be marked allocated on
+	  disk but no directory entry (link) points to it
+	. Two possible solutions follow
+
+	. The simple solution is on recovery, after reboot, the fs
+	  scans the whole fs for files that are marked allocated but
+	  have no directory entry pointing to them
+	. If such files exist, they are freed
+
+	. Another solution that does not require scanning the entire
+	  fs is as follows
+	. The fs records on disk (ex. in the super block) the inode
+	  number of a file whose link count drops to zero but whose
+	  reference count is not zero
+	. When the file's reference count reaches zero, the fs frees
+	  it from disk as usual, but also removes the inode number
+	  from wherever it was tracking it
+	. On recovery, files still on the tracking list are freed
+
+	. Xv6 implements neither solution
+	. Over time, it runs the risk of running out of disk space,
+	  as inodes on disk may be marked allocated even though they
+	  are not in use anymore
+
+
+Inode content
+
+	. on-disk inode structure...
+
+	. The inode's data is found in the blocks listed in the
+	  dinode->addrs array
+
+	. The first 6 KBytes (NDIRECT x BSIZE) of a file can be
+	  loaded from blocks listed in the inode
+	. While the next 64 KBytes (NINDIRECT x BSIZE) can only be
+	  read after consulting the indirect block
+
+
+		#define NDIRECT   12
+		#define NINDIRECT ( BSIZE / sizeof( uint ) )
+
+
+		         -->  ------------
+		        |     type
+		        |     ------------
+		        |     major
+		        |     ------------
+		        |     minor
+		 dinode |     ------------
+		        |     nlink
+		        |     ------------
+		        |     size
+		        |     ------------  <--      <-----
+		        |     address 1        |           |
+		        |     ------------     |           |
+		        |     ...              | direct    |
+		        |     ------------     | blocks    | addrs
+		        |     address 12       |           |
+		        |     ------------  <--            |
+		        |     indirect ptr                 |
+		         -->  ------------  <--------------
+
+
+
+		              ------------  <--
+		              address 1        |
+		              ------------     |
+		              ...              | indirect blocks
+		              ------------     |
+		              address 128      |
+		              ------------  <--
+
+
+	. The function 'bmap' manages this representation so that
+	  higher-level routines don't have to deal with it
+
+
+	~~~ bmap ~~~
+
+	. bmap returns the disk block number of the n'th data block
+	  of the inode
+	. If the inode does not have such a block yet, bmap allocates one
+
+	. bmap begins by picking off the easy case: the first NDIRECT
+	  blocks are listed in the inode itself
+
+		if ( bn < NDIRECT )
+		{
+			if ( ( addr = ip->addrs[ bn ] ) == 0 )
+			{
+				addr = balloc( ip->dev );
+
+				ip->addrs[ bn ] = addr;
+			}
+
+			return addr;
+		}
+
+
+	. If indirect, bmap reads the indirect block.
+	. It then reads a block number from it
+
+		bn -= NDIRECT;
+
+		if ( bn < NINDIRECT )
+		{
+			// Load indirect block, allocating if necessary.
+			if ( ( addr = ip->addrs[ NDIRECT ] ) == 0 )
+			{
+				addr = balloc( ip->dev );
+
+				ip->addrs[ NDIRECT ] = addr;
+			}
+
+			bp = bread( ip->dev, addr );
+
+			//
+			a = ( uint* )bp->data;
+
+			if ( ( addr = a[ bn ] ) == 0 )
+			{
+				addr = balloc( ip->dev );
+
+				a[ bn ] = addr;
+
+				log_write( bp );  // ??
+			}
+
+			brelse( bp );
+
+			return addr;
+		}
+
+
+	. bmap allocates blocks as needed
+	. An ip->addrs or indirect entry of zero indicates that no
+	  block is allocated
+	. As bmap encounters zeroes, it replaces them with fresh blocks
+	  allocated on demand
+
+
+	~~~ itrunc ~~~
+
+	. itrunc frees a file's blocks, resetting the inode's size
+	  to zero
+	. It starts by freeig the direct blocks, then the ones listed
+	  in the indirect block, and finally the indirect block itself
+
+		static void itrunc ( struct inode *ip )
+		{
+			...
+
+			// Free direct blocks
+			for ( i = 0; i < NDIRECT; i += 1 )
+			{
+				if ( ip->addrs[ i ] )
+				{
+					bfree( ip->dev, ip->addrs[ i ] );
+
+					ip->addrs[ i ] = 0;
+				}
+			}
+
+			// Free blocks listed in indirect block
+			if ( ip->addrs[ NDIRECT ] )
+			{
+				bp = bread( ip->dev, ip->addrs[ NDIRECT ] );
+
+				a = ( uint* )bp->data;
+
+				for ( j = 0; j < NINDIRECT; j += 1 ){
+
+					if ( a[ j ] )
+					{
+						bfree( ip->dev, a[ j ] );
+					}
+				}
+
+				brelse( bp );
+
+				// Free the indirect block itself
+				bfree( ip->dev, ip->addrs[ NDIRECT ] );
+
+				ip->addrs[ NDIRECT ] = 0;
+			}
+
+			ip->size = 0;  // reset inode size
+
+			iupdate( ip );
+		}
+
+
+	~~~ readi ~~~
+
+	. 'readi' reads data from an inode
+
+	. readi begins by checking for ip->type == T_DEV
+	. This case handles special devices whose data does not
+	  live in the file system
+
+		if ( ip->type == T_DEV )
+		{
+			...
+
+			return devsw[ ip->major ].read( ip, dst, n );
+		}
+
+	. readi then checks that the offset and count are
+	  not beyond the end of the file
+	. Reads that start beyond EOF return an error
+	. Reads that start at? or cross beyond the EOF return fewer
+	  bytes than requested
+
+		// Read starts beyond EOF, or (n < 1)
+		if ( off > ip->size || off + n < off )
+		{
+			return - 1;
+		}
+
+		// Read crosses EOF
+		if ( off + n > ip->size )
+		{
+			n = ip->size - off;
+		}
+
+	. The main loop processes each block of the file, copying data
+	  from the inode into dst
+
+		for ( tot = 0; tot < n; tot += m )
+		{
+			bp = bread( ip->dev, bmap( ip, off / BSIZE ) );
+
+			m = min( n - tot, BSIZE - ( off % BSIZE ) );
+
+			memmove( dst, bp->data + ( off % BSIZE ), m );
+
+			brelse( bp );
+
+			off += m;
+			dst += m;
+		}
+
+
+	~~~ writei ~~~
+
+	. 'writei' writes data to an inode
+
+	. writei is almost identical to readi
+
+	. A notable difference is that writes that start at or
+	  cross the EOF *grow* the file up to the maximum file size
+	. If the write has extended the file, writei must
+	  update the file's size
+
+		/// fs.h ///
+
+		#define MAXFILE ( NDIRECT + NINDIRECT )
+
+
+		/// fs.c ///
+
+		// Write crossed EOF, update file size
+		if ( n > 0 && off > ip->size )
+		{
+			ip->size = off;
+
+			iupdate( ip );
+		}
+
+
+	~~~ stati ~~~
+
+	. 'stati' copies an inode's metadata into a "struct stat"
+	. It is exposed to user programs via the fstat system call
+
+		/// stat.h ///
+
+		struct stat
+		{
+			short type;   // Type of file
+			int   dev;    // File system's disk device
+			uint  ino;    // Inode number
+			short nlink;  // Number of links to file
+			uint  size;   // Size of file in bytes
+		};
+
+		/// fs.c ///
+		void stati ( struct inode *ip, struct stat *st )
+		{
+			st->dev   = ip->dev;
+			st->ino   = ip->inum;
+			st->type  = ip->type;
+			st->nlink = ip->nlink;
+			st->size  = ip->size;
+		}
+
+
+Directory layer (TODO)
+
+	. A directory is implemented internally much like a file ??
+
+		struct file
+		{
+			enum {
+
+				FD_NONE,
+				FD_PIPE,
+				FD_INODE
+
+			} type;
+
+			int           ref;       // reference count
+			char          readable;
+			char          writable;
+			struct pipe  *pipe;
+			struct inode *ip;
+			uint          off;
+		};
+
+	. Its inode has type T_DIR whose data (inode->addrs) is a
+	  sequence of directory entries (dirent) ??
+
+		struct inode
+		{
+			uint             dev;    // Device number
+			uint             inum;   // Inode number
+			int              ref;    // Reference count
+			struct sleeplock lock;   // protects everything below here
+			int              valid;  // inode has been read from disk?
+
+			// copy of disk inode
+			short            type;
+			short            major;
+			short            minor;
+			short            nlink;
+			uint             size;
+			uint             addrs [ NDIRECT + 1 ];
+		};
+
+	. Each entry is a "struct dirent" which contains a name and
+	  an inode number
+
+		struct dirent
+		{
+			ushort inum;
+			char   name [ DIRNAMESZ ];
+		};
+
+	. The name is at most DIRNAMESZ (14) characters. If shorter,
+	  it is terminated by a NULL (0) byte
+	. Directory entries with an inode number of zero are free
+
+
+	~~~ dirlookup ~~~
+
+	. 'dirlookup' searches a directory for an entry with the
+	  given name
+
+	. If it finds one:
+		. It sets "*poff" to the byte offset of the entry within
+	      the directory in case the caller wishes to edit it
+		. And returns a pointer to the corresponding unlocked
+		  inode (via iget)
+
+		for ( off = 0; off < dp->size; off += sizeof( de ) )
+		{
+			readi( dp, ( char* )&de, off, sizeof( de ) )
+
+			...
+
+			if ( de.inum == 0 )  // unallocated dirent
+			{
+				continue;
+			}
+
+			if ( namecmp( name, de.name ) == 0 )
+			{
+				if ( poff )
+				{
+					*poff = off;
+				}
+
+				inum = de.inum;
+
+				return iget( dp->dev, inum );
+			}
+		}
+
+	. Something about why caller is the one who holds the lock...
+
+
+	~~~ dirlink ~~~
+
+	. 'dirlink' writes a new directory entry with the given name
+	  and inode number into the directory
+
+	. If the name already exists, dirlink returns an error
+
+		if ( ( ip = dirlookup( dp, name, 0 ) ) != 0 )
+		{
+			iput( ip );
+
+			return - 1;
+		}
+
+	. The main loop reads directory entries looking for an
+	  unallocated entry
+	. When it finds one, it stops the loop early, with "off" set
+	  to the offset of the available entry
+	. Otherwise the loop ends with "off" set to dp->size ??
+		. What is the implication of this?
+		. writei will grow the file up to max file size...
+
+
+		// Look for an empty dirent.
+		for ( off = 0; off < dp->size; off += sizeof( de ) )
+		{
+			readi( dp, ( char* )&de, off, sizeof( de ) )
+
+			...
+
+			if ( de.inum == 0 )
+			{
+				break;
+			}
+		}
+
+		// Write the new dirent
+		strncpy( de.name, name, DIRNAMESZ );
+
+		de.inum = inum;
+
+		writei( dp, ( char* )&de, off, sizeof( de ) )
+
+		...
+
+
+Path names
+
+	. Path name lookup involves a succession of call to dirlookup,
+	  one for each path component
+
+	. 'namei' evaluates "path" and returns the corresponding inode
+
+	. 'nameiparent' is a variant of 'namei'.
+	. It stops before the last element, returning the inode of
+	  the parent directory, and copying the last element into "name"
+
+		struct inode* namei ( char *path )
+		{
+			char name [ DIRNAMESZ ];
+
+			return namex( path, 0, name );
+		}
+
+		struct inode* nameiparent( char *path, char *name )
+		{
+			return namex( path, 1, name );
+		}
+
+
+	. namei and nameiparent call 'namex' to do the real work
+
+
+	~~~ namex ~~~
+
+	. namex starts by deciding where the path evaluation begins.
+	. If the path begins with a '/', evaluation begins at root.
+	  Otherwise it begins at the current directory
+
+		if ( *path == '/' )
+		{
+			ip = iget( ROOTDEV, ROOTINO );
+		}
+		else
+		{
+			ip = idup( myproc()->cwd );
+		}
+
+	. In the main loop:
+
+		. namex then uses 'skipelem' to consider each element of
+		  the path in turn
+
+		. If the inode is not a directory, lookup fails ??
+
+		. If the call is nameiparent and this is the last
+		  path element, the loop stops early
+		. The final element has already been copied into "name",
+		  so namex returns the unlocked inode (parent directory)
+
+		. The next inode is retrieved by a call to dirlookup
+
+	. When the loop runs out of path elements, namex
+	  returns the inode (??)
+
+{{}}
+
+	. TODO: If it exits on not T_DIR, how does it handle files T_FILE
+	  for example exec opening an ELF file... ??
+
+
+	. namex may take a long time to complete.
+	. It could involve several disk operations to read inodes and
+	  directory blocks for the directories traversed in the
+	  pathname (if they are not in the buffer cache)
+	. namex is designed so that if a call of namex in one kernel
+	  thread is blocked on a disk IO, another kernel thread
+	  looking up a different pathname can still proceed concurrently
+	. namex accomplishes this by locking each directory in the path
+	  separately...
+
+	. This concurrency introduces some challenges
+	. Something about locks...
+
+
+File description layer
+
+	. In Unix, most resources are represented as files
+	. The file description layer is the layer that achieves this
+	  uniformity
+
+	. Xv6 gives each process its own table of open
+	  files (file descriptors ?)
+	. Each open file is represented by a "struct file",
+	  which is a wrapper around either an inode or pipe, plus an
+	  IO offset...
+
+		struct file
+		{
+			enum {
+
+				FD_NONE,
+				FD_PIPE,
+				FD_INODE
+
+			} type;
+
+			int           ref;       // reference count
+			char          readable;
+			char          writable;
+			struct pipe  *pipe;
+			struct inode *ip;
+			uint          off;
+		};
+
+	. Each call to open creates a new open file (a new
+	  "struct file")
+	. If multiple processes open the same file independently,
+	  the different instances will have different IO offsets ??
+
+	. A single open file (the same "struct file") can:
+
+		. appear multiple times in one process's file table 
+			. This would happen if a process used 'open'
+			  to open the file and then created aliases
+			  using 'dup'
+
+		. appear in the table of multiple processes
+			. This would happen if it shared the file with a child
+			  using 'fork'
+
+	. A reference count file->ref tracks the number of references
+	  to a particular open file
+
+	. A file can be open for reading or writing or both.
+	. file->readable and file->writeable track this
+
+
+	~~~ ... ~~~
+
+	. All the open files in the system are kept in a global
+	  file table, ftable
+
+		/// param.h ///
+
+		#define NFILE 100  // open files per system
+
+
+		/// file.c ///
+
+		struct {
+
+			struct spinlock lock;
+			struct file     file [ NFILE ];
+
+		} ftable;
+
+
+	. The file table has a function to:
+		. allocate a file (filealloc)
+		. create a duplicate reference (filedup)
+		. release a reference (fileclose)
+		. read data (fileread)
+		. write data (filewrite)
+
+
+	~~~ filealloc ~~~~
+
+	. 'filealloc' scans the file table for an unreferenced file
+	  (file->ref == 0) and returns it if found
+
+		struct file* filealloc ( void )
+		{
+			struct file *f;
+
+			...
+
+			for ( f = ftable.file; f < ftable.file + NFILE; f += 1 )
+			{
+				if ( f->ref == 0 )
+				{
+					f->ref = 1;
+
+					release( &ftable.lock );
+
+					return f;
+				}
+			}
+
+			...
+
+			return 0;
+		}
+
+
+	~~~ filedup ~~~~
+
+	. 'filedup' increments the reference count
+
+		struct file* filedup ( struct file *f )
+		{
+			...
+
+			f->ref += 1;
+
+			...
+		}
+
+
+	~~~ fileclose ~~~~
+
+	. 'fileclose' decrements the reference count
+	. When a file's reference count reaches zero, fileclose
+	  releases the underlying pipe or inode
+
+		void fileclose ( struct file *f )
+		{
+			struct file ff;
+
+			...
+
+			f->ref -= 1;
+
+			if ( f->ref > 0 )
+			{
+				release( &ftable.lock );
+
+				return;
+			}
+
+			ff = *f;
+
+			f->ref  = 0;
+			f->type = FD_NONE;
+
+			...
+
+			if ( ff.type == FD_PIPE )
+			{
+				pipeclose( ff.pipe, ff.writable );
+			}
+			else if ( ff.type == FD_INODE )
+			{
+				begin_op();
+
+				iput( ff.ip );
+
+				end_op();
+			}
+		}
+
+
+	~~~ filestat ~~~~
+
+	. 'filestat' returns the metadata of a file
+	. filestat is only allowed on inodes and calls 'stati'
+
+		int filestat ( struct file *f, struct stat *st )
+		{
+			if ( f->type == FD_INODE )
+			{
+				...
+
+				stati( f->ip, st );
+
+				...
+			}
+
+			return - 1;
+		}
+
+
+	~~~ fileread ~~~~
+
+	. 'fileread' implements the read operation in files
+	. fileread checks that the operation is allowed by the open mode
+	. It then passes the call through to either the pipe or
+	  inode implementation
+
+	. If the file represents an inode, fileread uses the IO offset
+	  as the offset for the operation then advances it
+	. Pipes have no concept of offsets...
+
+		int fileread ( struct file *f, char *addr, int n )
+		{
+			int r;
+
+			if ( f->readable == 0 )
+			{
+				return - 1;
+			}
+
+			if ( f->type == FD_PIPE )
+			{
+				return piperead( f->pipe, addr, n );
+			}
+
+			if ( f->type == FD_INODE )
+			{
+				...
+
+				if ( ( r = readi( f->ip, addr, f->off, n ) ) > 0 )
+				{
+					f->off += r;
+				}
+
+				...
+
+				return r;
+			}
+
+			...
+		}
+
+
+	~~~ filewrite ~~~~
+
+	. 'filewrite' implements the write operation in files
+	. Implementation is almost identical to fileread
+	. However, filewrite has logic that breaks down the
+	  number of blocks written at a time. See earlier.
+
+	. Inode locking has the convenient side effect that read
+	  and write offsets are updated atomically, so that multiple
+	  processes writing to the same file simultaneously cannot
+	  overwrite each other's data
+
+
+File system calls
+
+	. With the functions that the lower layers provide, the
+	  implementation of most file system calls (sysfile.c) is trivial
+	. A few however, deserve a closer look
+
+	~~~ sys_link ~~~~
+
+	. 'sys_link' and 'sys_unlink' edit directories, creating or
+	  removing references to inodes.
+
+	. sys_link creates a new name for an existing inode
+
+	. sys_link begins by fetching its arguments, strings "old" and "new"
+
+		argstr( 0, &old )
+		argstr( 1, &new )
+
+
+	. If "old" exists and it is not a directory, sys_link increments
+	  its inode->nlink count
+
+		ip = namei( old )
+
+		..
+
+		if ( ip->type == T_DIR )
+		{
+			...
+
+			return - 1;
+		}
+
+		ip->nlink += 1;
+
+		iupdate( ip );
+
+
+	. sys_link then calls nameiparent to find the parent directory
+	  and final path element of "new"
+
+		char name [ DIRNAMESZ ];
+
+		...
+
+		dp = nameiparent( new, name )
+
+
+	. It then creates a new directory entry pointing at "old"'s inode
+	. The new parent directory must exist and be on the same device
+	  as the existing inode since inode numbers only have a unique
+	  meaning on a single disk
+
+		if ( dp->dev != ip->dev || dirlink( dp, name, ip->inum ) < 0 )
+		{
+			...
+
+			goto bad;
+		}
+
+
+	. If an error occurs, after sys_link has incremented inode->nlink,
+	  it must go back and decrement it
+
+		bad:
+
+			...
+
+			ip->nlink -= 1;
+
+			iupdate( ip );
+
+			...
+
+			return - 1;
+
+
+	~~~ sys_unlink ~~~~
+
+	. ...
+
+
+	~~~ create ~~~~
+
+	. While sys_link creates a new name for an *existing* inode,
+	  'create' creates a new name for a *new* inode
+
+	. It is a generalization of three file creation system calls:
+		. open with the O_CREATE flag makes a new ordinary file
+		. mkdir makes a new directory
+		. mkdev makes a new device file
+
+	. Like sys_link, create starts by calling nameiparent to get
+	  the inode of the parent directory
+
+	  	dp = nameiparent( path, name )
+
+
+	. It then calls dirlookup to check whether the name already exists
+	. If the name already exists, create's behaviour depends on which
+	  system call it is being used for:
+
+		. if on behalf of open (type == T_FILE),
+			. If the name that exists is itself a regular file, 
+			  it is treated as a success and create returns the inode
+			. Otherwise it is treated an error
+		. if on behalf of mkdir and mkdev
+			. Treated as an error
+
+		if ( ( ip = dirlookup( dp, name, &off ) ) != 0 )
+		{
+			...
+
+			if ( type == T_FILE && ip->type == T_FILE )
+			{
+				return ip;
+			}
+
+			...
+
+			return 0;
+		}
+
+	. If the name does not already exist, create allocates
+	  a new inode with ialloc
+
+		ip = ialloc( dp->dev, type )
+
+		...
+
+		ip->major = major;
+		ip->minor = minor;
+		ip->nlink = 1;
+
+		iupdate( ip );
+
+
+	. If the new inode is a directory, create initializes it with
+	  '.' and '..' entries ??
+
+		if ( type == T_DIR )
+		{
+			dp->nlink += 1;   // for ".."
+
+			iupdate( dp );
+
+			dirlink( ip, ".",  ip->inum )
+			dirlink( ip, "..", dp->inum )
+
+			...
+		}
+
+
+	. Finally, now that the data is initialized properly, create
+	  can link the new inode into the parent directory
+
+		dirlink( dp, name, ip->inum )
+
+		...
+
+		return ip;
+
+
+	. With create, it is easy to implement 'sys_open', 'sys_mkdir',
+	  and 'sys_mknod'
+
+
+	~~~ sys_open ~~~
+
+	. sys_open is complex, because creating a new file is only a
+	  small part of what it can do...
+
+	. If sys_open is passed the O_CREATE flag, it calls create.
+	. Otherwise, it calls namei to open an existing inode
+
+		if ( omode & O_CREATE )
+		{
+			ip = create( path, T_FILE, 0, 0 );
+
+			...
+		}
+		else
+		{
+			ip = namei( path )
+
+			...
+		}
+
+
+	. If an inode was obtained, sys_open allocates a file and a
+	  file descriptor
+
+		f = filealloc()
+
+		fd = fdalloc( f )
+
+
+	. It then fills in the file
+
+		f->type     = FD_INODE;
+		f->ip       = ip;
+		f->off      = 0;
+		f->readable = ! ( omode & O_WRONLY );
+		f->writable = ( omode & O_WRONLY ) || ( omode & O_RDWR );
+
+		return fd;
+
+
+	~~~ sys_mkdir ~~~~
+
+	. calls create with type T_DIR
+
+		ip = create( path, T_DIR, 0, 0 )
+
+
+	~~~ sys_mknod ~~~~
+
+	. calls create with type T_DEV
+
+		ip = create( path, T_DEV, major, minor )
+
+
+	~~~ sys_pipe ~~~~
+
+	. 'sys_pipe' connects the implementation of pipe to the
+	  file system by providing a way to create a pipe pair ??
+
+	. Its argument is a pointer to space for two integers, where
+	  it will record the two new file descriptors
+
+	. sys_pipe allocates the pipe and installs the file descriptors
+
+		int sys_pipe ( void )
+		{
+			...
+
+			pipealloc( &rf, &wf )
+
+			...
+
+			fd0 = fdalloc( rf )
+			fd1 = fdalloc( wf )
+
+			...
+
+			fd[ 0 ] = fd0;
+			fd[ 1 ] = fd1;
+
+			...
+		}
+
+
+Real world
+
+	. A more efficient LRU buffer cache would eliminate the
+	  linked list, and instead use a hash table for lookups (
+	  random access) and a heap (?) for LRU evictions
+
+	. Xv6 logging system is inefficient:
+		. A log commit cannot occur concurrently with
+		  file system calls...
+		. It logs entire blocks, even if only a few bytes in a
+		  block are changed
+		. It performs synchronous log writes, a block at a time
+
+	. Assumes one disk per file system
+	. For example fixed-size arrays of inode blocks
+
 
 ---------------------------------------------------------------------------------------------
 The boot loader
 ---------------------------------------------------------------------------------------------
 
-...
+Intro
 
 	. When a x86 PC boots, it starts executing a program called the BIOS
 	  (Basic Input/Output System) which is stored in non-volatile memory

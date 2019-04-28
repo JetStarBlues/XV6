@@ -287,7 +287,7 @@ void exit ( void )
 {
 	struct proc *curproc = myproc();
 	struct proc *p;
-	int fd;
+	int          fd;
 
 	if ( curproc == initproc )
 	{
@@ -315,7 +315,7 @@ void exit ( void )
 
 	acquire( &ptable.lock );
 
-	// Parent might be sleeping in wait().
+	// Parent might be sleeping in wait()
 	wakeup1( curproc->parent );
 
 	// Pass abandoned children to init.

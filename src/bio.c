@@ -56,7 +56,7 @@ void binit ( void )
 		initsleeplock( &b->lock, "buffer" );
 
 		bcache.head.next->prev = b;
-		bcache.head.next = b;
+		bcache.head.next       = b;
 	}
 }
 
@@ -160,7 +160,7 @@ void brelse ( struct buf *b )
 		b->prev = &bcache.head;
 
 		bcache.head.next->prev = b;
-		bcache.head.next = b;
+		bcache.head.next       = b;
 	}
 
 	release( &bcache.lock );

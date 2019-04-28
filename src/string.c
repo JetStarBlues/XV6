@@ -9,7 +9,8 @@ void* memset (  void *dst, int c, uint n  )
 
 		stosl(
 
-			dst, ( c << 24 ) | ( c << 16 ) | ( c << 8 ) | c,
+			dst,
+			( c << 24 ) | ( c << 16 ) | ( c << 8 ) | c,
 			n / 4
 		);
 	}
@@ -82,7 +83,7 @@ void* memcpy ( void *dst, const void *src, uint n )
 
 int strncmp ( const char *p, const char *q, uint n )
 {
-	while( n > 0 && *p && *p == *q )
+	while ( n > 0 && *p && *p == *q )
 	{
 		n -= 1;
 		p += 1;

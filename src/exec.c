@@ -33,7 +33,7 @@ int exec ( char *path, char **argv )
 
 		cprintf( "exec: fail\n" );
 
-		return -1;
+		return - 1;
 	}
 
 	ilock( ip );

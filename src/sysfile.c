@@ -154,7 +154,7 @@ int sys_link ( void )
 {
 	struct inode *dp,
 	             *ip;
-	char          name [ DIRSIZ ],
+	char          name [ DIRNAMESZ ],
 	             *new,
 	             *old;
 
@@ -227,7 +227,7 @@ bad:
 }
 
 // Is the directory dp empty except for "." and ".." ?
-static int isdirempty(  struct inode *dp )
+static int isdirempty ( struct inode *dp )
 {
 	struct dirent de;
 	int           off;
@@ -254,7 +254,7 @@ int sys_unlink ( void )
 	struct inode  *ip,
 	              *dp;
 	struct dirent  de;
-	char           name [ DIRSIZ ],
+	char           name [ DIRNAMESZ ],
 	              *path;
 	uint           off;
 
@@ -334,12 +334,12 @@ bad:
 	return - 1;
 }
 
-static struct inode* create(  char *path, short type, short major, short minor )
+static struct inode* create ( char *path, short type, short major, short minor )
 {
 	struct inode *ip,
 	             *dp;
 	uint          off;
-	char          name[ DIRSIZ ];
+	char          name [ DIRNAMESZ ];
 
 	if ( ( dp = nameiparent( path, name ) ) == 0 )
 	{
@@ -384,7 +384,7 @@ static struct inode* create(  char *path, short type, short major, short minor )
 		iupdate( dp );
 
 		// No ip->nlink++ for ".": avoid cyclic ref count.
-		if ( dirlink( ip, ".", ip->inum )  < 0 ||
+		if ( dirlink( ip, ".",  ip->inum ) < 0 ||
 			 dirlink( ip, "..", dp->inum ) < 0 )
 		{
 			panic( "create dots" );
@@ -469,7 +469,7 @@ int sys_open ( void )
 	f->type     = FD_INODE;
 	f->ip       = ip;
 	f->off      = 0;
-	f->readable = !( omode & O_WRONLY );
+	f->readable = ! ( omode & O_WRONLY );
 	f->writable = ( omode & O_WRONLY ) || ( omode & O_RDWR );
 
 	return fd;
@@ -606,8 +606,8 @@ int sys_pipe ( void )
 {
 	struct file *rf,
 	            *wf;
-	int         *fd;
-	int          fd0,
+	int         *fd,
+	             fd0,
 	             fd1;
 
 	if ( argptr( 0, ( void* )&fd, 2 * sizeof( fd[ 0 ] ) ) < 0 )

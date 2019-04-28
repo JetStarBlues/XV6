@@ -1205,7 +1205,7 @@ fourteen(void)
 {
   int fd;
 
-  // DIRSIZ is 14.
+  // DIRNAMESZ is 14.
   printf(1, "fourteen test\n");
 
   if(mkdir("12345678901234") != 0){

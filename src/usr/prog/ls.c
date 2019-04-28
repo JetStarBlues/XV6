@@ -6,7 +6,7 @@
 char*
 fmtname(char *path)
 {
-  static char buf[DIRSIZ+1];
+  static char buf[DIRNAMESZ+1];
   char *p;
 
   // Find first character after last slash.
@@ -15,10 +15,10 @@ fmtname(char *path)
   p++;
 
   // Return blank-padded name.
-  if(strlen(p) >= DIRSIZ)
+  if(strlen(p) >= DIRNAMESZ)
     return p;
   memmove(buf, p, strlen(p));
-  memset(buf+strlen(p), ' ', DIRSIZ-strlen(p));
+  memset(buf+strlen(p), ' ', DIRNAMESZ-strlen(p));
   return buf;
 }
 
@@ -47,7 +47,7 @@ ls(char *path)
     break;
 
   case T_DIR:
-    if(strlen(path) + 1 + DIRSIZ + 1 > sizeof buf){
+    if(strlen(path) + 1 + DIRNAMESZ + 1 > sizeof buf){
       printf(1, "ls: path too long\n");
       break;
     }
@@ -57,8 +57,8 @@ ls(char *path)
     while(read(fd, &de, sizeof(de)) == sizeof(de)){
       if(de.inum == 0)
         continue;
-      memmove(p, de.name, DIRSIZ);
-      p[DIRSIZ] = 0;
+      memmove(p, de.name, DIRNAMESZ);
+      p[DIRNAMESZ] = 0;
       if(stat(buf, &st) < 0){
         printf(1, "ls: cannot stat %s\n", buf);
         continue;
