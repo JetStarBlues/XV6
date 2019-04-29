@@ -790,6 +790,13 @@ int dirlink ( struct inode *dp, char *name, uint inum )
 //   skipelem( "a", name ) = "", setting name = "a"
 //   skipelem( "", name ) = skipelem( "////", name ) = 0
 //
+// JK:
+//                        name | returned path
+//                       ------|--------------
+//   skipelem( "a/b/c" )  a    | "b/c" | 900
+//   skipelem( "b/c" )    b    | "c"   | 901
+//   skipelem( "c" )      c    | ""    | 902
+//   skipelem( "" )       NA   | 0     | 0
 static char* skipelem ( char *path, char *name )
 {
 	char *s;
@@ -855,11 +862,11 @@ static struct inode* namex ( char *path, int nameiparent, char *name )
 	}
 
 	//
-	while ( ( path = skipelem( path, name ) ) != 0 )
+	while ( ( path = skipelem( path, name ) ) != 0 )  // If this is not the last path element
 	{
 		ilock( ip );
 
-		// If current inode is not a directory, fail ??
+		// If current inode (parent) is not a directory, fail
 		if ( ip->type != T_DIR )
 		{
 			iunlockput( ip );
@@ -867,7 +874,7 @@ static struct inode* namex ( char *path, int nameiparent, char *name )
 			return 0;
 		}
 
-		// If retrieved last element (child),
+		// If nameiparent and retrieved last element (child),
 		// return the current inode (parent)
 		if ( nameiparent && *path == '\0' )
 		{
@@ -892,7 +899,7 @@ static struct inode* namex ( char *path, int nameiparent, char *name )
 		ip = next;
 	}
 
-	// If consumed entire path before identiying parent, fail ??
+	// If consumed entire path before identiying parent, fail
 	if ( nameiparent )
 	{
 		iput( ip );

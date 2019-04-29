@@ -639,20 +639,24 @@ int kill ( int pid )
 // No lock to avoid wedging a stuck machine further.
 void procdump ( void )
 {
-	static char *states[] = {
+	static char *states [] = {
 
-		[ UNUSED   ] "unused",
-		[ EMBRYO   ] "embryo",
-		[ SLEEPING ] "sleep ",
-		[ RUNNABLE ] "runble",
-		[ RUNNING  ] "run   ",
-		[ ZOMBIE   ] "zombie"
+		[ UNUSED   ] "unused  ",
+		[ EMBRYO   ] "embryo  ",
+		[ SLEEPING ] "sleeping",
+		[ RUNNABLE ] "runnable",
+		[ RUNNING  ] "running ",
+		[ ZOMBIE   ] "zombie  "
 	};
 
-	int          i;
 	struct proc *p;
 	char        *state;
+	int          i;
 	uint         pc [ 10 ];
+
+	cprintf( "\nprocdump:\n" );
+	cprintf( "pid | state | name\n" );
+	cprintf( "------------------\n\n" );
 
 	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
 	{
@@ -670,18 +674,24 @@ void procdump ( void )
 			state = "???";
 		}
 
-		cprintf( "%d %s %s", p->pid, state, p->name );
+		cprintf( "%d | ", p->pid );
+		cprintf( "%s | %s\n", state, p->name );
+		// cprintf( "%d | %s | %s\n", p->pid, state, p->name );
 
-		if( p->state == SLEEPING )
+		if ( p->state == SLEEPING )
 		{
 			getcallerpcs( ( uint* )p->context->ebp + 2, pc );
 
+			cprintf( "call stack:\n" );
+
 			for ( i = 0; i < 10 && pc[ i ] != 0; i += 1 )
 			{
-				cprintf( " %p", pc[ i ] );
+				cprintf( "    %p\n", pc[ i ] );
 			}
-		}
 
-		cprintf( "\n" );
+			cprintf( "\n" );
+		}
 	}
+
+	cprintf( "\n" );
 }

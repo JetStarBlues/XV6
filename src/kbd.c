@@ -52,7 +52,7 @@ int kbdgetc ( void )
 	shift |= shiftcode[ data ];
 	shift ^= togglecode[ data ];
 
-	c = charcode[shift & ( CTL | SHIFT )][ data ];
+	c = charcode[ shift & ( CTL | SHIFT ) ][ data ];
 
 	if ( shift & CAPSLOCK )
 	{

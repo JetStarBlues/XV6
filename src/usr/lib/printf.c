@@ -51,18 +51,18 @@ static void printint ( int fd, int xx, int base, int sign )
 	}
 }
 
-// Print to the given fd. Only understands %d, %x, %p, %s.
+// Print to the given fd. Only understands %d, %x, %p, %s, %c.
 void printf ( int fd, const char *fmt, ... )
 {
 	char *s;
 	int   c,
 	      i,
 	      state;
-	uint *ap;
+	uint *argp;
 
 	state = 0;
 
-	ap = ( uint* )( void* )&fmt + 1;
+	argp = ( uint* )( void* )&fmt + 1;
 
 	for ( i = 0; fmt[ i ]; i += 1 )
 	{
@@ -83,21 +83,21 @@ void printf ( int fd, const char *fmt, ... )
 		{
 			if ( c == 'd' )
 			{
-				printint( fd, *ap, 10, 1 );
+				printint( fd, *argp, 10, 1 );
 
-				ap += 1;
+				argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
 			}
 			else if ( c == 'x' || c == 'p' )
 			{
-				printint( fd, *ap, 16, 0 );
+				printint( fd, *argp, 16, 0 );
 
-				ap += 1;
+				argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
 			}
 			else if ( c == 's' )
 			{
-				s = ( char* )*ap;
+				s = ( char* )*argp;
 
-				ap += 1;
+				argp += 1;
 
 				if ( s == 0 )
 				{
@@ -113,9 +113,9 @@ void printf ( int fd, const char *fmt, ... )
 			}
 			else if ( c == 'c' )
 			{
-				putc( fd, *ap );
+				putc( fd, *argp );
 
-				ap += 1;
+				argp += 1;
 			}
 			else if ( c == '%' )
 			{

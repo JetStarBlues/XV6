@@ -106,6 +106,15 @@ int exec ( char *path, char **argv )
 			goto bad;
 		}
 
+		/*// JK debug...
+		cprintf( "---\n" );
+		cprintf( "Hi there!\n" );
+		cprintf( path ); cprintf( "\n" );
+		cprintf( "ph.vaddr  : %x\n", ph.vaddr );
+		cprintf( "ph.off    : %x\n", ph.off );
+		cprintf( "ph.filesz : %x\n", ph.filesz );
+		cprintf( "---\n\n" ); */
+
 		// Load file contents into memory
 		if ( loaduvm( pgdir, ( char* )ph.vaddr, ip, ph.off, ph.filesz ) < 0 )
 		{

@@ -55,15 +55,26 @@ gets(char *buf, int max)
   int i, cc;
   char c;
 
-  for(i=0; i+1 < max; ){
+  for(i=0; i+1 < max; )
+  {
     cc = read(0, &c, 1);
+    // printf( 1, "wtf %d\n", cc );  // JK
+    // printf( 1, "... %d", c );  // JK
+    // printf( 1, " ... %c\n", c );  // JK
+
     if(cc < 1)
       break;
+
     buf[i++] = c;
+
     if(c == '\n' || c == '\r')
       break;
+
+    // printf( 1, "??\n" );
   }
   buf[i] = '\0';
+
+  // printf( 1, "Do we reach here? %s\n", buf );
   return buf;
 }
 

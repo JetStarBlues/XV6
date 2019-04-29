@@ -89,9 +89,9 @@ void getcallerpcs ( void *v, uint pcs[] )
 			break;
 		}
 
-		pcs[ i ] = ebp[ 1 ];     // saved %eip
+		pcs[ i ] = ebp[ 1 ];      // saved %eip
 
-		ebp = ( uint* )ebp[ 0 ]; // saved %ebp
+		ebp = ( uint* )ebp[ 0 ];  // saved %ebp
 	}
 
 	for ( ; i < 10; i += 1 )

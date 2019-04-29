@@ -96,6 +96,7 @@ int main ( int argc, char *argv[] )
 	assert( ( BSIZE % sizeof( struct dinode ) ) == 0 );
 	assert( ( BSIZE % sizeof( struct dirent ) ) == 0 );
 
+	// Open fs.img
 	fsfd = open( argv[ 1 ], O_RDWR | O_CREAT | O_TRUNC, 0666 );
 
 	if ( fsfd < 0 )

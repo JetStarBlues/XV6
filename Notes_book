@@ -5071,7 +5071,7 @@ sleep and wakeup
 		}
 
 	. hkjhhk
-	. revisit
+	. revisit...
 
 
 	~~~ Xv6 implementation ~~~
@@ -7357,25 +7357,44 @@ Path names
 
 	. In the main loop:
 
-		. namex then uses 'skipelem' to consider each element of
+		. namex uses 'skipelem' to consider each element of
 		  the path in turn
 
-		. If the inode is not a directory, lookup fails ??
-
-		. If the call is nameiparent and this is the last
-		  path element, the loop stops early
+		. If the call is nameiparent, the loop stops early
 		. The final element has already been copied into "name",
 		  so namex returns the unlocked inode (parent directory)
 
 		. The next inode is retrieved by a call to dirlookup
 
 	. When the loop runs out of path elements, namex
-	  returns the inode (??)
+	  returns the final inode
 
-{{}}
+		while ( ( path = skipelem( path, name ) ) != 0 )
+		{
+			if ( ip->type != T_DIR )
+			{
+				...
 
-	. TODO: If it exits on not T_DIR, how does it handle files T_FILE
-	  for example exec opening an ELF file... ??
+				return 0;
+			}
+
+			if ( nameiparent && *path == '\0' )
+			{
+				...
+
+				return ip;
+			}
+
+			next = dirlookup( ip, name, 0 );
+
+			...
+
+			ip = next;
+		}
+
+		...
+
+		return ip;
 
 
 	. namex may take a long time to complete.
@@ -8240,6 +8259,11 @@ JK Summary
 		. and jump to _start (entry.S)
 
 
+
+=============================================================================================
+=============================================================================================
+
+
 ---------------------------------------------------------------------------------------------
 Other
 ---------------------------------------------------------------------------------------------
@@ -8248,23 +8272,27 @@ x86 processor supports Xv6 via:
 
 	. kernel and user mode
 		. switch between two
-			. 'sysenter', 'sysexit' instructions
+
 		. priviledged instructions
 		. detect when user mode trying to execute priviledged
 
-	. page table ??
+	. page table
 		. translate virtual addresses to physical...
 
-	. 'ltr' instruction
-	. 'lidt' instruction
-	. 'lgdt' instruction
+		. 'ltr' instruction
+		. 'lgdt' instruction
+
+	. interrupt table
+		. map interrupts to handlers
+
+		. 'lidt' instruction
 
 
 ---------------------------------------------------------------------------------------------
 Other2
 ---------------------------------------------------------------------------------------------
 
-Makefile - ??
+Makefile - ...
 
 	fs.img -> mkfs -> mkfs.c
 	                  fs.h

@@ -65,7 +65,7 @@ static void printint ( int xx, int base, int sign )
 }
 //PAGEBREAK: 50
 
-// Print to the console. only understands %d, %x, %p, %s.
+// Print to the console. only understands %d, %x, %p, %s, &c.
 void cprintf ( char *fmt, ... )
 {
 	int   i,
@@ -97,7 +97,9 @@ void cprintf ( char *fmt, ... )
 			continue;
 		}
 
-		c = fmt[ ++i ] & 0xff;
+		i += 1;
+
+		c = fmt[ i ] & 0xff;
 
 		if ( c == 0 )
 		{
@@ -110,7 +112,7 @@ void cprintf ( char *fmt, ... )
 
 				printint( *argp, 10, 1 );
 
-				*argp += 1;
+				*argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
 
 				break;
 
@@ -119,21 +121,33 @@ void cprintf ( char *fmt, ... )
 
 				printint( *argp, 16, 0 );
 
-				*argp += 1;
+				*argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
 
 				break;
 
 			case 's':
 
-				if ( ( s = ( char* )*argp++ ) == 0 )
+				s = ( char* )*argp;
+
+				argp += 1;
+
+				if ( s == 0 )
 				{
-					s = "( null )";
+					s = "(null)";
 				}
 
 				for ( ; *s; s += 1 )
 				{
 					consputc( *s );
 				}
+
+				break;
+
+			case 'c':
+
+				consputc( *argp );
+
+				argp += 1;
 
 				break;
 
@@ -169,15 +183,17 @@ void panic ( char *s )
 	cons.locking = 0;
 
 	// use lapiccpunum so that we can call panic from mycpu()
-	cprintf( "lapicid %d: panic: ", lapicid() );
-	cprintf( s );
 	cprintf( "\n" );
+	cprintf( "Panic!\n" );
+	cprintf( "msg       : %s\n", s );
+	cprintf( "lapicid   : %d\n", lapicid() );
+	cprintf( "callstack :\n\n" );
 
 	getcallerpcs( &s, pcs );
 
 	for ( i = 0; i < 10; i += 1 )
 	{
-		cprintf( " %p", pcs[ i ] );
+		cprintf( "    %p\n", pcs[ i ] );
 	}
 
 	panicked = 1; // freeze other CPU
@@ -275,6 +291,7 @@ struct {
 	uint r;                  // Read index
 	uint w;                  // Write index
 	uint e;                  // Edit index
+
 } input;
 
 #define C( x ) ( ( x ) - '@' )  // Control-x
@@ -290,13 +307,16 @@ void consoleintr ( int ( *getc )( void ) )
 	{
 		switch ( c )
 		{
-			case C( 'P' ):  // Process listing.
+			// Process listing
+			case C( 'P' ):
 
 				// procdump() locks cons.lock indirectly; invoke later
 				doprocdump = 1;
+
 				break;
 
-			case C( 'U' ):  // Kill line.
+			// Kill line
+			case C( 'U' ):
 
 				while ( input.e != input.w &&
 				        input.buf[ ( input.e - 1 ) % INPUT_BUF] != '\n' )
@@ -308,7 +328,9 @@ void consoleintr ( int ( *getc )( void ) )
 
 				break;
 
-			case C( 'H' ): case '\x7f':  // Backspace
+			// Backspace
+			case C( 'H' ):
+			case '\x7f':
 
 				if ( input.e != input.w )
 				{
@@ -316,6 +338,7 @@ void consoleintr ( int ( *getc )( void ) )
 
 					consputc( BACKSPACE );
 				}
+
 				break;
 
 			default:
@@ -330,7 +353,11 @@ void consoleintr ( int ( *getc )( void ) )
 
 					consputc( c );
 
-					if ( c == '\n' || c == C( 'D' ) || input.e == input.r + INPUT_BUF )
+					// Gather until either of the following conditions met,
+					// then wakeup whoever is sleeping on input
+					if ( c == '\n'      ||                 // enter key
+					     c == C( 'D' )  ||                 // ctrl-D
+					     input.e == input.r + INPUT_BUF )  // input buffer is full
 					{
 						input.w = input.e;
 
@@ -394,8 +421,10 @@ int consoleread ( struct inode *ip, char *dst, int n )
 		}
 
 		*dst = c;
-		*dst += 1;
-		--n;
+
+		dst += 1;
+
+		n -= 1;
 
 		if ( c == '\n' )
 		{

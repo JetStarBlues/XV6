@@ -5,7 +5,7 @@
 #include "user.h"
 #include "fcntl.h"
 
-char *argv[] = { "sh", 0 };
+char *argv [] = { "sh", 0 };
 
 int main ( void )
 {
@@ -13,7 +13,7 @@ int main ( void )
 
 	if ( open( "console", O_RDWR ) < 0 )
 	{
-		mknod( "console", 1, 1 );
+		mknod( "console", 1, 1 );  // stdin
 
 		open( "console", O_RDWR );
 	}

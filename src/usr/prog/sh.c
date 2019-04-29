@@ -624,7 +624,7 @@ struct cmd* parseexec ( char **ps, char *es )
 }
 
 // NUL-terminate all the counted strings.
-struct cmd* nulterminate( struct cmd *cmd )
+struct cmd* nulterminate ( struct cmd *cmd )
 {
 	int              i;
 	struct backcmd  *bcmd;
