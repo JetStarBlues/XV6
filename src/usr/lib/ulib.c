@@ -4,114 +4,140 @@
 #include "user.h"
 #include "x86.h"
 
-char*
-strcpy(char *s, const char *t)
+char* strcpy ( char *s, const char *t )
 {
-  char *os;
+	char *os;
 
-  os = s;
-  while((*s++ = *t++) != 0)
-    ;
-  return os;
+	os = s;
+
+	while ( ( *s++ = *t++ ) != 0 )
+	{
+		//
+	}
+
+	return os;
 }
 
-int
-strcmp(const char *p, const char *q)
+int strcmp ( const char *p, const char *q )
 {
-  while(*p && *p == *q)
-    p++, q++;
-  return (uchar)*p - (uchar)*q;
+	while ( *p && *p == *q )
+	{
+		p += 1;
+		q += 1;
+	}
+
+	return ( uchar )*p - ( uchar )*q;
 }
 
-uint
-strlen(const char *s)
+uint strlen ( const char *s )
 {
-  int n;
+	int n;
 
-  for(n = 0; s[n]; n++)
-    ;
-  return n;
+	for ( n = 0; s[ n ]; n += 1 )
+	{
+		//
+	}
+
+	return n;
 }
 
-void*
-memset(void *dst, int c, uint n)
+void* memset ( void *dst, int c, uint n )
 {
-  stosb(dst, c, n);
-  return dst;
+	stosb( dst, c, n );
+
+	return dst;
 }
 
-char*
-strchr(const char *s, char c)
+char* strchr ( const char *s, char c )
 {
-  for(; *s; s++)
-    if(*s == c)
-      return (char*)s;
-  return 0;
+	for ( ; *s; s += 1 )
+	{
+		if ( *s == c )
+		{
+			return ( char* )s;
+		}
+	}
+
+	return 0;
 }
 
-char*
-gets(char *buf, int max)
+char* gets ( char *buf, int max )
 {
-  int i, cc;
-  char c;
+	int  i,
+	     cc;
+	char c;
 
-  for(i=0; i+1 < max; )
-  {
-    cc = read(0, &c, 1);
-    // printf( 1, "wtf %d\n", cc );  // JK
-    // printf( 1, "... %d", c );  // JK
-    // printf( 1, " ... %c\n", c );  // JK
+	for ( i = 0; i + 1 < max;  )
+	{
+		cc = read( 0, &c, 1 );
 
-    if(cc < 1)
-      break;
+		if ( cc < 1 )
+		{
+			break;
+		}
 
-    buf[i++] = c;
+		buf[ i ] = c;
 
-    if(c == '\n' || c == '\r')
-      break;
+		i += 1;
 
-    // printf( 1, "??\n" );
-  }
-  buf[i] = '\0';
+		if ( c == '\n' || c == '\r' )
+		{
+			break;
+		}
+	}
 
-  // printf( 1, "Do we reach here? %s\n", buf );
-  return buf;
+	buf[ i ] = '\0';
+
+	return buf;
 }
 
-int
-stat(const char *n, struct stat *st)
+int stat ( const char *n, struct stat *st )
 {
-  int fd;
-  int r;
+	int fd;
+	int r;
 
-  fd = open(n, O_RDONLY);
-  if(fd < 0)
-    return -1;
-  r = fstat(fd, st);
-  close(fd);
-  return r;
+	fd = open( n, O_RDONLY );
+
+	if ( fd < 0 )
+	{
+		return - 1;
+	}
+
+	r = fstat( fd, st );
+
+	close( fd );
+
+	return r;
 }
 
-int
-atoi(const char *s)
+int atoi ( const char *s )
 {
-  int n;
+	int n;
 
-  n = 0;
-  while('0' <= *s && *s <= '9')
-    n = n*10 + *s++ - '0';
-  return n;
+	n = 0;
+
+	while ( '0' <= *s && *s <= '9' )
+	{
+		n = n * 10 + *s++ - '0';
+	}
+
+	return n;
 }
 
-void*
-memmove(void *vdst, const void *vsrc, int n)
+void* memmove ( void *vdst, const void *vsrc, int n )
 {
-  char *dst;
-  const char *src;
+	const char *src;
+	char       *dst;
 
-  dst = vdst;
-  src = vsrc;
-  while(n-- > 0)
-    *dst++ = *src++;
-  return vdst;
+	dst = vdst;
+	src = vsrc;
+
+	while ( n > 0 )
+	{
+		*dst++ = *src++;
+
+		n -= 1;
+	}
+
+	return vdst;
 }
