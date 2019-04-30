@@ -22,7 +22,7 @@ static void printint ( int fd, int xx, int base, int sign )
 	{
 		neg = 1;
 
-		x = -xx;
+		x = - xx;
 	}
 	else
 	{

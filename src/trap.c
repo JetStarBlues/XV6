@@ -110,7 +110,10 @@ void trap ( struct trapframe *tf )
 
 			cprintf(
 
-				"cpu%d: spurious interrupt at %x:%x\n",
+				"cpu%d - spurious interrupt at\n"
+				"    cs  : 0x%x\n"
+				"    eip : 0x%x\n\n",
+
 				cpuid(), tf->cs, tf->eip
 			);
 
@@ -126,8 +129,16 @@ void trap ( struct trapframe *tf )
 			{
 				cprintf(
 
-					"unexpected trap %d from cpu %d eip %x ( cr2=0x%x )\n",
-					tf->trapno, cpuid(), tf->eip, rcr2()
+					"Unexpected kernel trap\n"
+					"    trap : %d\n"
+					"    cpu  : %d\n"
+					"    eip  : 0x%x\n"
+					"    cr2  : 0x%x\n\n",
+
+					tf->trapno,
+					cpuid(),
+					tf->eip,
+					rcr2()
 				);
 
 				panic( "trap" );
@@ -136,11 +147,22 @@ void trap ( struct trapframe *tf )
 			// In user space, assume process misbehaved.
 			cprintf(
 
-				"pid %d %s: trap %d err %d on cpu %d\n"
-				"eip: 0x%x addr: 0x%x --kill proc\n",
-				myproc()->pid, myproc()->name,
-				tf->trapno, tf->err, cpuid(),
-				tf->eip, rcr2()
+				"Kill misbehaved user process:\n"
+				"    pid  : %d\n"
+				"    name : %s\n"
+				"    trap : %d\n"
+				"    err  : %d\n"
+				"    cpu  : %d\n"
+				"    eip  : 0x%x\n"
+				"    cr2  : 0x%x\n\n",
+
+				myproc()->pid,
+				myproc()->name,
+				tf->trapno,
+				tf->err,
+				cpuid(),
+				tf->eip,
+				rcr2()
 			);
 
 			myproc()->killed = 1;

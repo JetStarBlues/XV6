@@ -201,7 +201,7 @@ int exec ( char *path, char **argv )
 
 	curproc->pgdir   = pgdir;
 	curproc->sz      = sz;
-	curproc->tf->eip = elf.entry;  // main
+	curproc->tf->eip = elf.entry;  // main (see Makefile)
 	curproc->tf->esp = sp;
 
 	switchuvm( curproc );

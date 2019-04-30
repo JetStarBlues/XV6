@@ -31,8 +31,9 @@ void wc ( int fd, char *name )
 
 			else if ( ! inword )
 			{
-				w += 1;
 				inword = 1;
+
+				w += 1;
 			}
 		}
 	}
@@ -40,10 +41,15 @@ void wc ( int fd, char *name )
 	if ( n < 0 )
 	{
 		printf( 1, "wc: read error\n" );
+
 		exit();
 	}
 
-	printf( 1, "%d %d %d %s\n", l, w, c, name );
+	// printf( 1, "%d %d %d %s\n", l, w, c, name );
+	printf( 1, "file  : %s\n", name );
+	printf( 1, "lines : %d\n", l );
+	printf( 1, "words : %d\n", w );
+	printf( 1, "bytes : %d\n", c );
 }
 
 int main ( int argc, char *argv[] )
@@ -53,6 +59,7 @@ int main ( int argc, char *argv[] )
 	if ( argc <= 1 )
 	{
 		wc( 0, "" );
+
 		exit();
 	}
 
@@ -61,6 +68,7 @@ int main ( int argc, char *argv[] )
 		if ( ( fd = open( argv[ i ], 0 ) ) < 0 )
 		{
 			printf( 1, "wc: cannot open %s\n", argv[ i ] );
+
 			exit();
 		}
 
