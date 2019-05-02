@@ -108,14 +108,18 @@ void trap ( struct trapframe *tf )
 		case T_IRQ0 + 7:
 		case T_IRQ0 + IRQ_SPURIOUS:
 
-			cprintf(
+			/*cprintf(
 
 				"cpu%d - spurious interrupt at\n"
 				"    cs  : 0x%x\n"
 				"    eip : 0x%x\n\n",
 
 				cpuid(), tf->cs, tf->eip
-			);
+			);*/
+
+			cprintf( "cpu%d - spurious interrupt at\n", cpuid() );
+			cprintf( "    cs  : 0x%x\n",                tf->cs  );
+			cprintf( "    eip : 0x%x\n\n",              tf->eip );
 
 			lapiceoi();
 
@@ -127,7 +131,7 @@ void trap ( struct trapframe *tf )
 			// In kernel, it must be our mistake.
 			if ( myproc() == 0 || ( tf->cs & 3 ) == DPL_KERN )
 			{
-				cprintf(
+				/*cprintf(
 
 					"Unexpected kernel trap\n"
 					"    trap : %d\n"
@@ -139,13 +143,19 @@ void trap ( struct trapframe *tf )
 					cpuid(),
 					tf->eip,
 					rcr2()
-				);
+				);*/
+
+				cprintf( "Unexpected kernel trap\n" );
+				cprintf( "    trap : %d\n",     tf->trapno );
+				cprintf( "    cpu  : %d\n",     cpuid()    );
+				cprintf( "    eip  : 0x%x\n",   tf->eip    );
+				cprintf( "    cr2  : 0x%x\n\n", rcr2()     );
 
 				panic( "trap" );
 			}
 
 			// In user space, assume process misbehaved.
-			cprintf(
+			/*cprintf(
 
 				"Kill misbehaved user process:\n"
 				"    pid  : %d\n"
@@ -163,7 +173,16 @@ void trap ( struct trapframe *tf )
 				cpuid(),
 				tf->eip,
 				rcr2()
-			);
+			);*/
+
+			cprintf( "Kill misbehaved user process:\n" );
+			cprintf( "    pid  : %d\n",     myproc()->pid  );
+			cprintf( "    name : %s\n",     myproc()->name );
+			cprintf( "    trap : %d\n",     tf->trapno     );
+			cprintf( "    err  : %d\n",     tf->err        );
+			cprintf( "    cpu  : %d\n",     cpuid()        );
+			cprintf( "    eip  : 0x%x\n",   tf->eip        );
+			cprintf( "    cr2  : 0x%x\n\n", rcr2()         );
 
 			myproc()->killed = 1;
 	}

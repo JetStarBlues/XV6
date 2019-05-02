@@ -57,7 +57,11 @@ void ls ( char *path )
 	{
 		case T_FILE:
 
-			printf( 1, "%s %d %d %d\n", fmtname( path ), st.type, st.ino, st.size );
+			// printf( 1, "%s %d %d %d\n", fmtname( path ), st.type, st.ino, st.size );
+			printf( 1, "%s ",  fmtname( path ) );
+			printf( 1, "%d ",  st.type         );
+			printf( 1, "%d ",  st.ino          );
+			printf( 1, "%d\n", st.size         );
 
 			break;
 
@@ -97,7 +101,11 @@ void ls ( char *path )
 					continue;
 				}
 
-				printf( 1, "%s %d %d %d\n", fmtname( buf ), st.type, st.ino, st.size );
+				// printf( 1, "%s %d %d %d\n", fmtname( buf ), st.type, st.ino, st.size );
+				printf( 1, "%s ",  fmtname( buf ) );
+				printf( 1, "%d ",  st.type        );
+				printf( 1, "%d ",  st.ino         );
+				printf( 1, "%d\n", st.size        );
 			}
 
 			break;

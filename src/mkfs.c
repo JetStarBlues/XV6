@@ -23,7 +23,7 @@
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
 
 int nbitmap      = FSSIZE / ( BSIZE * 8 ) + 1;
-int ninodeblocks = NINODES / IPB + 1;
+int ninodeblocks = ( NINODES / IPB ) + 1;
 int nlog         = LOGSIZE;
 int nmeta;     // Number of meta blocks ( boot, sb, nlog, inode, bitmap )
 int nblocks;   // Number of data blocks
@@ -43,7 +43,7 @@ void rsect   ( uint sec, void *buf );
 uint ialloc  ( ushort type );
 void iappend ( uint inum, void *p, int n );
 
-// convert to intel byte order
+// convert to intel byte order - why ??
 ushort xshort ( ushort x )
 {
 	ushort y;
@@ -113,7 +113,7 @@ int main ( int argc, char *argv[] )
 
 	sb.size       = xint( FSSIZE );
 	sb.nblocks    = xint( nblocks );
-	sb.ninodes    = xint( NINODES );
+	sb.ninodes    = xint( NINODES );  // why not ninodeblocks ??
 	sb.nlog       = xint( nlog );
 	sb.logstart   = xint( 2 );
 	sb.inodestart = xint( 2 + nlog );

@@ -170,11 +170,15 @@ void syscall ( void )
 	}
 	else
 	{
-		cprintf(
+		/*cprintf(
 
 			"%d %s: unknown syscall %d\n",
 			curproc->pid, curproc->name, num
-		);
+		);*/
+
+		cprintf( "%d ",                  curproc->pid  );
+		cprintf( "%s: unknown syscall ", curproc->name );
+		cprintf( "%d\n",                 num           );
 
 		curproc->tf->eax = - 1;
 	}

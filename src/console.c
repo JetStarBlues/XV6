@@ -65,7 +65,9 @@ static void printint ( int xx, int base, int sign )
 }
 //PAGEBREAK: 50
 
-// Print to the console. only understands %d, %x, %p, %s, &c.
+// Print to the console
+// Only understands %d, %x, %p, %s, %c
+// Can only print va_arg > 1 of bytes
 void cprintf ( char *fmt, ... )
 {
 	int   i,

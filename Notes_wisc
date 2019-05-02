@@ -3,15 +3,10 @@ Project 2
 	Adding features to shell
 		. http://pages.cs.wisc.edu/~cs537-3/Projects/p2a.html
 
-		. echo hello
-		. echo hello > out.txt   // overwrite redirect, uses dup...
-		. echo hello >> out.txt  // append '''
-		. echo hello | wc        // redirect out to in of another, uses pipe...
+			. echo hello | wc  // how does this work?
 
 		. Also add directories to mkfs.c
 			. consider that in xv6 can:
 				. mkdir abc
 				. cd abc
-				. echo hello | out.txt
-
-		. Add O_TRUNC and O_APPEND to open, so that > and >> work in shell
+				. echo hello | wc

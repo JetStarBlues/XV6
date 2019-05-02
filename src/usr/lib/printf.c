@@ -51,7 +51,9 @@ static void printint ( int fd, int xx, int base, int sign )
 	}
 }
 
-// Print to the given fd. Only understands %d, %x, %p, %s, %c.
+// Print to the given fd
+// Only understands %d, %x, %p, %s, %c
+// Can only print va_arg > 1 of bytes
 void printf ( int fd, const char *fmt, ... )
 {
 	char *s;

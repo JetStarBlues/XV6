@@ -211,7 +211,7 @@ void iinit ( int dev )
 
 	readsb( dev, &sb );
 
-	cprintf(
+	/*cprintf(
 
 		"superblock:\n"
 		"    size       %d\n"
@@ -224,7 +224,17 @@ void iinit ( int dev )
 
 		sb.size, sb.nblocks, sb.ninodes, sb.nlog,
 		sb.logstart, sb.inodestart, sb.bmapstart
-	);
+	);*/
+
+	cprintf( "superblock:\n" );
+	cprintf( "    size (total blocks) %d\n",   sb.size       );
+	cprintf( "    nblocks(data)       %d\n",   sb.nblocks    );
+	cprintf( "    ninodes             %d\n",   sb.ninodes    );
+	cprintf( "    ninodeblocks        %d\n",   ( sb.ninodes / IPB ) + 1 );
+	cprintf( "    nlog(blocks)        %d\n",   sb.nlog       );
+	cprintf( "    logstart            %d\n",   sb.logstart   );
+	cprintf( "    inodestart          %d\n",   sb.inodestart );
+	cprintf( "    bmapstart           %d\n\n", sb.bmapstart  );
 }
 
 static struct inode* iget ( uint dev, uint inum );
