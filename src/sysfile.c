@@ -341,6 +341,7 @@ static struct inode* create ( char *path, short type, short major, short minor )
 	uint          off;
 	char          name [ DIRNAMESZ ];
 
+	// If parent directory does not exist, fail
 	if ( ( dp = nameiparent( path, name ) ) == 0 )
 	{
 		return 0;
@@ -348,12 +349,14 @@ static struct inode* create ( char *path, short type, short major, short minor )
 
 	ilock( dp );
 
+	// If already exists,
 	if ( ( ip = dirlookup( dp, name, &off ) ) != 0 )
 	{
 		iunlockput( dp );
 
 		ilock( ip );
 
+		// If it's a file and we wanted a file, return it
 		if ( type == T_FILE && ip->type == T_FILE )
 		{
 			return ip;
@@ -361,9 +364,11 @@ static struct inode* create ( char *path, short type, short major, short minor )
 
 		iunlockput( ip );
 
+		// Otherwise fail
 		return 0;
 	}
 
+	// Does not exist, so let's create it
 	if ( ( ip = ialloc( dp->dev, type ) ) == 0 )
 	{
 		panic( "create: ialloc" );
@@ -392,6 +397,7 @@ static struct inode* create ( char *path, short type, short major, short minor )
 		}
 	}
 
+	// And add it to the parent directory
 	if ( dirlink( dp, name, ip->inum ) < 0 )
 	{
 		panic( "create: dirlink" );
@@ -409,14 +415,18 @@ int sys_open ( void )
 	char         *path;
 	int           fd,
 	              omode;
+	uint          foffset;  // JK
 
 	if ( argstr( 0, &path ) < 0 || argint( 1, &omode ) < 0 )
 	{
 		return - 1;
 	}
 
+	foffset = 0;
+
 	begin_op();
 
+	// Create if doesn't already exist
 	if ( omode & O_CREATE )
 	{
 		ip = create( path, T_FILE, 0, 0 );
@@ -428,8 +438,10 @@ int sys_open ( void )
 			return - 1;
 		}
 	}
+	// Lookup existing
 	else
 	{
+		// If doesn't exist, fail
 		if ( ( ip = namei( path ) ) == 0 )
 		{
 			end_op();
@@ -439,6 +451,7 @@ int sys_open ( void )
 
 		ilock( ip );
 
+		// Make sure only reading directories
 		if ( ip->type == T_DIR && omode != O_RDONLY )
 		{
 			iunlockput( ip );
@@ -449,6 +462,28 @@ int sys_open ( void )
 		}
 	}
 
+	// JK
+	if ( omode != O_RDONLY )
+	{
+		// If O_TRUNC, set file size to zero
+		// (and free previously allocated data blocks)
+		if ( ( omode & O_TRUNC ) && ( ip->type == T_FILE ) )
+		{
+			// cprintf( "O_TRUNC\n" );
+
+			itrunc( ip );
+		}
+
+		// If O_APPEND, set file offset to EOF
+		if ( ( omode & O_APPEND ) && ( ip->type != T_DIR ) )
+		{
+			// cprintf( "O_APPEND\n" );
+
+			foffset = ip->size;
+		}
+	}
+
+	// Allocate a file structure and file descriptor
 	if ( ( f = filealloc() ) == 0 || ( fd = fdalloc( f ) ) < 0 )
 	{
 		if ( f )
@@ -469,7 +504,7 @@ int sys_open ( void )
 
 	f->type     = FD_INODE;
 	f->ip       = ip;
-	f->off      = 0;
+	f->off      = foffset;
 	f->readable = ! ( omode & O_WRONLY );
 	f->writable = ( omode & O_WRONLY ) || ( omode & O_RDWR );
 

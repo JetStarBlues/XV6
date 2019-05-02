@@ -23,7 +23,8 @@
 
 #define min( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
-static void itrunc( struct inode* );
+// static void itrunc ( struct inode* );
+
 // there should be one superblock per disk device, but we run with
 // only one device
 struct superblock sb; 
@@ -404,7 +405,7 @@ void iunlock ( struct inode *ip )
 // Drop a reference to an in-memory inode.
 // If that was the last reference, the inode cache entry can be recycled.
 // If that was the last reference and the inode has no links
-// to it, free the inode ( and its content ) on disk.
+// to it, free the inode (and its content) on disk.
 // All calls to iput() must be inside a transaction in
 // case it has to free the inode.
 void iput ( struct inode *ip )
@@ -518,7 +519,9 @@ static uint bmap ( struct inode *ip, uint bn )
 // to it (no directory entries referring to it)
 // and has no in-memory reference to it (is
 // not an open file or current directory).
-static void itrunc ( struct inode *ip )
+
+// static void itrunc ( struct inode *ip )
+void itrunc ( struct inode *ip )  // JK - make public so can use for O_TRUNC...
 {
 	int         i,
 	            j;
@@ -543,8 +546,8 @@ static void itrunc ( struct inode *ip )
 
 		a = ( uint* )bp->data;
 
-		for ( j = 0; j < NINDIRECT; j += 1 ){
-
+		for ( j = 0; j < NINDIRECT; j += 1 )
+		{
 			if ( a[ j ] )
 			{
 				bfree( ip->dev, a[ j ] );

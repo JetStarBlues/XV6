@@ -530,12 +530,14 @@ struct cmd* parseredirs ( struct cmd *cmd, char **ps, char *es )
 
 			case '>':
 
-				cmd = redircmd( cmd, q, eq, O_WRONLY | O_CREATE, 1 );
+				// cmd = redircmd( cmd, q, eq, O_WRONLY | O_CREATE, 1 );
+				cmd = redircmd( cmd, q, eq, O_WRONLY | O_CREATE | O_TRUNC, 1 );  // JK
 				break;
 
 			case '+':  // >>
 
-				cmd = redircmd( cmd, q, eq, O_WRONLY | O_CREATE, 1 );
+				// cmd = redircmd( cmd, q, eq, O_WRONLY | O_CREATE, 1 );
+				cmd = redircmd( cmd, q, eq, O_WRONLY | O_CREATE | O_APPEND, 1 );  // JK
 				break;
 		}
 	}

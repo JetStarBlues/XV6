@@ -38,21 +38,27 @@ OBJS =          \
 	vm.o
 
 # User code
-UPROGS =       \
-	_cat       \
-	_echo      \
-	_forktest  \
-	_grep      \
-	_init      \
-	_kill      \
-	_ln        \
-	_ls        \
-	_mkdir     \
-	_rm        \
-	_sh        \
-	_stressfs  \
-	_usertests \
-	_wc        \
+UPROGS =        \
+	_cat        \
+	_echo       \
+	_forktest   \
+	_grep       \
+	_init       \
+	_kill       \
+	_ln         \
+	_ls         \
+	_mkdir      \
+	_rm         \
+	_sh         \
+	_stressfs   \
+	_usertests  \
+	_wc         \
+	_wisc_exec  \
+	_wisc_fmode \
+	_wisc_fork  \
+	_wisc_fork2 \
+	_wisc_pipe  \
+	_wisc_hello \
 	_zombie
 
 ULIB =        \

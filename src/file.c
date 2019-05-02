@@ -64,7 +64,7 @@ struct file* filedup ( struct file *f )
 	return f;
 }
 
-// Close file f.  ( Decrement ref count, close when reaches 0. )
+// Close file f.  (Decrement ref count, close when reaches 0.)
 void fileclose ( struct file *f )
 {
 	struct file ff;

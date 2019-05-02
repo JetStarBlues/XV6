@@ -257,6 +257,7 @@ int fork ( void )
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
 
+	// Copy file descriptors
 	for ( i = 0; i < NOFILE; i += 1 )
 	{
 		if ( curproc->ofile[ i ] )
