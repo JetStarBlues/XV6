@@ -1,4 +1,35 @@
-// Shell.
+// Shell
+/*
+	_ Supported commands _______________
+
+	cmd : description
+	----:------------
+	<   : redirect input ??
+	>   : redirect output and truncate
+	>>  : redirect output and append
+	|   : pipe
+	&   : fork a process. 'find &' will cause find to be forked and
+	                       run in the background. It can be killed by its PID
+	                       https://superuser.com/a/152695
+	;   : delimiter, run multiple commands sequentially
+
+
+	_ Supported combinations ___________
+
+	cmd : description
+	----:------------
+	&;  : run multiple programs concurrently (each has own background process)
+	&>  : run in background and redirect output
+
+*/
+
+/*
+	https://pdos.csail.mit.edu/6.828/2018/homework/xv6-shell.html
+		. Implement sub shells by implementing "(" and ")"
+		. Implement running commands in the background by supporting "&" and "wait" 
+
+	bourne shell commands : https://unix.stackexchange.com/a/159514
+*/
 
 #include "types.h"
 #include "user.h"
@@ -174,6 +205,8 @@ void runcmd ( struct cmd *cmd )
 			{
 				runcmd( bcmd->cmd );
 			}
+
+			// wait();  // JK - How handle zombies? Using wait stops desired concurrency
 
 			break;
 	}
@@ -441,6 +474,7 @@ int peek ( char **ps, char *es, char *toks )
 
 struct cmd *parseline    ( char**, char* );
 struct cmd *parsepipe    ( char**, char* );
+struct cmd* parseredirs  ( struct cmd*, char**, char* );
 struct cmd *parseexec    ( char**, char* );
 struct cmd *nulterminate ( struct cmd* );
 
@@ -485,6 +519,12 @@ struct cmd* parseline ( char **ps, char *es )
 		gettoken( ps, es, 0, 0 );
 
 		cmd = listcmd( cmd, parseline( ps, es ) );
+	}
+
+	// JK
+	else if ( peek( ps, es, "<>" ) )
+	{
+		cmd = parseredirs( cmd, ps, es );
 	}
 
 	return cmd;
