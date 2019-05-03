@@ -62,6 +62,7 @@ int fetchstr ( uint addr, char **pp )
 }
 
 // Fetch the nth 32-bit system call argument.
+// Get arguments from user stack (instead of kernel stack)
 int argint ( int n, int *ip )
 {
 	return fetchint( ( myproc()->tf->esp ) + 4 + ( 4 * n ), ip );

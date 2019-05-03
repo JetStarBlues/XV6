@@ -215,7 +215,7 @@ void kvmalloc ( void )
 // for when no process is running.
 void switchkvm ( void )
 {
-	lcr3( V2P( kpgdir ) );   // switch to the kernel page table
+	lcr3( V2P( kpgdir ) );  // switch to the kernel page table
 }
 
 // Switch TSS and h/w page table to correspond to process p.

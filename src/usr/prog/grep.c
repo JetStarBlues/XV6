@@ -1,4 +1,5 @@
-// Simple grep.  Only supports ^ . * $ operators.
+// Simple grep.
+// Only supports ^ . * $ operators.
 
 #include "types.h"
 #include "stat.h"

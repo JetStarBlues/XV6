@@ -37,7 +37,7 @@ struct context
 enum procstate
 {
 	UNUSED,
-	EMBRYO,
+	EMBRYO,    // booting up
 	SLEEPING,
 	RUNNABLE,
 	RUNNING,

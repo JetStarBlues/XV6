@@ -1,3 +1,24 @@
+/*
+Context switching
+
+	scheduler calls:
+
+		swtch( &( c->scheduler ), p->context )
+
+		. from kernel to user
+
+	sched calls:
+
+		swtch( &p->context, mycpu()->scheduler )
+
+		. from user to kernel
+
+		. sched is called by
+			. yield
+			. sleep
+			. exit
+*/
+
 #include "types.h"
 #include "defs.h"
 #include "param.h"
@@ -281,7 +302,7 @@ int fork ( void )
 	return pid;
 }
 
-// Exit the current process.  Does not return.
+// Exit the current process. Does not return.
 // An exited process remains in the zombie state
 // until its parent calls wait() to find out it exited.
 void exit ( void )
@@ -432,7 +453,7 @@ void scheduler ( void )
 				continue;
 			}
 
-			// Switch to chosen process.  It is the process's job
+			// Switch to chosen process. It is the process's job
 			// to release ptable.lock and then reacquire it
 			// before jumping back to us.
 			c->proc = p;

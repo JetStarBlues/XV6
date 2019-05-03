@@ -379,6 +379,7 @@ void iappend ( uint inum, void *xp, int n )
 
 		assert( fbn < MAXFILE );
 
+		// Direct blocks
 		if ( fbn < NDIRECT )
 		{
 			if ( xint( din.addrs[ fbn ] ) == 0 )
@@ -390,8 +391,10 @@ void iappend ( uint inum, void *xp, int n )
 
 			x = xint( din.addrs[ fbn ] );
 		}
+		// Indirect blocks
 		else
 		{
+			// Indirect block
 			if ( xint( din.addrs[ NDIRECT ] ) == 0 )
 			{
 				din.addrs[ NDIRECT ] = xint( freeblock );
@@ -399,6 +402,7 @@ void iappend ( uint inum, void *xp, int n )
 				freeblock += 1;
 			}
 
+			// Block pointed to by indirect block
 			rsect( xint( din.addrs[ NDIRECT ] ), ( char* )indirect );
 
 			if ( indirect[ fbn - NDIRECT ] == 0 )
@@ -410,7 +414,7 @@ void iappend ( uint inum, void *xp, int n )
 				wsect( xint( din.addrs[ NDIRECT ] ), ( char* )indirect );
 			}
 
-			x = xint( indirect[fbn-NDIRECT] );
+			x = xint( indirect[fbn - NDIRECT] );
 		}
 
 		n1 = min( n, ( fbn + 1 ) * BSIZE - off );

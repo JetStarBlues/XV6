@@ -1,12 +1,12 @@
+. TODO
+	. add directories to mkfs.c
+
+	. fix printf
+
+
 Project 2
 
 	Adding features to shell
 		. http://pages.cs.wisc.edu/~cs537-3/Projects/p2a.html
 
-			. echo hello | wc  // how does this work?
-
-		. Also add directories to mkfs.c
-			. consider that in xv6 can:
-				. mkdir abc
-				. cd abc
-				. echo hello | wc
+		. Also 

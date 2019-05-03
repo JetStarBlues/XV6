@@ -68,6 +68,13 @@ static void printint ( int xx, int base, int sign )
 // Print to the console
 // Only understands %d, %x, %p, %s, %c
 // Can only print va_arg > 1 of bytes
+/*
+	TODO:
+		%hd %hx - += sizeof( short )
+		%d   %x - += sizeof( int )
+		%ld %lx - += sizeof( long )
+		%p      - += sizeof( void * )
+*/
 void cprintf ( char *fmt, ... )
 {
 	int   i,

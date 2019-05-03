@@ -56,7 +56,7 @@ int main ( int argc, char *argv[] )
 {
 	int fd, i;
 
-	if ( argc <= 1 )
+	if ( argc <= 1 )  // input from pipe
 	{
 		wc( 0, "" );
 

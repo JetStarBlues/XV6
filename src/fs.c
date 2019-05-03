@@ -465,7 +465,7 @@ void iunlockput ( struct inode *ip )
 //
 // The content (data) associated with each inode is stored
 // in blocks on the disk. The first NDIRECT block numbers
-// are listed in ip->addrs[].  The next NINDIRECT blocks are
+// are listed in ip->addrs[]. The next NINDIRECT blocks are
 // listed in block ip->addrs[NDIRECT].
 
 // Return the disk block address of the nth block in inode ip.
@@ -502,9 +502,9 @@ static uint bmap ( struct inode *ip, uint bn )
 			ip->addrs[ NDIRECT ] = addr;
 		}
 
+		// Get block from indirect block, allocating if necessary.
 		bp = bread( ip->dev, addr );
 
-		//
 		a = ( uint* )bp->data;
 
 		if ( ( addr = a[ bn ] ) == 0 )
