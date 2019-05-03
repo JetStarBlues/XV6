@@ -30,6 +30,7 @@ int main ( void )
 		if ( pid < 0 )
 		{
 			printf( 1, "init: fork failed\n\n" );
+
 			exit();
 		}
 
@@ -38,10 +39,11 @@ int main ( void )
 			exec( "sh", argv );
 
 			printf( 1, "init: exec sh failed\n\n" );
+
 			exit();
 		}
 
-		// ??
+		// Adopt orphans ??
 		while ( ( wpid = wait() ) >= 0 && wpid != pid )
 		{
 			printf( 1, "zombie!\n" );

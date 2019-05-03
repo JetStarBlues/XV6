@@ -341,15 +341,13 @@ void writetest1 ( void )
 
 		if ( ( ( int* )buf )[ 0 ] != n )
 		{
-			/*printf(
+			printf(
 
 				stdout,
 				"read content of block %d is %d\n",
-				n, ( ( int* )buf )[ 0 ]
-			);*/
-
-			printf( stdout,	"read content of block %d ", n );
-			printf( stdout,	"is %d\n", ( ( int* )buf )[ 0 ] );
+				n,
+				( ( int* )buf )[ 0 ]
+			);
 
 			exit();
 		}
@@ -801,9 +799,7 @@ void sharedfd ( void )
 	}
 	else
 	{
-		// printf( stdout, "sharedfd oops %d %d\n", nc, np );
-		printf( stdout, "sharedfd oops %d ", nc );
-		printf( stdout, "%d\n", np );
+		printf( stdout, "sharedfd oops %d %d\n", nc, np );
 
 		exit();
 	}
@@ -1763,9 +1759,7 @@ void bigwrite ( void )
 
 			if ( cc != sz )
 			{
-				// printf( stdout, "write( %d ) ret %d\n", sz, cc );
-				printf( stdout, "write( %d ) ", sz );
-				printf( stdout, "ret %d\n", cc );
+				printf( stdout, "write( %d ) ret %d\n", sz, cc );
 
 				exit();
 			}
@@ -2222,10 +2216,7 @@ void sbrktest ( void )
 
 		if ( b != a )
 		{
-			// printf( stdout, "sbrk test failed %d %x %x\n", i, a, b );
-			printf( stdout, "sbrk test failed %d ", i );
-			printf( stdout, "0x%x ",                a );
-			printf( stdout, "0x%x\n",               b );
+			printf( stdout, "sbrk test failed %d 0x%x 0x%x\n", i, a, b );
 
 			exit();
 		}
@@ -2296,9 +2287,7 @@ void sbrktest ( void )
 
 	if ( c != a - 4096 )
 	{
-		// printf( stdout, "sbrk deallocation produced wrong address, a %x c %x\n", a, c );
-		printf( stdout, "sbrk deallocation produced wrong address, a 0x%x ", a );
-		printf( stdout, "c 0x%x\n", c );
+		printf( stdout, "sbrk deallocation produced wrong address, a 0x%x c 0x%x\n", a, c );
 
 		exit();
 	}
@@ -2309,9 +2298,7 @@ void sbrktest ( void )
 
 	if ( c != a || sbrk( 0 ) != a + 4096 )
 	{
-		// printf( stdout, "sbrk re-allocation failed, a %x c %x\n", a, c );
-		printf( stdout, "sbrk re-allocation failed, a 0x%x ", a );
-		printf( stdout, "c 0x%x\n", c );
+		printf( stdout, "sbrk re-allocation failed, a 0x%x c 0x%x\n", a, c );
 
 		exit();
 	}
@@ -2329,9 +2316,7 @@ void sbrktest ( void )
 
 	if ( c != a )
 	{
-		// printf( stdout, "sbrk downsize failed, a %x c %x\n", a, c );
-		printf( stdout, "sbrk downsize failed, a 0x%x ", a );
-		printf( stdout, "c 0x%x\n", c );
+		printf( stdout, "sbrk downsize failed, a 0x%x c 0x%x\n", a, c );
 
 		exit();
 	}
@@ -2352,9 +2337,7 @@ void sbrktest ( void )
 
 		if ( pid == 0 )
 		{
-			// printf( stdout, "oops could read %x = %x\n", a, *a );
-			printf( stdout, "oops could read 0x%x = ", a );
-			printf( stdout, "0x%x\n", *a );
+			printf( stdout, "oops could read 0x%x = 0x%x\n", a, *a );
 
 			kill( ppid );
 

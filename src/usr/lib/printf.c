@@ -52,7 +52,7 @@ static void printint ( int fd, int xx, int base, int sign )
 }
 
 // Print to the given fd
-// Only understands %d, %x, %p, %s, %c
+// Only understands %d, %x, %p, %c, %s
 // Can only print va_arg > 1 of bytes
 void printf ( int fd, const char *fmt, ... )
 {
@@ -87,13 +87,19 @@ void printf ( int fd, const char *fmt, ... )
 			{
 				printint( fd, *argp, 10, 1 );
 
-				argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
+				argp += 1;
 			}
 			else if ( c == 'x' || c == 'p' )
 			{
 				printint( fd, *argp, 16, 0 );
 
-				argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
+				argp += 1;
+			}
+			else if ( c == 'c' )
+			{
+				putc( fd, *argp );
+
+				argp += 1;
 			}
 			else if ( c == 's' )
 			{
@@ -112,12 +118,6 @@ void printf ( int fd, const char *fmt, ... )
 
 					s += 1;
 				}
-			}
-			else if ( c == 'c' )
-			{
-				putc( fd, *argp );
-
-				argp += 1;
 			}
 			else if ( c == '%' )
 			{

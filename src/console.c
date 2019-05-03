@@ -66,15 +66,7 @@ static void printint ( int xx, int base, int sign )
 //PAGEBREAK: 50
 
 // Print to the console
-// Only understands %d, %x, %p, %s, %c
-// Can only print va_arg > 1 of bytes
-/*
-	TODO:
-		%hd %hx - += sizeof( short )
-		%d   %x - += sizeof( int )
-		%ld %lx - += sizeof( long )
-		%p      - += sizeof( void * )
-*/
+// Only understands %d, %x, %p, %c, %s,
 void cprintf ( char *fmt, ... )
 {
 	int   i,
@@ -121,7 +113,7 @@ void cprintf ( char *fmt, ... )
 
 				printint( *argp, 10, 1 );
 
-				*argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
+				argp += 1;
 
 				break;
 
@@ -130,7 +122,15 @@ void cprintf ( char *fmt, ... )
 
 				printint( *argp, 16, 0 );
 
-				*argp += 1;  // is this plus one byte? If so can't chain integers of datatype > char
+				argp += 1;
+
+				break;
+
+			case 'c':
+
+				consputc( *argp );
+
+				argp += 1;
 
 				break;
 
@@ -149,14 +149,6 @@ void cprintf ( char *fmt, ... )
 				{
 					consputc( *s );
 				}
-
-				break;
-
-			case 'c':
-
-				consputc( *argp );
-
-				argp += 1;
 
 				break;
 

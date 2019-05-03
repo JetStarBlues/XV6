@@ -16,12 +16,10 @@ int main ( int argc, char *argv[] )
 	{
 		x += 1;
 
-		// printf( 1, "spinner (pid = %d) ", getpid() );
-		// printf( 1, "(x = %d)\n", x );
+		printf( 1, "spinner (pid = %d) (x = %d)\n", getpid(), x );
 	}
 
-	printf( 1, "spinner done! (pid = %d) ", getpid() );
-	printf( 1, "(x = %d)\n", x );
+	printf( 1, "spinner done! (pid = %d) (x = %d)\n", getpid(), x );
 
 	exit();
 }

@@ -51,12 +51,14 @@ UPROGS =          \
 	_rm           \
 	_sh           \
 	_stressfs     \
+	_temptest     \
 	_usertests    \
 	_wc           \
 	_wisc_exec    \
 	_wisc_fmode   \
 	_wisc_fork    \
 	_wisc_fork2   \
+	_wisc_fork3   \
 	_wisc_pipe    \
 	_wisc_spinner \
 	_wisc_hello   \

@@ -108,18 +108,14 @@ void trap ( struct trapframe *tf )
 		case T_IRQ0 + 7:
 		case T_IRQ0 + IRQ_SPURIOUS:
 
-			/*cprintf(
+			cprintf(
 
 				"cpu%d - spurious interrupt at\n"
 				"    cs  : 0x%x\n"
 				"    eip : 0x%x\n\n",
 
 				cpuid(), tf->cs, tf->eip
-			);*/
-
-			cprintf( "cpu%d - spurious interrupt at\n", cpuid() );
-			cprintf( "    cs  : 0x%x\n",                tf->cs  );
-			cprintf( "    eip : 0x%x\n\n",              tf->eip );
+			);
 
 			lapiceoi();
 

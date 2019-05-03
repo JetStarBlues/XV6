@@ -696,9 +696,7 @@ void procdump ( void )
 			state = "???";
 		}
 
-		cprintf( "%d | ", p->pid );
-		cprintf( "%s | %s\n", state, p->name );
-		// cprintf( "%d | %s | %s\n", p->pid, state, p->name );
+		cprintf( "%d | %s | %s\n", p->pid, state, p->name );
 
 		if ( p->state == SLEEPING )
 		{
