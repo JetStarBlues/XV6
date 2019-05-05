@@ -55,6 +55,7 @@ UPROGS =          \
 	_usertests    \
 	_wc           \
 	_wisc_exec    \
+	_wisc_fault   \
 	_wisc_fmode   \
 	_wisc_fork    \
 	_wisc_fork2   \

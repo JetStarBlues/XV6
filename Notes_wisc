@@ -4,7 +4,35 @@
 	. fix printf
 
 
-Project 2
+Project 3
 
-	??
-		. http://pages.cs.wisc.edu/~cs537-3/Projects/p2b.html 
+	Part A
+		. http://pages.cs.wisc.edu/~cs537-3/Projects/p3a.html
+
+		. Implement memory allocator for the heap of a user-level process
+			. malloc()
+			. free()
+		. alloc steps:
+			. 1) ask OS to expand heap portion of process's address space
+			     by calling 'sbrk' or 'mmap'
+			. 2) dole out memory to the calling process. This involves
+			     managing a free list of memory and finding a contiguous
+			     chunk that is large enough for the user's request.
+		. free steps:
+			. 1) add chunk back to list
+
+	Part B
+		. http://pages.cs.wisc.edu/~cs537-3/Projects/p3a.html
+
+		. Change stack location from:
+
+			code
+			stack (fixed size, one page)
+			heap (grows towards high end of address space)
+
+		. to:
+
+			code
+			heap (grows towards high end of address space)
+			...
+			stack (grows towards low end of address space)

@@ -24,7 +24,7 @@ char* fmtname ( char *path )
 
 	memmove( buf, p, strlen( p ) );
 
-	memset( buf + strlen( p ), ' ', DIRNAMESZ - strlen( p ) );
+	memset( buf + strlen( p ), ' ', DIRNAMESZ - strlen( p ) );  // pad with spaces to align
 
 	return buf;
 }
