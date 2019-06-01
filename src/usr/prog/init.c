@@ -43,7 +43,7 @@ int main ( void )
 			exit();
 		}
 
-		// Adopt orphans ??
+		// Adopt orphan processes ??
 		while ( ( wpid = wait() ) >= 0 && wpid != pid )
 		{
 			printf( 1, "zombie!\n" );

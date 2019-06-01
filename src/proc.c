@@ -218,6 +218,7 @@ void userinit ( void )
 int growproc ( int n )
 {
 	uint sz;
+
 	struct proc *curproc = myproc();
 
 	sz = curproc->sz;
@@ -606,7 +607,7 @@ static void wakeup1 ( void *chan )
 
 	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
 	{
-		if( p->state == SLEEPING && p->chan == chan )
+		if ( p->state == SLEEPING && p->chan == chan )
 		{
 			p->state = RUNNABLE;
 		}

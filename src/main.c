@@ -93,7 +93,7 @@ static void startothers ( void )
 
 		// Tell entryother.S what stack to use, where to enter, and what
 		// pgdir to use. We cannot use kpgdir yet, because the AP processor
-		// is running in low  memory, so we use entrypgdir for the APs too.
+		// is running in low memory, so we use entrypgdir for the APs too.
 		stack = kalloc();
 
 		*( void** )( code - 4 ) = stack + KSTACKSIZE;

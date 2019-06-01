@@ -13,7 +13,7 @@ union header {
 	struct {
 
 		union header *ptr;
-		uint size;
+		uint          size;
 
 	} s;
 
@@ -100,7 +100,9 @@ void* malloc ( uint nbytes )
 
 	if ( ( prevp = freep ) == 0 )
 	{
-		base.s.ptr  = freep = prevp = &base;
+		base.s.ptr  = &base;
+		freep       = &base;
+		prevp       = &base;
 		base.s.size = 0;
 	}
 

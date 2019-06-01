@@ -14,6 +14,7 @@ extern uint     vectors [];  // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint            ticks;
 
+// Initialize IDT
 void tvinit ( void )
 {
 	int i;
@@ -38,6 +39,7 @@ void idtinit ( void )
 //PAGEBREAK: 41
 void trap ( struct trapframe *tf )
 {
+	// System call
 	if ( tf->trapno == T_SYSCALL )
 	{
 		if ( myproc()->killed )
@@ -59,6 +61,7 @@ void trap ( struct trapframe *tf )
 
 	switch ( tf->trapno )
 	{
+		// Timer interrupt
 		case T_IRQ0 + IRQ_TIMER:
 
 			if ( cpuid() == 0 )
@@ -76,6 +79,8 @@ void trap ( struct trapframe *tf )
 
 			break;
 
+
+		// Disk interrupt
 		case T_IRQ0 + IRQ_IDE:
 
 			ideintr();
@@ -89,6 +94,8 @@ void trap ( struct trapframe *tf )
 			// Bochs generates spurious IDE1 interrupts.
 			break;
 
+
+		// Keyboard interrupt
 		case T_IRQ0 + IRQ_KBD:
 
 			kbdintr();
@@ -97,6 +104,8 @@ void trap ( struct trapframe *tf )
 
 			break;
 
+
+		// Serial interrupt
 		case T_IRQ0 + IRQ_COM1:
 
 			uartintr();
@@ -105,6 +114,8 @@ void trap ( struct trapframe *tf )
 
 			break;
 
+
+		// Spurious
 		case T_IRQ0 + 7:
 		case T_IRQ0 + IRQ_SPURIOUS:
 
@@ -121,26 +132,20 @@ void trap ( struct trapframe *tf )
 
 			break;
 
-		//PAGEBREAK: 13
+		/*
+		case T_PGFLT:
+
+			// Grow stack by one page
+			...
+		*/
+
+
+		// Default
 		default:
 
 			// In kernel, it must be our mistake.
 			if ( myproc() == 0 || ( tf->cs & 3 ) == DPL_KERN )
 			{
-				/*cprintf(
-
-					"Unexpected kernel trap\n"
-					"    trap : %d\n"
-					"    cpu  : %d\n"
-					"    eip  : 0x%x\n"
-					"    cr2  : 0x%x\n\n",
-
-					tf->trapno,
-					cpuid(),
-					tf->eip,
-					rcr2()
-				);*/
-
 				cprintf( "Unexpected kernel trap\n" );
 				cprintf( "    trap : %d\n",     tf->trapno );
 				cprintf( "    cpu  : %d\n",     cpuid()    );
@@ -151,26 +156,6 @@ void trap ( struct trapframe *tf )
 			}
 
 			// In user space, assume process misbehaved.
-			/*cprintf(
-
-				"Kill misbehaved user process:\n"
-				"    pid  : %d\n"
-				"    name : %s\n"
-				"    trap : %d\n"
-				"    err  : %d\n"
-				"    cpu  : %d\n"
-				"    eip  : 0x%x\n"
-				"    cr2  : 0x%x\n\n",
-
-				myproc()->pid,
-				myproc()->name,
-				tf->trapno,
-				tf->err,
-				cpuid(),
-				tf->eip,
-				rcr2()
-			);*/
-
 			cprintf( "Kill misbehaved user process:\n" );
 			cprintf( "    pid  : %d\n",     myproc()->pid  );
 			cprintf( "    name : %s\n",     myproc()->name );
@@ -182,6 +167,7 @@ void trap ( struct trapframe *tf )
 
 			myproc()->killed = 1;
 	}
+
 
 	// Force process exit if it has been killed and is in user space.
 	// (If it is still executing in the kernel, let it keep running

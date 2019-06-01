@@ -21,8 +21,8 @@ int fetchint ( uint addr, int *ip )
 {
 	struct proc *curproc = myproc();
 
-	// points to address within user address space
-	if ( addr >= curproc->sz || addr + 4 > curproc->sz )
+	// Check that points to address within user address space
+	if ( ( addr >= curproc->sz ) || ( addr + 4 > curproc->sz ) )
 	{
 		return - 1;
 	}
@@ -41,6 +41,7 @@ int fetchstr ( uint addr, char **pp )
 	            *ep;
 	struct proc *curproc = myproc();
 
+	// Check that points to address within user address space
 	if ( addr >= curproc->sz )
 	{
 		return - 1;
@@ -81,7 +82,7 @@ int argptr ( int n, char **pp, int size )
 		return - 1;
 	}
 
-	// points to address within user address space
+	// Check that points to address within user address space
 	if ( size < 0 ||
 	     ( uint )i >= curproc->sz ||
 	     ( uint )i + size > curproc->sz )

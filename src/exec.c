@@ -140,9 +140,10 @@ int exec ( char *path, char **argv )
 
 	clearpteu( pgdir, ( char* )( sz - 2 * PGSIZE ) );
 
-	sp = sz;
+	sp = sz;  // set stack pointer
 
-	// Push argument strings, prepare rest of stack in ustack.
+	// Push argument strings (ex. "hello.txt" in exec( "cat", "hello.txt" )), 
+	// and prepare rest of stack in ustack.
 	for ( argc = 0; argv[ argc ]; argc += 1 )
 	{
 		if ( argc >= MAXARG )
@@ -150,37 +151,44 @@ int exec ( char *path, char **argv )
 			goto bad;
 		}
 
-		// ? why & ~ 3? multiples of 4?
-		sp = ( sp - ( strlen( argv[ argc ] ) + 1 ) ) & ~ 3;
+		// Push string
+		sp -= strlen( argv[ argc ] ) + 1;
+
+		sp &= ~ 3;  // multiples of 4?
 
 		if ( copyout(
 
 				pgdir,
-				sp,
-				argv[ argc ],
-				strlen( argv[ argc ] ) + 1
+				sp,                         // to
+				argv[ argc ],               // from
+				strlen( argv[ argc ] ) + 1  // len
+
 			) < 0 )
 		{
 			goto bad;
 		}
 
+		// Save pointer to pushed string ( argv[ argc ] )
 		ustack[ 3 + argc ] = sp;
 	}
 
 	ustack[ 3 + argc ] = 0;  // mark end of arguments
 
-	ustack[ 0 ] = 0xffffffff;             // fake return PC
-	ustack[ 1 ] = argc;
+	ustack[ 0 ] = 0xffffffff;             // fake return PC (don't expect exec to return)
+	ustack[ 1 ] = argc;                   // argc
 	ustack[ 2 ] = sp - ( argc + 1 ) * 4;  // argv pointer
 
+
+	// Push ustack (retAddress, argc, argv)
 	sp -= ( 3 + argc + 1 ) * 4;
 
 	if ( copyout(
 
 			pgdir,
-			sp,
-			ustack,
-			( 3 + argc + 1 ) * 4
+			sp,                   // to
+			ustack,               // from
+			( 3 + argc + 1 ) * 4  // len
+
 		) < 0 )
 	{
 		goto bad;
@@ -201,7 +209,7 @@ int exec ( char *path, char **argv )
 	oldpgdir = curproc->pgdir;
 
 	curproc->pgdir   = pgdir;
-	curproc->sz      = sz;
+	curproc->sz      = sz;         // at this point, points to heap top ??
 	curproc->tf->eip = elf.entry;  // main (see Makefile)
 	curproc->tf->esp = sp;
 

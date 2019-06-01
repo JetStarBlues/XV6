@@ -30,7 +30,7 @@ void acquire ( struct spinlock *lk )
 	}
 
 	// The xchg is atomic.
-	while( xchg( &lk->locked, 1 ) != 0 )
+	while ( xchg( &lk->locked, 1 ) != 0 )
 	{
 		// spin, waiting for lock to become available
 	}
@@ -116,7 +116,7 @@ int holding ( struct spinlock *lock )
 
 
 // Pushcli/popcli are like cli/sti except that they are matched:
-// it takes two popcli to undo two pushcli.  Also, if interrupts
+// it takes two popcli to undo two pushcli. Also, if interrupts
 // are off, then pushcli, popcli leaves them off.
 
 void pushcli ( void )

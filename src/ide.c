@@ -79,7 +79,7 @@ void ideinit ( void )
 	outb( 0x1f6, 0xe0 | ( 0 << 4 ) );  // select disk 0
 }
 
-// Start the request for b.  Caller must hold idelock.
+// Start the request for b. Caller must hold idelock.
 static void idestart ( struct buf *b )
 {
 	if ( b == 0 )
@@ -141,7 +141,7 @@ void ideintr ( void )
 
 	idequeue = b->qnext;
 
-	// Read data if needed.
+	// Read data if needed (request is a read)
 	if ( ! ( b->flags & B_DIRTY ) && idewait( 1 ) >= 0 )
 	{
 		insl( 0x1f0, b->data, BSIZE / 4 );
@@ -195,7 +195,7 @@ void iderw ( struct buf *b )
 
 	*pp = b;
 
-	// Start disk if necessary.
+	// If only item in idequeue, start the request immediately
 	if ( idequeue == b )
 	{
 		idestart( b );

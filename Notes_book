@@ -1902,7 +1902,6 @@ Process address space
 
 	. Physical
 
-
 	             0xFFFF_FFFF ->  -------------------
 	                             memory mapped
 	                             IO devices 

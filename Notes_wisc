@@ -36,3 +36,77 @@ Project 3
 			heap (grows towards high end of address space)
 			...
 			stack (grows towards low end of address space)
+
+		. How to:
+			. figure out where xv6 allocate and initialises the user stack
+			. figure out how to change that to use a page at the high end
+			  of the xv6 user address space
+
+		. Tricky parts:
+			. Wary of how xv6 currently tracks the size of a process (proc->sz)
+				. Used in several places for example:
+					. check whether user accessing allowed address
+					. to copy a process's address space (fork)
+				. Recommend keeping the field to track size of code and heap,
+				  but doing some other accounting to track stack... ??
+				  ("sz bound of heap, ? bound of stack")
+			. Wary of growing heap and overwriting stack
+				. Recommend leave an unallocated (invalid) page between
+				  stack and heap
+				. Can do similar block between code and heap to guard
+				  against heap underflow...
+			. Automatically growing the stack backwards when needed.
+				. Requires seeing if a fault occured on the page above the
+				  stack and then, instead of killing the process, allocating
+				  a new page, mapping it into the address space, and continuing
+				  to run...
+
+		. heap grows through malloc, stack through page fault trap handler
+
+Project 4
+
+	Part A
+
+		.
+
+	Part B
+
+		. Threads
+
+		. Specifically, you'll add four new system calls:
+
+			int clone ( void *stack )
+				. based on fork
+	
+			int lock ( int *l )
+	
+			int unlock ( int *l )
+	
+			int join ()
+				. based on wait
+
+		. You'll also add one user-space function that wraps clone() for convenience:
+
+			int thread_create( void ( *fn ) ( void * ), void *arg )
+
+				. malloc space for new stack
+				. calls clone
+				. in child, uses fx pointer to know where to start executing (with arg)
+				. when thread returns, thread_create frees stack
+
+		. Each thread has its own stack...
+		. Malloc space in heap and tell new thread that it is its stack...
+			. Stacks inside heap...
+		. Thread starts with same stack contents...
+		. Mslloc two pages...within those two guaranteed to find an aligned page,
+		  then free both when done...
+
+		. What happens if parent exits before all its threads return?
+
+		. Add locking around page table grows (sbrk) to avoid race
+		  conditions when multiple threads...
+
+		. guard spinlock...acquire that lock or sleep on it until available...
+		. sleep for lock, and wakeup for unlock...
+
+
