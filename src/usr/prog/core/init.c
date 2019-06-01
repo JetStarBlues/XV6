@@ -23,7 +23,7 @@ int main ( void )
 
 	for ( ;; )
 	{
-		printf( 1, "init: starting sh\n\n" );
+		printf( 1, "init: starting /bin/sh\n\n" );
 
 		pid = fork();
 
@@ -36,9 +36,9 @@ int main ( void )
 
 		if ( pid == 0 )
 		{
-			exec( "sh", argv );
+			exec( "/bin/sh", argv );
 
-			printf( 1, "init: exec sh failed\n\n" );
+			printf( 1, "init: exec /bin/sh failed\n\n" );
 
 			exit();
 		}

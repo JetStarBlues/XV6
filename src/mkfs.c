@@ -4,14 +4,20 @@
 #include <string.h>
 #include <fcntl.h>
 #include <assert.h>
-#include <libgen.h>    // JK, find filename
+#include <dirent.h>     // addDirectory
+#include <sys/types.h>  // addDirectory
+#include <sys/stat.h>   // addDirectory
 
-#define stat xv6_stat  // avoid clash with host struct stat
+#define stat   xv6_stat    // avoid clash with host struct stat
+#define dirent xv6_dirent  // avoid clash with host struct dirent
 
-#include "types.h"
-#include "fs.h"
-#include "stat.h"
-#include "param.h"
+	#include "types.h"
+	#include "fs.h"
+	#include "stat.h"
+	#include "param.h"
+
+#undef stat
+#undef dirent
 
 #ifndef static_assert
 	#define static_assert( a, b ) do { switch ( 0 ) case 0: case ( a ): ; } while ( 0 )
@@ -43,6 +49,14 @@ void rsect   ( uint sec, void *buf );
 uint ialloc  ( ushort type );
 void iappend ( uint inum, void *p, int n );
 
+void addDirectoryEntry ( int, char*, int );
+void addFile           ( int, char* );
+void addDirectory      ( int, char* );
+int  makeDirectory     ( int, char* );
+
+
+// ___________________________________________________________________
+
 // convert to intel byte order - why ??
 ushort xshort ( ushort x )
 {
@@ -70,18 +84,16 @@ uint xint ( uint x )
 	return y;
 }
 
+
+// ___________________________________________________________________
+
 int main ( int argc, char *argv[] )
 {
-	int           i,
-	              cc,
-	              fd;
+	int           i;
 	uint          rootino,
-	              inum,
 	              off;
-	struct dirent de;
 	char          buf [ BSIZE ];
 	struct dinode din;
-	char*         filename;  // JK, find filename
 
 
 	static_assert( sizeof( int ) == 4, "Integers must be 4 bytes!" );
@@ -94,7 +106,7 @@ int main ( int argc, char *argv[] )
 	}
 
 	assert( ( BSIZE % sizeof( struct dinode ) ) == 0 );
-	assert( ( BSIZE % sizeof( struct dirent ) ) == 0 );
+	assert( ( BSIZE % sizeof( struct xv6_dirent ) ) == 0 );
 
 	// Open fs.img
 	fsfd = open( argv[ 1 ], O_RDWR | O_CREAT | O_TRUNC, 0666 );
@@ -106,7 +118,7 @@ int main ( int argc, char *argv[] )
 		exit( 1 );
 	}
 
-	// 1 fs block = 1 disk sector
+	// 1 fs block == 1 disk sector
 	nmeta = 2 + nlog + ninodeblocks + nbitmap;
 
 	nblocks = FSSIZE - nmeta;
@@ -158,76 +170,15 @@ int main ( int argc, char *argv[] )
 
 
 	// Create "." directory entry for root
-	bzero( &de, sizeof( de ) );
-
-	de.inum = xshort( rootino );
-
-	strcpy( de.name, "." );
-
-	iappend( rootino, &de, sizeof( de ) );
-
+	addDirectoryEntry( rootino, ".", rootino );
 
 	// Create ".." directory entry for root
-	bzero( &de, sizeof( de ) );
-
-	de.inum = xshort( rootino );
-
-	strcpy( de.name, ".." );
-
-	iappend( rootino, &de, sizeof( de ) );
+	addDirectoryEntry( rootino, "..", rootino );
 
 
-	// User files
-	for ( i = 2; i < argc; i += 1 )
-	{
-		// Open file
-		if ( ( fd = open( argv[ i ], 0 ) ) < 0 )
-		{
-			perror( argv[ i ] );
+	// Clone an exisiting directory
+	addDirectory( rootino, argv[ 2 ] );
 
-			exit( 1 );
-		}
-
-		// Get the filename
-		/* Skip leading _ in name when writing to file system.
-		   The binaries are named _rm, _cat, etc. to keep the
-		   build operating system from trying to execute them
-		   in place of system binaries like rm and cat.
-		*/
-		filename = basename( argv[ i ] );  // JK, find filename
-
-		if ( filename )
-		{
-			if ( filename[ 0 ] == '_' )
-			{
-				filename += 1;  // skip the char...
-			}
-			// else {}
-		}
-
-
-		// Create an inode for the file
-		inum = ialloc( T_FILE );
-
-
-		// Create a directory entry for the file
-		bzero( &de, sizeof( de ) );
-
-		de.inum = xshort( inum );
-
-		strncpy( de.name, filename, DIRNAMESZ );
-
-		iappend( rootino, &de, sizeof( de ) );
-
-
-		// Write the file's contents to the inode's data blocks
-		while ( ( cc = read( fd, buf, sizeof( buf ) ) ) > 0 )
-		{
-			iappend( inum, buf, cc );
-		}
-
-		close( fd );
-	}
 
 	// Fix size of root inode dir ??
 	rinode( rootino, &din );
@@ -245,6 +196,146 @@ int main ( int argc, char *argv[] )
 
 	exit( 0 );
 }
+
+
+// ___________________________________________________________________
+
+/* Clone an exisiting directory.
+   Code by Warren Toomey,
+    https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
+    https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
+*/
+
+// Add the given filename and i-number as a directory entry
+void addDirectoryEntry ( int dirino, char *name, int fileino )
+{
+	struct xv6_dirent de;
+
+	bzero( &de, sizeof( de ) );
+
+	de.inum = xshort( fileino );
+
+	strncpy( de.name, name, DIRNAMESZ );
+
+	iappend( dirino, &de, sizeof( de ) );
+}
+
+/* Make a new directory entry in the directory specified by
+   the given i-number. Return the new directory's i-number
+*/
+int makeDirectory ( int parentdirino, char *newdirname )
+{
+	int newdirino;
+
+	// Allocate an inode number for the directory
+	newdirino = ialloc( T_DIR );
+
+	// Set up the "." and ".." entries
+	addDirectoryEntry( newdirino, ".",  newdirino );     // self
+	addDirectoryEntry( newdirino, "..", parentdirino );  // parent
+
+	// Add the new directory to the parent directory
+	addDirectoryEntry( parentdirino, newdirname, newdirino );
+
+	return newdirino;
+}
+
+// Add a file to the directory specified by the given i-number
+void addFile ( int dirino, char *filename )
+{
+	char buf [ BSIZE ];
+	int  cc,
+	     fd,
+	     inum;
+
+	// Open the file
+	if ( ( fd = open( filename, 0 ) ) < 0 )
+	{
+		perror( "open" );
+
+		exit( 1 );
+	}
+
+	// Create an i-node for the file
+	inum = ialloc( T_FILE );
+
+	// Create a directory entry for the file
+	addDirectoryEntry( dirino, filename, inum );
+
+	// Write the file's contents to the inode's data blocks
+	while ( ( cc = read( fd, buf, sizeof( buf ) ) ) > 0 )
+	{
+		iappend( inum, buf, cc );
+	}
+
+	close( fd );
+}
+
+/* Given a local directory name and a directory i-number
+   on the image, add all the files from the local directory
+   to the on-image directory.
+*/
+void addDirectory ( int dirino, char *localdirname )
+{
+	DIR           *dir;
+	struct dirent *dent;
+	struct stat    st;
+	int            newdirino;
+
+	dir = opendir( localdirname );
+
+	if ( dir == NULL )
+	{
+		perror( "opendir" );
+
+		exit( 1 );
+	}
+
+	chdir( localdirname );
+
+	while ( ( dent = readdir( dir ) ) != NULL )
+	{
+		// Skip the "." entry
+		if ( ! strcmp( dent->d_name, "." ) )
+		{
+			continue;
+		}
+
+		// Skip the ".." entry
+		if ( ! strcmp( dent->d_name, ".." ) )
+		{
+			continue;
+		}
+
+		// Get information about the file
+		if ( stat( dent->d_name, &st ) == - 1 )
+		{
+			perror( "stat" );
+
+			exit( 1 );
+		}
+
+		// File is a directory
+		if ( S_ISDIR( st.st_mode ) )
+		{
+			newdirino = makeDirectory( dirino, dent->d_name );
+
+			addDirectory( newdirino, dent->d_name );
+		}
+		// File is a regular file
+		else if ( S_ISREG( st.st_mode ) )
+		{
+			addFile( dirino, dent->d_name );
+		}
+	}
+
+	closedir( dir );
+
+	chdir( ".." );  // go back up to parent?
+}
+
+
+// ___________________________________________________________________
 
 void wsect ( uint sec, void *buf )
 {
@@ -311,6 +402,8 @@ void rinode ( uint inum, struct dinode *ip )
 	*ip = *dip;
 }
 
+
+// ___________________________________________________________________
 
 uint ialloc ( ushort type )
 {

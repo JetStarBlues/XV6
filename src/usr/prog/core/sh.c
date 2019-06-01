@@ -100,6 +100,8 @@ void runcmd ( struct cmd *cmd )
 	struct pipecmd  *pcmd;
 	struct redircmd *rcmd;
 
+	char binbuf [ 100 ];  //
+
 	if ( cmd == 0 )
 	{
 		exit();
@@ -120,8 +122,36 @@ void runcmd ( struct cmd *cmd )
 				exit();
 			}
 
+			// Binary in current directory
 			exec( ecmd->argv[ 0 ], ecmd->argv );
 
+
+			/* Default binaries no longer in root directory.
+			   Can either be in:
+			      . /bin
+			      . /usr/bin
+	
+			   Based on,
+			    https://github.com/DoctorWkt/xv6-freebsd/blob/d2a294c2a984baed27676068b15ed9a29b06ab6f/XV6_CHANGES#L124
+			*/
+
+			// Binary in "/bin"
+			strcpy( binbuf, "/bin/" );
+
+			strcpy( &binbuf[ 5 ], ecmd->argv[ 0 ] );
+
+			exec( binbuf, ecmd->argv );
+
+
+			// Binary in "/usr/bin"
+			strcpy( binbuf, "/usr/bin/" );
+
+			strcpy( &binbuf[ 9 ], ecmd->argv[ 0 ] );
+
+			exec( binbuf, ecmd->argv );
+
+
+			//
 			printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
 
 			break;
