@@ -122,6 +122,11 @@ void runcmd ( struct cmd *cmd )
 				exit();
 			}
 
+			/* TODO:
+			    Find location of binary first, then call exec with correct path.
+			    Currently exec just fails then we issue another for next possible path...
+			*/
+
 			// Binary in current directory
 			exec( ecmd->argv[ 0 ], ecmd->argv );
 
