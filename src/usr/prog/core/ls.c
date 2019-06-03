@@ -78,17 +78,24 @@ void ls ( char *path )
 
 			p += 1;
 
+			// buf = "path/"
+			//             ^
+			//             p
+
 			while ( read( fd, &de, sizeof( de ) ) == sizeof( de ) )
 			{
-
-				if ( de.inum == 0 )
+				if ( de.inum == 0 )  // ??
 				{
 					continue;
 				}
 
 				memmove( p, de.name, DIRNAMESZ );
 
-				p[ DIRNAMESZ ] = 0;
+				p[ DIRNAMESZ ] = 0;  // ?
+
+				// buf = "path/dirname0"
+				//             ^
+				//             p
 
 				if ( stat( buf, &st ) < 0 )
 				{

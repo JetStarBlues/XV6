@@ -54,6 +54,7 @@ struct dinode
 // Directory is a file containing a sequence of dirent structures.
 #define DIRNAMESZ 14
 
+// Directory entry
 struct dirent
 {
 	ushort inum;  // inode number

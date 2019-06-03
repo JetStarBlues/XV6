@@ -68,6 +68,7 @@ UPROGSCORE =        \
 	wc
 
 UPROGS =            \
+	exists          \
 	forktest        \
 	stressfs        \
 	temptest        \

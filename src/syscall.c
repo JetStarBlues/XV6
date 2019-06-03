@@ -53,7 +53,7 @@ int fetchstr ( uint addr, char **pp )
 
 	for ( s = *pp; s < ep; s += 1 )
 	{
-		if ( *s == 0 )
+		if ( *s == 0 )  // null terminated
 		{
 			return s - *pp;
 		}
@@ -97,8 +97,8 @@ int argptr ( int n, char **pp, int size )
 
 // Fetch the nth word-sized system call argument as a string pointer.
 // Check that the pointer is valid and the string is nul-terminated.
-// ( There is no shared writable memory, so the string can't change
-// between this check and being used by the kernel. )
+// (There is no shared writable memory, so the string can't change
+// between this check and being used by the kernel.)
 int argstr ( int n, char **pp )
 {
 	int addr;
