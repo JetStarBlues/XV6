@@ -41,13 +41,6 @@ uint strlen ( const char *s )
 	return n;
 }
 
-void* memset ( void *dst, int c, uint n )
-{
-	stosb( dst, c, n );
-
-	return dst;
-}
-
 char* strchr ( const char *s, char c )
 {
 	for ( ; *s; s += 1 )
@@ -91,12 +84,12 @@ char* gets ( char *buf, int max )
 	return buf;
 }
 
-int stat ( const char *n, struct stat *st )
+int stat ( const char *path, struct stat *st )
 {
 	int fd;
 	int r;
 
-	fd = open( n, O_RDONLY );
+	fd = open( path, O_RDONLY );
 
 	if ( fd < 0 )
 	{
@@ -140,4 +133,11 @@ void* memmove ( void *vdst, const void *vsrc, int n )
 	}
 
 	return vdst;
+}
+
+void* memset ( void *dst, int c, uint n )
+{
+	stosb( dst, c, n );
+
+	return dst;
 }

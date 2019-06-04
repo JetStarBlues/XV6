@@ -1,29 +1,29 @@
 #include "types.h"
 #include "stat.h"
+#include "fcntl.h"
 #include "user.h"
 #include "fs.h"
 
-// Returns 1 if a file is present in a directory,
-// 0 otherwise
-
 void exists ( char* filename, char* dirpath )
 {
-	int            fd,
-	               i,
-	               equal;
-	char          *p;
+	int   fd,
+	      i,
+	      equal;
+	char *p,
+	      dename [ DIRNAMESZ + 1 ];
+
 	struct dirent  de;
 	struct stat    st;
 
 
 	if ( ( strlen( filename ) ) > DIRNAMESZ )
 	{
-		printf( 1, "invalid filename\n" );
+		printf( 1, "invalid filename %s\n", filename );
 
 		return;
 	}
 
-	if ( ( fd = open( dirpath, 0 ) ) < 0 )
+	if ( ( fd = open( dirpath, O_RDONLY ) ) < 0 )
 	{
 		printf( 2, "exists: cannot open %s\n", dirpath );
 
@@ -43,6 +43,8 @@ void exists ( char* filename, char* dirpath )
 	{
 		printf( 1, "expecting a directory\n" );
 
+		close( fd );
+
 		return;
 	}
 
@@ -55,10 +57,19 @@ void exists ( char* filename, char* dirpath )
 				continue;
 			}
 
+			// Can potentially check if de refers to a regular file (T_FILE)
+
 			/* argv from sh is null terminated, thus filename
 			    and dirpath are null terminated.
 			   dirent->name is NOT null terminated
 			*/
+
+			/* Not sure what value unused characters of dirent->name have.
+			   Will be cautious and set them all to zero.
+			   In the process, let's also "null terminate" dirent->name.
+			*/
+			memset( dename, 0, DIRNAMESZ + 1 );
+			memmove( dename, de.name, DIRNAMESZ );
 
 			// Compare the filename against dirent->name
 			/* The two are equal if all characters up to the null terminal
@@ -70,16 +81,19 @@ void exists ( char* filename, char* dirpath )
 
 			while ( 1 )
 			{
-				printf( 1, "%d : %c %d - %c %d\n", i, *p, *p, de.name[ i ], de.name[ i ] );
+				printf( 1, "%d : %c %d - %c %d\n", i, *p, *p, dename[ i ], dename[ i ] );
 
 				if ( *p == 0 )  // reached null terminal
 				{
-					equal = 1;
+					if ( dename[ i ] == 0 )
+					{
+						equal = 1;
+					}
 
 					break;
 				}
 
-				if ( *p != de.name[ i ] )  // characters not equal
+				if ( *p != dename[ i ] )  // characters not equal
 				{
 					break;
 				}
@@ -95,13 +109,15 @@ void exists ( char* filename, char* dirpath )
 			{
 				printf( 1, "file exists\n" );
 
+				close( fd );
+
 				return;
 			} 
 		}
-
-		// Not found
-		printf( 1, "file does not exist\n" );	
 	}
+
+	// Not found
+	printf( 1, "file does not exist\n" );	
 
 	close( fd );
 }

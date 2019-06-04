@@ -34,8 +34,8 @@
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
-// #include "stat.h"
-// #include "fs.h"
+#include "stat.h"  // exists
+#include "fs.h"    // exists
 
 // Parsed command representation
 #define EXEC  1
@@ -91,8 +91,9 @@ struct backcmd
 int         fork1    ( void );  // Fork but panics on failure.
 void        panic    ( char* );
 struct cmd *parsecmd ( char* );
+int         exists   ( char*, char* );  // JK
 
-// Execute cmd.  Never returns.
+// Execute cmd. Never returns.
 void runcmd ( struct cmd *cmd )
 {
 	int              p[ 2 ];
@@ -124,43 +125,65 @@ void runcmd ( struct cmd *cmd )
 				exit();
 			}
 
-			/* TODO:
-			    Find location of binary first, then call exec with correct path.
-			    Currently exec just fails then we issue another for next possible path...
-			*/
-
-			// Binary in current directory
-			exec( ecmd->argv[ 0 ], ecmd->argv );
-
-
 			/* Default binaries no longer in root directory.
 			   Can either be in:
 			      . /bin
 			      . /usr/bin
-	
+
 			   Based on,
 			    https://github.com/DoctorWkt/xv6-freebsd/blob/d2a294c2a984baed27676068b15ed9a29b06ab6f/XV6_CHANGES#L124
 			*/
 
+			/* TODO:
+			    We currently assume that only name of binary is given.
+			    I.e. it is not specified with an explicit path.
+
+			    Consider case where we have runtime compiler.
+
+			    Possible solution, check for presence of "/" in name
+			*/
+
+			/* Binaries without explicit path can either be in:
+			      . "."
+			      . /bin
+			      . /usr/bin
+			*/
+			// Binary in current directory
+			if ( exists( ecmd->argv[ 0 ], "." ) )
+			{
+				exec( ecmd->argv[ 0 ], ecmd->argv );
+
+				printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
+			}
 			// Binary in "/bin"
-			strcpy( binbuf, "/bin/" );
+			else if ( exists( ecmd->argv[ 0 ], "/bin" ) )
+			{
+				strcpy( binbuf, "/bin/" );
 
-			strcpy( &binbuf[ 5 ], ecmd->argv[ 0 ] );
+				strcpy( &binbuf[ 5 ], ecmd->argv[ 0 ] );
 
-			exec( binbuf, ecmd->argv );
+				exec( binbuf, ecmd->argv );
 
-
+				printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
+			}
 			// Binary in "/usr/bin"
-			strcpy( binbuf, "/usr/bin/" );
+			else if ( exists( ecmd->argv[ 0 ], "/usr/bin" ) )
+			{
+				strcpy( binbuf, "/usr/bin/" );
 
-			strcpy( &binbuf[ 9 ], ecmd->argv[ 0 ] );
+				strcpy( &binbuf[ 9 ], ecmd->argv[ 0 ] );
 
-			exec( binbuf, ecmd->argv );
+				exec( binbuf, ecmd->argv );
 
+				printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
+			}
+			// Binary not found
+			else
+			{
+				printf( 2, "%s: command not found\n", ecmd->argv[ 0 ] );
+			}
 
 			//
-			printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
-
 			break;
 
 		case REDIR:
@@ -334,8 +357,8 @@ int fork1 ( void )
 	return pid;
 }
 
-//PAGEBREAK!
-// Constructors
+
+// __ Constructors ______________________________________________
 
 struct cmd* execcmd ( void )
 {
@@ -411,8 +434,9 @@ struct cmd* backcmd ( struct cmd *subcmd )
 
 	return ( struct cmd* )cmd;
 }
-//PAGEBREAK!
-// Parsing
+
+
+// __ Parsing ___________________________________________________
 
 char whitespace [] = " \t\r\n\v";
 char symbols []    = "<|>&;()";
@@ -768,4 +792,127 @@ struct cmd* nulterminate ( struct cmd *cmd )
 	}
 
 	return cmd;
+}
+
+
+// __ ... _______________________________________________________
+
+int exists ( char* filename, char* dirpath )
+{
+	int   fd,
+	      i,
+	      equal;
+	char *p,
+	      dename [ DIRNAMESZ + 1 ];
+
+	struct dirent  de;
+	struct stat    st;
+
+
+	if ( ( strlen( filename ) ) > DIRNAMESZ )
+	{
+		printf( 1, "invalid filename %s\n", filename );
+
+		return 0;
+	}
+
+	if ( ( fd = open( dirpath, O_RDONLY ) ) < 0 )
+	{
+		printf( 2, "exists: cannot open %s\n", dirpath );
+
+		return 0;
+	}
+
+	if ( fstat( fd, &st ) < 0 )
+	{
+		printf( 2, "exists: cannot stat %s\n", dirpath );
+
+		close( fd );
+
+		return 0;
+	}
+
+	if ( st.type == T_FILE )
+	{
+		printf( 1, "expecting a directory\n" );
+
+		close( fd );
+
+		return 0;
+	}
+
+	if ( st.type == T_DIR )
+	{
+		while ( read( fd, &de, sizeof( de ) ) == sizeof( de ) )
+		{
+			if ( de.inum == 0 )  // ??
+			{
+				continue;
+			}
+
+			// Can potentially check if de refers to a regular file (T_FILE)
+
+			/* argv from sh is null terminated, thus filename
+			    and dirpath are null terminated.
+			   dirent->name is NOT null terminated
+			*/
+
+			/* Not sure what value unused characters of dirent->name have.
+			   Will be cautious and set them all to zero.
+			   In the process, let's also "null terminate" dirent->name.
+			*/
+			memset( dename, 0, DIRNAMESZ + 1 );
+			memmove( dename, de.name, DIRNAMESZ );
+
+			// Compare the filename against dirent->name
+			/* The two are equal if all characters up to the null terminal
+			   in filename are equivalent.
+			*/
+			equal = 0;
+			i     = 0;
+			p     = filename;
+
+			while ( 1 )
+			{
+				// printf( 1, "%d : %c %d - %c %d\n", i, *p, *p, dename[ i ], dename[ i ] );
+
+				if ( *p == 0 )  // reached null terminal
+				{
+					if ( dename[ i ] == 0 )
+					{
+						equal = 1;
+					}
+
+					break;
+				}
+
+				if ( *p != dename[ i ] )  // characters not equal
+				{
+					break;
+				}
+
+				i += 1;
+				p += 1;
+			}
+
+			// printf( 1, "\n" );
+
+			// File found, we are done!
+			if ( equal )
+			{
+				// printf( 1, "file exists\n" );
+
+				close( fd );
+
+				return 1;
+			} 
+		}
+	}
+
+	// Not found
+	// printf( 1, "file does not exist\n" );
+
+	close( fd );
+
+	return 0;	
 }
