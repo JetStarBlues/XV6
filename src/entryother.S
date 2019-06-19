@@ -45,7 +45,7 @@ start:
 	# translation, so that the mapping is still the identity mapping.
 	ljmpl  $( SEG_KCODE << 3 ), $( start32 )
 
-//PAGEBREAK!
+
 .code32  # Tell assembler to generate 32-bit code now.
 
 start32:
@@ -59,7 +59,7 @@ start32:
 	movw  %ax, %fs                  # -> FS
 	movw  %ax, %gs                  # -> GS
 
-	# Turn on page size extension for 4Mbyte pages
+	# Turn on page size extension for 4Mbyte "super" pages
 	movl  %cr4, %eax
 	orl   $( CR4_PSE ), %eax
 	movl  %eax, %cr4
@@ -75,6 +75,7 @@ start32:
 
 	# Switch to the stack allocated by startothers()
 	movl  ( start - 4 ), %esp
+
 	# Call mpenter()
 	call  *( start - 8 )
 

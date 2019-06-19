@@ -171,6 +171,9 @@ void lapicstartap ( uchar apicid, uint addr )
 	}
 }
 
+
+// Why is CMOS code here ??
+
 #define CMOS_STATA   0x0a
 #define CMOS_STATB   0x0b
 #define CMOS_UIP   ( 1 << 7 )  // RTC update in progress

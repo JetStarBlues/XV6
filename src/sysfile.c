@@ -313,13 +313,13 @@ int sys_unlink ( void )
 		iupdate( dp );
 	}
 
-	iunlockput( dp );
+	iunlockput( dp );  // iput frees inode (and data) if this was last reference
 
 	ip->nlink -= 1;
 
 	iupdate( ip );
 
-	iunlockput( ip );
+	iunlockput( ip );  // iput frees inode (and data) if this was last reference
 
 	end_op();
 

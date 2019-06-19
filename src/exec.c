@@ -7,10 +7,10 @@
 #include "x86.h"
 #include "elf.h"
 
-int exec ( char *path, char **argv )
+int exec ( char* path, char** argv )
 {
-	char *s,
-	     *last;
+	char* s;
+	char* last;
 	int   i,
 	      off;
 	uint  argc,
@@ -19,12 +19,19 @@ int exec ( char *path, char **argv )
 	      ustack [ 3 + MAXARG + 1 ];
 
 	struct elfhdr   elf;
-	struct inode   *ip;
+	struct inode*   ip;
 	struct proghdr  ph;
-	pde_t          *pgdir,
-	               *oldpgdir;
-	struct proc    *curproc = myproc();
+	pde_t*          pgdir;
+	pde_t*          oldpgdir;
+	struct proc*    curproc = myproc();
 
+
+	//
+	pgdir = 0;
+	sz    = 0;
+
+
+	// Open ...?
 	begin_op();
 
 	if ( ( ip = namei( path ) ) == 0 )
@@ -38,10 +45,9 @@ int exec ( char *path, char **argv )
 
 	ilock( ip );
 
-	pgdir = 0;
 
 	// Check ELF header
-	if ( readi( ip, ( char* )&elf, 0, sizeof( elf ) ) != sizeof( elf ) )
+	if ( readi( ip, ( char* ) &elf, 0, sizeof( elf ) ) != sizeof( elf ) )
 	{
 		goto bad;
 	}
@@ -50,19 +56,21 @@ int exec ( char *path, char **argv )
 		goto bad;
 	}
 
+
+	// Allocate a ??
 	if ( ( pgdir = setupkvm() ) == 0 )
 	{
 		goto bad;
 	}
 
-	// Load program into memory.
-	sz = 0;
+
+	// Load program into memory
 
 	// For each program section header
 	for ( i = 0, off = elf.phoff; i < elf.phnum; i += 1, off += sizeof( ph ) )
 	{
 		// Read the ph
-		if ( readi( ip, ( char* )&ph, off, sizeof( ph ) ) != sizeof( ph ) )
+		if ( readi( ip, ( char* ) &ph, off, sizeof( ph ) ) != sizeof( ph ) )
 		{
 			goto bad;
 		}
@@ -80,7 +88,7 @@ int exec ( char *path, char **argv )
 		}
 
 		// Measure against kernel access...
-		/* Check whether the sum overflows a 32bit integer.
+		/* Check whether the sum overflows a 32bit integer. (See p.36).
 		   'newsz' argument to allocuvm is (ph.vaddr + ph.memsz)
 		   If ph.vaddr points to kernel,
 		   and ph.memsz is large enough that newsz overflows to
@@ -94,7 +102,7 @@ int exec ( char *path, char **argv )
 			goto bad;
 		}
 
-		// Allocate space
+		// Allocate space in memory
 		if ( ( sz = allocuvm( pgdir, sz, ph.vaddr + ph.memsz ) ) == 0 )
 		{
 			goto bad;
@@ -116,7 +124,7 @@ int exec ( char *path, char **argv )
 		cprintf( "---\n\n" ); */
 
 		// Load file contents into memory
-		if ( loaduvm( pgdir, ( char* )ph.vaddr, ip, ph.off, ph.filesz ) < 0 )
+		if ( loaduvm( pgdir, ( char* ) ph.vaddr, ip, ph.off, ph.filesz ) < 0 )
 		{
 			goto bad;
 		}
@@ -128,9 +136,17 @@ int exec ( char *path, char **argv )
 
 	ip = 0;
 
-	// Allocate two pages at the next page boundary.
-	// Make the first inaccessible.
-	// Use the second as the user stack.
+
+	/* Allocate two pages at the next page boundary.
+	   Make the first inaccessible.
+	   Use the second as the user stack.
+	*/
+	/* With the inaccessible page, programs that try to use more than
+	   the available stack will page fault.
+	   Also when arguments to exec are too large, the 'copyout' function
+	   used by exec to copy arguments to the stack will notice that
+	   the destination page is inaccessible and return an error.
+	*/
 	sz = PGROUNDUP( sz );
 
 	if ( ( sz = allocuvm( pgdir, sz, sz + 2 * PGSIZE ) ) == 0 )
@@ -138,9 +154,10 @@ int exec ( char *path, char **argv )
 		goto bad;
 	}
 
-	clearpteu( pgdir, ( char* )( sz - 2 * PGSIZE ) );
+	clearpteu( pgdir, ( char* ) ( sz - 2 * PGSIZE ) );
 
 	sp = sz;  // set stack pointer
+
 
 	// Push argument strings (ex. "hello.txt" in exec( "cat", "hello.txt" )), 
 	// and prepare rest of stack in ustack.
@@ -194,6 +211,7 @@ int exec ( char *path, char **argv )
 		goto bad;
 	}
 
+
 	// Save program name for debugging.
 	for ( last = s = path; *s; s += 1 )
 	{
@@ -205,11 +223,15 @@ int exec ( char *path, char **argv )
 
 	safestrcpy( curproc->name, last, sizeof( curproc->name ) );
 
-	// Commit to the user image.
+
+	// Commit to the new user image.
+	/* exec must wait to free the old image until it is will succeed
+	   because if the old image is gone, it cannot return an error to it.
+	*/
 	oldpgdir = curproc->pgdir;
 
 	curproc->pgdir   = pgdir;
-	curproc->sz      = sz;         // at this point, points to heap top ??
+	curproc->sz      = sz;         // at this point, points to heap_base/stack_end ??
 	curproc->tf->eip = elf.entry;  // main (see Makefile)
 	curproc->tf->esp = sp;
 

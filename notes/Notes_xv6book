@@ -1093,24 +1093,34 @@ Creating the first process
 		sp = p->kstack + KSTACKSIZE;
 
 
-	. Now allocproc must setup the kernel stack to look like this:
+	. Now allocproc must setup the kernel stack to look like we entered the
+	  kernel through an interrupt:
 
-	---------------  <-- p->kstack + KSTACKSIZE
-	trapframe
-	(initialized
-	 as if entered
-	 kernel via
-	 interrupt)
-	---------------  <-- p->tf
-	trapret
-	---------------  <-- address forkret will return to (p->tf - 4)
-	context
-	(eip = forkret,
-	 others 0)
-	---------------  <-- p->context
-	empty
-	...
-	---------------  <-- p->kstack
+	           ->  ---------------  <-- p->kstack + KSTACKSIZE
+	          |    ss
+	          |    ---------------
+	          |    esp
+	trapframe |    ---------------
+	          |    ...
+	          |    ---------------
+	          |    edi
+	           ->  ---------------  <-- p->tf
+	               trapret
+	           ->  ---------------  <-- p->tf - 4; address forkret will return to (trapret)
+	          |    eip (forkret)
+	          |    ---------------  <-- the process will start executing at p->context->eip (forkret)
+	          |    ebp (0)
+	          |    ---------------
+	  context |    ebx (0)
+	          |    ---------------
+	          |    esi (0)
+	          |    ---------------
+	          |    edi (0)
+	           ->  ---------------  <-- p->context
+	               ...
+	               empty
+	               ...
+	               ---------------  <-- p->kstack
 
 
 	. It does this as follows:
@@ -6031,7 +6041,7 @@ Logging layer
 
 	. 'write' and 'unlink' can potentially write more blocks
 	  than ...
-	. A large file write may write many data and bitmap blcoks,
+	. A large file write may write many data and bitmap blocks,
 	  as well as an inode block...
 	. Unlinking a large file might write many bitmap blocks and
 	  an inode block...  

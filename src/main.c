@@ -9,7 +9,7 @@
 static void startothers ( void );
 static void mpmain      ( void )  __attribute__( ( noreturn ) );
 
-extern pde_t *kpgdir;
+extern pde_t* kpgdir;
 extern char   end [];  // first address after kernel loaded from ELF file
 
 // Bootstrap processor starts running C code here.
@@ -17,7 +17,8 @@ extern char   end [];  // first address after kernel loaded from ELF file
 // doing some setup required for memory allocator to work.
 int main ( void )
 {
-	kinit1( end, P2V( 4 * 1024 * 1024 ) );  // phys page allocator
+	kinit1( end, P2V( 4 * 1024 * 1024 ) );  // ?..4MB  ?? phys page allocator
+
 	kvmalloc();      // kernel page table
 	mpinit();        // detect other processors
 	lapicinit();     // interrupt controller
@@ -33,8 +34,9 @@ int main ( void )
 	ideinit();       // disk 
 	startothers();   // start other processors
 
-	kinit2( P2V( 4 * 1024 * 1024 ), P2V( PHYSTOP ) );  // must come after startothers()
-	userinit();      // first user process
+	kinit2( P2V( 4 * 1024 * 1024 ), P2V( PHYSTOP ) );  // 4MB..PHYSTOP  ?? must come after startothers()
+
+	userinit();      // create first user process
 	mpmain();        // finish this processor's setup
 }
 
@@ -67,22 +69,24 @@ static void startothers ( void )
 	// extern uchar _binary_entryother_start[], _binary_entryother_size[];
 	extern uchar _binary_img_entryother_start [],
 	             _binary_img_entryother_size  [];  // JK, new path
-	uchar      *code;
-	struct cpu *c;
-	char       *stack;
+
+	uchar*      code;
+	struct cpu* c;
+	char*       stack;
 
 	// Write entry code to unused memory at 0x7000.
 	// The linker has placed the image of entryother.S in
 	// _binary_entryother_start.
 	code = P2V( 0x7000 );
 
-	// memmove(code, _binary_entryother_start, (uint)_binary_entryother_size);
 	memmove(
 
 		code,
+		// _binary_entryother_start,
+		// ( uint ) _binary_entryother_size
 		_binary_img_entryother_start,
-		( uint )_binary_img_entryother_size
-	);  // JK, new path
+		( uint ) _binary_img_entryother_size
+	);
 
 	for ( c = cpus; c < cpus + ncpu; c += 1 )
 	{
@@ -96,11 +100,11 @@ static void startothers ( void )
 		// is running in low memory, so we use entrypgdir for the APs too.
 		stack = kalloc();
 
-		*( void** )( code - 4 ) = stack + KSTACKSIZE;
+		*( void** )( code - 4 ) = stack + KSTACKSIZE;  // ?
 
 		*( void( ** )( void ) )( code - 8 ) = mpenter;
 
-		*( int** )( code - 12 ) = ( void * ) V2P( entrypgdir );
+		*( int** )( code - 12 ) = ( void* ) V2P( entrypgdir );  // pdgdir to use
 
 		lapicstartap( c->apicid, V2P( code ) );
 
@@ -113,24 +117,37 @@ static void startothers ( void )
 }
 
 // The boot page table used in entry.S and entryother.S.
-// Page directories ( and page tables ) must start on page boundaries,
+// Page directories (and page tables) must start on page boundaries,
 // hence the __aligned__ attribute.
-// PTE_PS in a page directory entry enables 4Mbyte pages.
-
+// PTE_PS in a page directory entry enables 4Mbyte "super" pages.
 __attribute__( ( __aligned__( PGSIZE ) ) )
+
+// See p.22 and p.37 for explanation...
 pde_t entrypgdir [ NPDENTRIES ] = {
 
-	// Map VA's [0, 4MB ) to PA's [0, 4MB )
+	/* Map VA's [0, 4MB] to PA's [0, 4MB]...
+
+	   1:1 mapping
+
+	   This mapping is used when ... 'entry' is executing at low address ?? p.22
+
+	   (Btw, 4MB == 0x40_0000)
+	*/
 	[ 0 ]                    = ( 0 ) | PTE_P | PTE_W | PTE_PS,
 
-	// Map VA's [KERNBASE, KERNBASE+4MB ) to PA's [0, 4MB )
+
+	/* Map VA's [KERNBASE, KERNBASE + 4MB] to PA's [0, 4MB]
+
+	   Maps high virtual address where kernel expects? to find its
+	   instructions and data, to the low physical address where the
+	   boot loader placed them.
+
+	   This mapping is used when ... exit 'entry' and start executing at
+	   high addresses...??
+
+	   This mapping restricts the kernel instructions and rodata to 4 MB ??
+
+	   (Btw, 0x8000_0000 / 4MB == 512 == KERNBASE >> 22)
+	*/
 	[ KERNBASE >> PDXSHIFT ] = ( 0 ) | PTE_P | PTE_W | PTE_PS,
 };
-
-//PAGEBREAK!
-// Blank page.
-//PAGEBREAK!
-// Blank page.
-//PAGEBREAK!
-// Blank page.
-

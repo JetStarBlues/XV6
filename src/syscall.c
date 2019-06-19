@@ -166,6 +166,7 @@ void syscall ( void )
 
 	num = curproc->tf->eax;
 
+	// Valid syscall number
 	if ( num > 0 && num < NELEM( syscalls ) && syscalls[ num ] )
 	{
 		curproc->tf->eax = syscalls[ num ]();

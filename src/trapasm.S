@@ -1,6 +1,13 @@
 #include "mmu.h"
 
-# vectors.S sends all traps here.
+# vectors.S sends all traps here ('alltraps').
+# I.e. this is the interrupt handler for all interrupts
+#
+# 'alltraps' then forwards the interrupt handling to the
+# 'trap' C function
+#
+# Before doing so, 'alltraps' first prepares the "struct trapframe"
+# that the 'trap' function expects as an argument.
 .globl alltraps
 alltraps:
 
@@ -18,10 +25,15 @@ alltraps:
 
 	# Call trap( tf ), where tf = %esp
 	pushl   %esp
-	call    trap
+	call    trap      # in trap.c
 	addl    $4, %esp
 
-# Return falls through to trapret...
+
+# Return (from trap.c?) falls through to trapret...
+# 'allocproc' also configures new processes to end up in trapret...
+#
+# The 'reti' x86 instruction causes a switch from kernel to user mode...
+#  https://stackoverflow.com/a/13262538
 .globl trapret
 trapret:
 
@@ -30,5 +42,5 @@ trapret:
 	popl   %fs
 	popl   %es
 	popl   %ds
-	addl   $0x8, %esp  # trapno and errcode
-	iret
+	addl   $0x8, %esp  # skip over trapno and errcode ??
+	iret               # pops %eip, %cs, %eflags, %esp, %ss...

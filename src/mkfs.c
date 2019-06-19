@@ -37,7 +37,7 @@ int nblocks;   // Number of data blocks
 int               fsfd;
 struct superblock sb;
 char              zeroes [ BSIZE ];
-uint              freeinode = 1;
+uint              freeinode;
 uint              freeblock;
 
 
@@ -161,6 +161,12 @@ int main ( int argc, char *argv[] )
 	memmove( buf, &sb, sizeof( sb ) );
 
 	wsect( 1, buf );
+
+
+	// Start value for inode numbers
+	//  0 - reserved for ??
+	//  1 - root directory
+	freeinode = 1;
 
 
 	// Create root inode

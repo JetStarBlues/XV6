@@ -1,6 +1,7 @@
 // x86 trap and interrupt constants.
 
-// Processor-defined:
+// x86 processor-defined:
+// https://wiki.osdev.org/Exceptions
 #define T_DIVIDE      0  // divide error
 #define T_DEBUG       1  // debug exception
 #define T_NMI         2  // non-maskable interrupt
@@ -22,11 +23,14 @@
 #define T_MCHK       18  // machine check
 #define T_SIMDERR    19  // SIMD floating point error
 
+
 // These are arbitrarily chosen, but with care not to overlap
 // processor defined exceptions or interrupt vectors.
 #define T_SYSCALL     64  // system call
 #define T_DEFAULT    500  // catchall
 
+
+// Hardware interrupts
 #define T_IRQ0        32  // IRQ 0 corresponds to int T_IRQ
 
 #define IRQ_TIMER      0

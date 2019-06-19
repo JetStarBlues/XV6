@@ -35,13 +35,16 @@ struct
 
 } ptable;
 
-static struct proc *initproc;
+static struct proc* initproc;
 int                 nextpid = 1;
 
 extern void forkret ( void );
 extern void trapret ( void );
 
-static void wakeup1 ( void *chan );
+static void wakeup1 ( void* chan );
+
+
+// _________________________________________________________________________________
 
 void pinit ( void )
 {
@@ -84,8 +87,8 @@ struct cpu* mycpu ( void )
 // while reading proc from the cpu structure
 struct proc* myproc ( void )
 {
-	struct cpu  *c;
-	struct proc *p;
+	struct cpu*  c;
+	struct proc* p;
 
 	pushcli();
 
@@ -98,18 +101,24 @@ struct proc* myproc ( void )
 	return p;
 }
 
-//PAGEBREAK: 32
-// Look in the process table for an UNUSED proc.
-// If found, change state to EMBRYO and initialize
-// state required to run in the kernel.
-// Otherwise return 0.
+
+// _________________________________________________________________________________
+
+/* Look in the process table for an UNUSED proc.
+   If found, change state to EMBRYO and initialize a kernel stack.
+   Otherwise return 0.
+
+   allocproc is designed to be ued both by userinit (when creating the
+   first process) and fork
+*/
 static struct proc* allocproc ( void )
 {
-	struct proc *p;
-	char        *sp;
+	struct proc* p;
+	char*        sp;
 
 	acquire( &ptable.lock );
 
+	// Scan process table for an available slot
 	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
 	{
 		if ( p->state == UNUSED )
@@ -124,14 +133,15 @@ static struct proc* allocproc ( void )
 
 found:
 
-	p->state = EMBRYO;
-	p->pid   = nextpid;
+	p->state = EMBRYO;   // mark as used
+	p->pid   = nextpid;  // give unique PID
 
 	nextpid += 1;
 
 	release( &ptable.lock );
 
-	// Allocate kernel stack.
+
+	// Allocate kernel stack
 	if( ( p->kstack = kalloc() ) == 0 )
 	{
 		p->state = UNUSED;
@@ -141,76 +151,71 @@ found:
 
 	sp = p->kstack + KSTACKSIZE;
 
-	// Leave room for trap frame.
+
+	/* Prepare the kernel stack so that:
+	   . it looks like we entered it through an interrupt ??, and
+	   . it will "return" to user code
+	*/
+
+	// Leave room for trap frame
 	sp -= sizeof *p->tf;
-	p->tf = ( struct trapframe* )sp;
 
-	// Set up new context to start executing at forkret,
-	// which returns to trapret.
+	p->tf = ( struct trapframe* ) sp;
+
+
+	/* Setup program counter values that will cause the new
+	   process to first execute forkret and then trapret
+	*/
+
+	// Trapret restores user registers from values stored in the
+	// kernel stack ("struct trapframe", p->tf)
 	sp -= 4;
-	*( uint* )sp = ( uint )trapret;
 
-	// Setup register contents that 
+	*( uint* ) sp = ( uint ) trapret;
+
+
+	// The process will start executing with the register values found
+	// in p->context
 	sp -= sizeof *p->context;
-	p->context = ( struct context* )sp;
 
-	memset( p->context, 0, sizeof *p->context );
+	p->context = ( struct context* ) sp;
 
-	p->context->eip = ( uint )forkret;
+	memset( p->context, 0, sizeof *p->context );  // set all registers in context to 0
 
+	p->context->eip = ( uint ) forkret;
+
+
+	/* When all is said and done, the kernel stack looks like this:
+
+	           ->  ---------------  <-- p->kstack + KSTACKSIZE
+	          |    ss
+	          |    ---------------
+	          |    esp
+	trapframe |    ---------------
+	          |    ...
+	          |    ---------------
+	          |    edi
+	           ->  ---------------  <-- p->tf
+	               trapret
+	           ->  ---------------  <-- p->tf - 4; address forkret will return to (trapret)
+	          |    eip (forkret)
+	          |    ---------------  <-- the process will start executing at p->context->eip (forkret)
+	          |    ebp (0)
+	          |    ---------------
+	  context |    ebx (0)
+	          |    ---------------
+	          |    esi (0)
+	          |    ---------------
+	          |    edi (0)
+	           ->  ---------------  <-- p->context
+	               ...
+	               empty
+	               ...
+	               ---------------  <-- p->kstack
+	*/
+
+	//
 	return p;
-}
-
-//PAGEBREAK: 32
-// Set up first user process.
-void userinit ( void )
-{
-	struct proc *p;
-	// extern char _binary_initcode_start[], _binary_initcode_size[];
-	extern char _binary_img_initcode_start [],
-	            _binary_img_initcode_size  [];  // JK, new path
-
-	p = allocproc();
-
-	initproc = p;
-
-	if ( ( p->pgdir = setupkvm() ) == 0 )
-	{
-		panic( "userinit: out of memory?" );
-	}
-
-	// inituvm( p->pgdir, _binary_initcode_start, ( int )_binary_initcode_size );
-	inituvm(
-
-		p->pgdir,
-		_binary_img_initcode_start,
-		( int )_binary_img_initcode_size
-	);  // JK, new path
-
-	p->sz = PGSIZE;
-
-	memset( p->tf, 0, sizeof( *p->tf ) );
-
-	p->tf->cs     = ( SEG_UCODE << 3 ) | DPL_USER;
-	p->tf->ds     = ( SEG_UDATA << 3 ) | DPL_USER;
-	p->tf->es     = p->tf->ds;
-	p->tf->ss     = p->tf->ds;
-	p->tf->eflags = FL_IF;
-	p->tf->esp    = PGSIZE;
-	p->tf->eip    = 0;  // beginning of initcode.S
-
-	safestrcpy( p->name, "initcode", sizeof( p->name ) );
-	p->cwd = namei( "/" );
-
-	// this assignment to p->state lets other cores
-	// run this process. the acquire forces the above
-	// writes to be visible, and the lock is also needed
-	// because the assignment might not be atomic.
-	acquire( &ptable.lock );
-
-	p->state = RUNNABLE;
-
-	release( &ptable.lock );
 }
 
 // Grow current process's memory by n bytes.
@@ -219,20 +224,23 @@ int growproc ( int n )
 {
 	uint sz;
 
-	struct proc *curproc = myproc();
+	struct proc* curproc = myproc();
 
 	sz = curproc->sz;
 
-	if( n > 0 )
+	// Allocate n pages and add mappings
+	if ( n > 0 )
 	{
-		if( ( sz = allocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
+		if ( ( sz = allocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
 		{
 			return - 1;
 		}
 	}
-	else if( n < 0 )
+
+	// Deallocate abs(n) pages and remove mappings
+	else if ( n < 0 )
 	{
-		if( ( sz = deallocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
+		if ( ( sz = deallocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
 		{
 			return - 1;
 		}
@@ -245,6 +253,88 @@ int growproc ( int n )
 	return 0;
 }
 
+
+// _________________________________________________________________________________
+
+// Set up first user process.
+void userinit ( void )
+{
+	// extern char _binary_initcode_start[], _binary_initcode_size[];
+	extern char _binary_img_initcode_start [],
+	            _binary_img_initcode_size  [];  // JK, new path
+
+	struct proc* p;
+
+
+	// Allocate an UNUSED process from the process table, and allocate
+	// and initialize its kernel stack
+	p = allocproc();
+
+	initproc = p;
+
+
+	// Create a page table for the process
+	// The page table will first only hold mappings for memory used
+	// by the kernel...
+	if ( ( p->pgdir = setupkvm() ) == 0 )
+	{
+		panic( "userinit: out of memory?" );
+	}
+
+
+	// Copy initcode's binary into the process's user-space memory
+	inituvm(
+
+		p->pgdir,
+		// _binary_initcode_start,
+		// ( int ) _binary_initcode_size
+		_binary_img_initcode_start,
+		( int ) _binary_img_initcode_size
+	);
+
+	// initcode's binary is expected to be equal to or less than one page in size
+	p->sz = PGSIZE;
+
+
+	/* Write values in the new process's trapframe that make it seem
+	   like the process entered the kernel via an interrupt
+
+	   Set tf->eip to zero so that the process starts executing at user-space
+	   location zero on reti by trapret
+	*/
+	memset( p->tf, 0, sizeof( *p->tf ) );
+
+	p->tf->cs     = ( SEG_UCODE << 3 ) | DPL_USER;
+	p->tf->ds     = ( SEG_UDATA << 3 ) | DPL_USER;
+	p->tf->es     = p->tf->ds;
+	p->tf->ss     = p->tf->ds;
+
+	p->tf->eflags = FL_IF;   // enable hardware interrupts ??
+	p->tf->esp    = PGSIZE;  // the process's largest valid virtual address. Why ??
+	p->tf->eip    = 0;       // beginning (entry point) of initcode.S
+
+
+	// Set process name. For debugging
+	safestrcpy( p->name, "initcode", sizeof( p->name ) );
+
+	// Set cwd to root directory...
+	p->cwd = namei( "/" );
+
+
+	// This assignment to p->state lets other cores
+	// run this process. The acquire forces the above
+	// writes to be visible, and the lock is also needed
+	// because the assignment might not be atomic.
+	acquire( &ptable.lock );
+
+	p->state = RUNNABLE;  // Mark the process as avaialble for scheduling
+
+	release( &ptable.lock );
+}
+
+
+// _________________________________________________________________________________
+
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
@@ -252,8 +342,8 @@ int fork ( void )
 {
 	int          i,
 	             pid;
-	struct proc *np;
-	struct proc *curproc = myproc();
+	struct proc* np;
+	struct proc* curproc = myproc();
 
 	// Allocate process.
 	if ( ( np = allocproc() ) == 0 )
@@ -272,8 +362,14 @@ int fork ( void )
 		return - 1;
 	}
 
-	np->sz     = curproc->sz;
 	np->parent = curproc;
+	np->sz     = curproc->sz;
+
+	// Use same trapframe as parent
+	/* This also has effect that the child will resume execution at the
+	   same point (tf->eip) as the parent.
+	   This corresponds to the point after the parent's call to fork.
+	*/
 	*np->tf    = *curproc->tf;
 
 	// Clear %eax so that fork returns 0 in the child.
@@ -308,8 +404,8 @@ int fork ( void )
 // until its parent calls wait() to find out it exited.
 void exit ( void )
 {
-	struct proc *curproc = myproc();
-	struct proc *p;
+	struct proc* curproc = myproc();
+	struct proc* p;
 	int          fd;
 
 	if ( curproc == initproc )
@@ -367,10 +463,10 @@ void exit ( void )
 // Return -1 if this process has no children.
 int wait ( void )
 {
-	struct proc *p;
+	struct proc* p;
 	int          havekids,
 	             pid;
-	struct proc *curproc = myproc();
+	struct proc* curproc = myproc();
 
 	acquire( &ptable.lock );
 
@@ -424,18 +520,20 @@ int wait ( void )
 	}
 }
 
-//PAGEBREAK: 42
+
+// _________________________________________________________________________________
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns.  It loops, doing:
+// Scheduler never returns. It loops, doing:
 //  - choose a process to run
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
 void scheduler ( void )
 {
-	struct proc *p;
-	struct cpu  *c = mycpu();
+	struct proc* p;
+	struct cpu*  c = mycpu();
 
 	c->proc = 0;
 
@@ -454,17 +552,33 @@ void scheduler ( void )
 				continue;
 			}
 
-			// Switch to chosen process. It is the process's job
-			// to release ptable.lock and then reacquire it
-			// before jumping back to us.
+
+			/* Switch to chosen process. It is the process's job
+			   to release ptable.lock and then reacquire it
+			   before jumping back to us.
+			*/
 			c->proc = p;
 
+			// switch to the process's page table...
 			switchuvm( p );
 
 			p->state = RUNNING;
 
+			/* Context switch into the process's kernel thread...
+
+			   The current context is not a process. It is is a special
+			   per-cpu scheduler context (cpu->scheduler)...
+
+			   swtch will save the current registers to cpu->scheduler
+			   and restore those saved in p->context
+			*/
 			swtch( &( c->scheduler ), p->context );
 
+
+			/* ...
+			*/
+
+			// switch to the kernel-only page table...
 			switchkvm();
 
 			// Process is done running for now.
@@ -476,7 +590,7 @@ void scheduler ( void )
 	}
 }
 
-// Enter scheduler.  Must hold only ptable.lock
+// Enter scheduler. Must hold only ptable.lock
 // and have changed proc->state. Saves and restores
 // intena because intena is a property of this
 // kernel thread, not this CPU. It should
@@ -485,8 +599,8 @@ void scheduler ( void )
 // there's no process.
 void sched ( void )
 {
-	int    intena;
-	struct proc *p = myproc();
+	int          intena;
+	struct proc* p = myproc();
 
 	if ( ! holding( &ptable.lock ) )
 	{
@@ -515,6 +629,33 @@ void sched ( void )
 	mycpu()->intena = intena;
 }
 
+// A fork child's very first scheduling by scheduler()
+// will swtch here. "Return" to user space.
+void forkret ( void )
+{
+	static int first = 1;
+
+	// Still holding ptable.lock from scheduler.
+	release( &ptable.lock );
+
+	if ( first )
+	{
+		// Some initialization functions must be run in the context
+		// of a regular process (e.g., they call sleep), and thus cannot
+		// be run from main().
+		first = 0;
+
+		iinit( ROOTDEV );
+
+		initlog( ROOTDEV );
+	}
+
+	// Return to "caller", actually trapret (see allocproc).
+}
+
+
+// _________________________________________________________________________________
+
 // Give up the CPU for one scheduling round.
 void yield ( void )
 {
@@ -527,35 +668,11 @@ void yield ( void )
 	release( &ptable.lock );
 }
 
-// A fork child's very first scheduling by scheduler()
-// will swtch here.  "Return" to user space.
-void forkret ( void )
-{
-	static int first = 1;
-
-	// Still holding ptable.lock from scheduler.
-	release( &ptable.lock );
-
-	if ( first )
-	{
-		// Some initialization functions must be run in the context
-		// of a regular process ( e.g., they call sleep ), and thus cannot
-		// be run from main().
-		first = 0;
-
-		iinit( ROOTDEV );
-
-		initlog( ROOTDEV );
-	}
-
-	// Return to "caller", actually trapret ( see allocproc ).
-}
-
 // Atomically release lock and sleep on chan.
 // Reacquires lock when awakened.
-void sleep ( void *chan, struct spinlock *lk )
+void sleep ( void* chan, struct spinlock* lk )
 {
-	struct proc *p = myproc();
+	struct proc* p = myproc();
 
 	if ( p == 0 )
 	{
@@ -598,12 +715,11 @@ void sleep ( void *chan, struct spinlock *lk )
 	}
 }
 
-//PAGEBREAK!
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
 static void wakeup1 ( void *chan )
 {
-	struct proc *p;
+	struct proc* p;
 
 	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
 	{
@@ -615,7 +731,7 @@ static void wakeup1 ( void *chan )
 }
 
 // Wake up all processes sleeping on chan.
-void wakeup ( void *chan )
+void wakeup ( void* chan )
 {
 	acquire( &ptable.lock );
 
@@ -629,7 +745,7 @@ void wakeup ( void *chan )
 // to user space ( see trap in trap.c ).
 int kill ( int pid )
 {
-	struct proc *p;
+	struct proc* p;
 
 	acquire( &ptable.lock );
 
@@ -653,16 +769,18 @@ int kill ( int pid )
 
 	release( &ptable.lock );
 
-	return -1;
+	return - 1;
 }
 
-//PAGEBREAK: 36
-// Print a process listing to console.  For debugging.
+
+// _________________________________________________________________________________
+
+// Print a process listing to console. For debugging.
 // Runs when user types ^P on console.
 // No lock to avoid wedging a stuck machine further.
 void procdump ( void )
 {
-	static char *states [] = {
+	static char* states [] = {
 
 		[ UNUSED   ] "unused  ",
 		[ EMBRYO   ] "embryo  ",
@@ -672,8 +790,8 @@ void procdump ( void )
 		[ ZOMBIE   ] "zombie  "
 	};
 
-	struct proc *p;
-	char        *state;
+	struct proc* p;
+	char*        state;
 	int          i;
 	uint         pc [ 10 ];
 

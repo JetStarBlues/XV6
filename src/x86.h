@@ -177,12 +177,12 @@ struct trapframe
 	ushort padding3;
 	ushort ds;
 	ushort padding4;
-	uint   trapno;
+	uint   trapno;    // pushed by vector#
 
 	// below here defined by x86 hardware
-	uint   err;
-	uint   eip;
-	ushort cs;
+	uint   err;       // error code. If x86 does not push error code, pushed by vector#
+	uint   eip;       // instr after 'int' ? PC + 1 ?
+	ushort cs;        // ??
 	ushort padding5;
 	uint   eflags;
 

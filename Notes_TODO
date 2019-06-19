@@ -1,0 +1,18 @@
+. lseek
+
+. dynamic stack size
+
+. paging (p.37)
+	. xv6 lacks:
+		. demand paging from disk?
+		. copy-on-write fork
+		. shared memory?
+		. lazily-allocated page
+		. automatically extending stacks
+
+. Does xv6 "page in/out" pages from disk when short on memory?
+  Or does it assume infinite memory...
+
+. single processor
+	. create branch where code related to multiprocessor omitted
+	. ensure works...

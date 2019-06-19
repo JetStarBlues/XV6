@@ -116,6 +116,7 @@ void runcmd ( struct cmd *cmd )
 
 			panic( "runcmd" );
 
+
 		case EXEC:
 
 			ecmd = ( struct execcmd* )cmd;
@@ -186,7 +187,11 @@ void runcmd ( struct cmd *cmd )
 			//
 			break;
 
+
 		case REDIR:
+
+			// Replace stdin/out/err with specified file,
+			// by closing it and opening the file
 
 			rcmd = ( struct redircmd* )cmd;
 
@@ -203,22 +208,10 @@ void runcmd ( struct cmd *cmd )
 
 			break;
 
-		case LIST:
-
-			lcmd = ( struct listcmd* )cmd;
-
-			if ( fork1() == 0 )
-			{
-				runcmd( lcmd->left );
-			}
-
-			wait();
-
-			runcmd( lcmd->right );
-
-			break;
 
 		case PIPE:
+
+			// Set stdout of left cmd to stdin of right cmd
 
 			pcmd = ( struct pipecmd* )cmd;
 
@@ -227,28 +220,35 @@ void runcmd ( struct cmd *cmd )
 				panic( "pipe" );
 			}
 
+			// Left cmd writes to pipe
 			if ( fork1() == 0 )
 			{
+				// Set stdout to write end of pipe
 				close( 1 );
 				dup( p[ 1 ] );
 
+				// Close unused file descriptors
 				close( p[ 0 ] );
 				close( p[ 1 ] );
 
 				runcmd( pcmd->left );
 			}
 
+			// Right cmd reads from pipe
 			if ( fork1() == 0 )
 			{
+				// Set stdin to read end of pipe
 				close( 0 );
 				dup( p[ 0 ] );
 
+				// Close unused file descriptors
 				close( p[ 0 ] );
 				close( p[ 1 ] );
 
 				runcmd( pcmd->right );
 			}
 
+			// Close unused file descriptors
 			close( p[ 0 ] );
 			close( p[ 1 ] );
 
@@ -257,7 +257,30 @@ void runcmd ( struct cmd *cmd )
 
 			break;
 
-		case BACK:
+
+		case LIST:
+
+			// Run multiple commands sequentially
+
+			lcmd = ( struct listcmd* )cmd;
+
+			if ( fork1() == 0 )
+			{
+				runcmd( lcmd->left );
+			}
+
+			// Wait for completion before running next command
+			wait();
+
+			runcmd( lcmd->right );
+
+			break;
+
+
+		case BACK:  // background
+
+			// Run command without waiting for its exit
+			// The child returns immediately, while the grandchild continues running
 
 			bcmd = ( struct backcmd* )cmd;
 
@@ -282,7 +305,7 @@ int getcmd ( char *buf, int nbuf )
 
 	gets( buf, nbuf );
 
-	if ( buf[ 0 ] == 0 ) // EOF
+	if ( buf[ 0 ] == 0 )  // EOF
 	{
 		return - 1;
 	}
@@ -325,6 +348,7 @@ int main ( void )
 			continue;
 		}
 
+		// Run command in child process
 		if ( fork1() == 0 )
 		{
 			runcmd( parsecmd( buf ) );

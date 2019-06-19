@@ -46,7 +46,7 @@ _start = V2P_WO( entry )
 .globl entry
 entry:
 
-	# Turn on page size extension for 4Mbyte pages
+	# Turn on page size extension for 4Mbyte "super" pages
 	movl  %cr4, %eax
 	orl   $( CR4_PSE ), %eax
 	movl  %eax, %cr4

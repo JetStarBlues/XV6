@@ -1,6 +1,6 @@
 # Context switch
 #
-#   void swtch ( struct context **old, struct context *new );
+#   void swtch ( struct context** old, struct context* new );
 # 
 # Save the current registers on the stack, creating
 # a struct context, and save its address in *old.
@@ -14,6 +14,7 @@ swtch:
 	movl   8( %esp ), %edx  # edx = new
 
 	# Save old callee-saved registers
+	# %eip is already on stack ??
 	pushl  %ebp
 	pushl  %ebx
 	pushl  %esi
