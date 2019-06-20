@@ -134,29 +134,54 @@ struct segdesc
 typedef uint pte_t;
 
 // Task state segment format
+/* TSS originally intended to support hardware task switching
+   in x86 CPUs.
+
+   We only use it for switching stacks when crossing from user
+   to kernel privilege.
+
+   I.e. only relevant fields are:
+      taskstate->esp0
+      taskstate->ss0
+
+   The other values of interest are pushed to the kernel stack
+   by 'int' instruction and 'alltraps'
+*/
+/* For details see,
+    Chapter 16, Task Management,
+    IA-32 Intel Architecture Software Developer’s Manual, Volume 1,
+    https://www.cs.umd.edu/~hollings/cs412/s02/proj1/ia32ch7.pdf
+*/
 struct taskstate
 {
-	uint    link;       // Old ts selector
-	uint    esp0;       // Stack pointers and segment selectors
-	ushort  ss0;        //  after an increase in privilege level
+	uint    link;       // Old ts selector  ??
+
+	uint    esp0;       // Stack pointer and segment selector
+	ushort  ss0;        //  after an increase in privilege level to kernel (ring 0)
 	ushort  padding1;
-	uint   *esp1;
+
+	uint*   esp1;       // Ditto (ring1)
 	ushort  ss1;
 	ushort  padding2;
-	uint   *esp2;
+
+	uint*   esp2;       // Ditto (ring2)
 	ushort  ss2;
 	ushort  padding3;
-	void   *cr3;        // Page directory base
-	uint   *eip;        // Saved state from last task switch
+
+	void*   cr3;        // Page directory base
+
+	uint*   eip;        // Saved state from last task switch
 	uint    eflags;
+
 	uint    eax;        // More saved state (registers)
 	uint    ecx;
 	uint    edx;
 	uint    ebx;
-	uint   *esp;
-	uint   *ebp;
+	uint*   esp;
+	uint*   ebp;
 	uint    esi;
 	uint    edi;
+
 	ushort  es;         // Even more saved state (segment selectors)
 	ushort  padding4;
 	ushort  cs;
@@ -169,13 +194,15 @@ struct taskstate
 	ushort  padding8;
 	ushort  gs;
 	ushort  padding9;
-	ushort  ldt;
+
+	ushort  ldt;        // ldt segment selector
 	ushort  padding10;
-	ushort  t;          // Trap on task switch
+	ushort  t;          // debug flag. Raise a "task-switch" debug exception...
 	ushort  iomb;       // I/O map base address
 };
 
 // Gate descriptors for interrupts and traps
+// See https://en.wikibooks.org/wiki/X86_Assembly/Advanced_Interrupts
 struct gatedesc
 {
 	uint off_15_0  : 16;  // low 16 bits of offset in segment
@@ -190,11 +217,11 @@ struct gatedesc
 };
 
 // Set up a normal interrupt/trap gate descriptor.
-/* - istrap : 1 for a trap (= exception) gate, 0 for an interrupt gate.
+/* - istrap : 1 for a trap (exception) gate, 0 for an interrupt gate.
               interrupt gate clears FL_IF, trap gate leaves FL_IF alone
    - sel    : Code segment selector for interrupt/trap handler
    - off    : Offset in code segment for interrupt/trap handler
-   - dpl    : Descriptor Privilege Level -
+   - d      : Descriptor Privilege Level -
                the privilege level required for software to invoke
                this interrupt/trap gate explicitly using an int instruction.
 */

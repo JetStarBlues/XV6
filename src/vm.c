@@ -262,12 +262,27 @@ void switchkvm ( void )
 	lcr3( V2P( kpgdir ) );  // switch to the kernel page table
 }
 
-// Switch TSS and h/w page table to correspond to process p.
+// Switch h/w page table and TSS to correspond to process p.
 /* Tell the CPU to start using the target process's page table.
  
    Also setup up a task state segment (SEG_TSS) that instructs
    the CPU to execute system calls and interrupts on the process's
-   kernel stack ??
+   kernel stack...
+*/
+/* When changing protection levels from user to kernel mode (i.e.
+   when preparing to execute a system call), the kernel shouldn't
+   use the user stack. The user stack may bee malicious or contain
+   an error that causes the user %esp to hold an address that is
+   not part of the process's user memory...
+
+   xv6 programs the x86 CPU to, on a trap (since privilege levels
+   might change), perform a stack switch (from the user stack to the
+   kernel stack) 
+   It does this by setting up a task segment descriptor through which
+   the CPU loads a stack segment selector (%ss) and stack pointer (%esp)
+
+   switchuvm stores the address of the top of the kernel stack of the
+   user process into the task segment descriptor...
 */
 void switchuvm ( struct proc* p )
 {
@@ -286,8 +301,11 @@ void switchuvm ( struct proc* p )
 		panic( "switchuvm: no pgdir" );
 	}
 
+	// ?
 	pushcli();
 
+
+	// ?
 	mycpu()->gdt[ SEG_TSS ] = SEG16(
 
 		STS_T32A,                   // type
@@ -298,20 +316,26 @@ void switchuvm ( struct proc* p )
 
 	mycpu()->gdt[ SEG_TSS ].s = 0;  // 0 = system, 1 = application
 
-	// ?
-	mycpu()->ts.ss0  = SEG_KDATA << 3;
-	mycpu()->ts.esp0 = ( uint ) p->kstack + KSTACKSIZE;
 
-	// setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
-	// forbids I/O instructions ( e.g., inb and outb ) from user space
+	// Point to kernel stack
+	mycpu()->ts.ss0  = SEG_KDATA << 3;
+	mycpu()->ts.esp0 = ( uint ) p->kstack + KSTACKSIZE;  // top of kernel stack
+
+
+	// Setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
+	// forbids I/O instructions (e.g. inb and outb) from user space
 	mycpu()->ts.iomb = ( ushort ) 0xFFFF;
 
-	// ?
+
+	// load...? update TSS ??
 	ltr( SEG_TSS << 3 );
+
 
 	// switch to the process's page table...
 	lcr3( V2P( p->pgdir ) );
 
+
+	// ?
 	popcli();
 }
 

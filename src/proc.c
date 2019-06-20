@@ -338,6 +338,8 @@ void userinit ( void )
 // Create a new process copying p as the parent.
 // Sets up stack to return as if from system call.
 // Caller must set state of returned proc to RUNNABLE.
+
+// How does a pid of zero (child) get returned ??
 int fork ( void )
 {
 	int          i,
@@ -388,7 +390,7 @@ int fork ( void )
 
 	safestrcpy( np->name, curproc->name, sizeof( curproc->name ) );
 
-	pid = np->pid;
+	pid = np->pid;  //
 
 	acquire( &ptable.lock );
 

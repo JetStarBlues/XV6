@@ -9,7 +9,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
-void initlock ( struct spinlock *lk, char *name )
+void initlock ( struct spinlock* lk, char *name )
 {
 	lk->name   = name;
 	lk->locked = 0;
@@ -20,7 +20,7 @@ void initlock ( struct spinlock *lk, char *name )
 // Loops ( spins ) until the lock is acquired.
 // Holding a lock for a long time may cause
 // other CPUs to waste time spinning to acquire it.
-void acquire ( struct spinlock *lk )
+void acquire ( struct spinlock* lk )
 {
 	pushcli();  // disable interrupts to avoid deadlock.
 
@@ -47,7 +47,7 @@ void acquire ( struct spinlock *lk )
 }
 
 // Release the lock.
-void release ( struct spinlock *lk )
+void release ( struct spinlock* lk )
 {
 	if ( ! holding( lk ) )
 	{
@@ -73,25 +73,25 @@ void release ( struct spinlock *lk )
 }
 
 // Record the current call stack in pcs[] by following the %ebp chain.
-void getcallerpcs ( void *v, uint pcs[] )
+void getcallerpcs ( void* v, uint pcs [] )
 {
-	uint *ebp;
+	uint* ebp;
 	int   i;
 
-	ebp = ( uint* )v - 2;
+	ebp = ( uint* ) v - 2;
 
 	for ( i = 0; i < 10; i += 1 )
 	{
 		if ( ebp == 0 ||
-			 ebp < ( uint* )KERNBASE ||
-			 ebp == ( uint* )0xffffffff )
+			 ebp <  ( uint* ) KERNBASE ||
+			 ebp == ( uint* ) 0xffffffff )
 		{
 			break;
 		}
 
-		pcs[ i ] = ebp[ 1 ];      // saved %eip
+		pcs[ i ] = ebp[ 1 ];       // saved %eip
 
-		ebp = ( uint* )ebp[ 0 ];  // saved %ebp
+		ebp = ( uint* ) ebp[ 0 ];  // saved %ebp
 	}
 
 	for ( ; i < 10; i += 1 )
@@ -101,7 +101,7 @@ void getcallerpcs ( void *v, uint pcs[] )
 }
 
 // Check whether this cpu is holding the lock.
-int holding ( struct spinlock *lock )
+int holding ( struct spinlock* lock )
 {
 	int r;
 

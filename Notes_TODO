@@ -10,9 +10,16 @@
 		. lazily-allocated page
 		. automatically extending stacks
 
+	. exercises:
+		. Modify xv6 so that the pages for the kernel are shared
+		  among processes, which reduces memory consumption ?
+
 . Does xv6 "page in/out" pages from disk when short on memory?
   Or does it assume infinite memory...
 
 . single processor
 	. create branch where code related to multiprocessor omitted
 	. ensure works...
+
+. What changes did DoctorWkt make to kernel?
+

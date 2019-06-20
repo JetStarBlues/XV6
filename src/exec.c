@@ -7,6 +7,11 @@
 #include "x86.h"
 #include "elf.h"
 
+/* exec replaces the memory and registers? of the current
+   process with a new program.
+   It leaves the file descriptors, process id, and
+   parent process unchanged.
+*/
 int exec ( char* path, char** argv )
 {
 	char* s;

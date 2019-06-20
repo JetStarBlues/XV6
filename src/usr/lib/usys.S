@@ -1,14 +1,24 @@
 #include "syscall.h"
 #include "traps.h"
 
-# User code makes a system call with INT T_SYSCALL,
+# User code makes a system call with "int $T_SYSCALL"
 # System call number is in %eax, and arguments are on the stack.
-# For example:
+#
+# For example, a call to "exec( path, argv )":
+#
+#    # arguments pushed to stack by compiler ?? (TODO - trace with gdb/objdump?)
 #    pushl $argv
 #    pushl $path
-#    pushl $0     # where caller pc would be...
-#    movl  $SYS_exec, %eax
-#    int   $T_SYSCALL
+#    pushl $0     # ??
+#    call exec    # ??
+#
+# Corresponds to the following code we generate below:
+#
+#    exec:
+#        movl $SYS_exec, %eax
+#        int  $T_SYSCALL
+#        ret
+
 
 # Concatenate tokens using the ## operator - C preprocessor
 # https://wiki.sei.cmu.edu/confluence/display/c/PRE01-C.+Use+parentheses+within+macros+around+parameter+names
@@ -24,7 +34,7 @@
 	name:                          \
                                    \
 		movl $SYS_ ## name, %eax;  \
-		int $T_SYSCALL;            \
+		int  $T_SYSCALL;           \
 		ret
 
 SYSCALL( fork )

@@ -9,7 +9,7 @@ static inline uchar inb ( ushort port )
 	return data;
 }
 
-static inline void insl ( int port, void *addr, int cnt )
+static inline void insl ( int port, void* addr, int cnt )
 {
 	asm volatile(
 
@@ -30,7 +30,7 @@ static inline void outw ( ushort port, ushort data )
 	asm volatile( "out %0, %1" : : "a" ( data ), "d" ( port ) );
 }
 
-static inline void outsl ( int port, const void *addr, int cnt )
+static inline void outsl ( int port, const void* addr, int cnt )
 {
 	asm volatile(
 
@@ -41,7 +41,7 @@ static inline void outsl ( int port, const void *addr, int cnt )
 	);
 }
 
-static inline void stosb ( void *addr, int data, int cnt )
+static inline void stosb ( void* addr, int data, int cnt )
 {
 	asm volatile(
 
@@ -52,7 +52,7 @@ static inline void stosb ( void *addr, int data, int cnt )
 	);
 }
 
-static inline void stosl ( void *addr, int data, int cnt )
+static inline void stosl ( void* addr, int data, int cnt )
 {
 	asm volatile(
 
@@ -66,7 +66,7 @@ static inline void stosl ( void *addr, int data, int cnt )
 struct segdesc;
 
 // Load global descriptor table
-static inline void lgdt ( struct segdesc *p, int size )
+static inline void lgdt ( struct segdesc* p, int size )
 {
 	volatile ushort pd[ 3 ];
 
@@ -80,7 +80,7 @@ static inline void lgdt ( struct segdesc *p, int size )
 struct gatedesc;
 
 // Load interrupt descriptor table
-static inline void lidt ( struct gatedesc *p, int size )
+static inline void lidt ( struct gatedesc* p, int size )
 {
 	volatile ushort pd[ 3 ];
 
@@ -121,7 +121,7 @@ static inline void sti ( void )
 	asm volatile( "sti" );
 }
 
-static inline uint xchg ( volatile uint *addr, uint newval )
+static inline uint xchg ( volatile uint* addr, uint newval )
 {
 	uint result;
 
@@ -153,12 +153,17 @@ static inline void lcr3 ( uint val )
 	asm volatile( "movl %0, %%cr3" : : "r" ( val ) );
 }
 
-//PAGEBREAK: 36
-// Layout of the trap frame built on the stack by the
-// hardware and by trapasm.S, and passed to trap().
+/* Layout of the trap frame built on the stack by the
+   hardware and by trapasm.S, and passed to trap().
+
+   The trapframe contains all the information necessary to
+   restore the user mode CPU registers when the kernel returns,
+   so that the user process can continue exactly as it was
+   when the trap started.
+*/
 struct trapframe
 {
-	// registers as pushed by pusha
+	// Registers as pushed by pusha
 	uint edi;
 	uint esi;
 	uint ebp;
@@ -168,7 +173,7 @@ struct trapframe
 	uint ecx;
 	uint eax;
 
-	// rest of trap frame
+	// Rest of trap frame
 	ushort gs;
 	ushort padding1;
 	ushort fs;
@@ -179,15 +184,60 @@ struct trapframe
 	ushort padding4;
 	uint   trapno;    // pushed by vector#
 
-	// below here defined by x86 hardware
-	uint   err;       // error code. If x86 does not push error code, pushed by vector#
-	uint   eip;       // instr after 'int' ? PC + 1 ?
-	ushort cs;        // ??
+
+	/** Below here defined by x86 hardware **/
+
+
+	// If x86 does not push error code, pushed by vector#
+	uint   err;
+
+	// Saved by 'int' instruction
+	uint   eip;       // ISR address
+	ushort cs;
 	ushort padding5;
 	uint   eflags;
 
-	// below here only when crossing rings, such as from user to kernel
-	uint   esp;
+	// Saved by 'int' instruction when crossing rings, from user to kernel
+	uint   esp;       // user stack pointer
 	ushort ss;
 	ushort padding6;
 };
+
+/* The "int n" instruction performs the following steps:
+
+     . Fetches the n'th descritptor from the IDT
+
+     . Checks that the current privilege level in %cs is equal
+       to or higher than the privilege level (in the IDT entry)
+       required for code to invoke the interrupt explicitly with
+       the 'int' instruction
+       . This allows the kernel to forbid int calls by a user program
+         to ISRs it does not have permission for.
+       . In such a case, a "general protection fault" is instead
+         executed, "int 13"
+
+     . Saves %esp and %ss in CPU-internal registers ??, but only
+       if switching from user to kernel mode...
+
+     . Loads %esp and %ss from a task segment descriptor ??, but only
+       if switching from user to kernel mode...
+       . The user stack cannot be used to save "trapframe" values...
+       . Instead, the CPU uses the stack specified in the task segment...
+
+     . pushes %ss      <-
+     . pushes %esp       |
+     . pushes %eflags    | become part of 'trapframe'
+     . pushes %cs        |
+     . pushes %eip     <-
+
+       . note, only pushes %ss and %esp if crossing rings
+       . In the case of an explicit 'int' instruction (ex. syscall),
+         the pushed %eip would be the address of the instruction
+         right after the 'int' instruction
+
+     . Clears the IF flag (enable interrups) if an interrupt (vs. trap)...
+
+     . Sets %cs and %eip to the values in the IDT entry
+       . The instruction at the address in %eip is the next instruction to
+         be executed and the first instruction of the interrupt handler...
+*/

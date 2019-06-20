@@ -44,3 +44,59 @@ trapret:
 	popl   %ds
 	addl   $0x8, %esp  # skip over trapno and errcode ??
 	iret               # pops %eip, %cs, %eflags, %esp, %ss...
+
+
+# ________________________________________________________________________________________
+
+# After alltraps has finished preparing the trapframe, and
+# just before the call to 'trap', the kernel stack looks like:
+#
+#	        ->         cpu->ts.esp0  ->  -----------  <-                 <-
+#	       |  (top of kernel stack)      ss             | only present     |
+#	       |                             -----------    | on privilege     |
+#	       |                             esp            | upgrade (u to k) |
+#	       |                             -----------  <-                   |
+#	       |                             eflags                            | pushed
+#	       |                             -----------                       | by x86
+#	       |                             cs                                |
+#	       |                             -----------                       |
+#	       |                             eip                               |
+#	       |                             -----------                       |
+#	  trap |                             error code   <- can be pushed     |
+#	 frame |                                             by trap vector    |
+#	       |                             -----------  <--------------------
+#	       |                             
+#	       |                             trapno       <--------------------  pushed by
+#	       |                                                                 trap vector
+#	       |                             -----------  <--------------------
+#	       |                             ds                                |
+#	       |                             -----------                       |
+#	       |                             es                                |
+#	       |                             -----------                       |
+#	       |                             fs                                |
+#	       |                             -----------                       |
+#	       |                             gs                                |
+#	       |                             -----------                       |
+#	       |                             eax                               |
+#	       |                             -----------                       | pushed by
+#	       |                             ecx                               | alltraps
+#	       |                             -----------                       |
+#	       |                             edx                               |
+#	       |                             -----------                       |
+#	       |                             ebx                               |
+#	       |                             -----------                       |
+#	       |                             o_esp                             |
+#	       |                             -----------                       |
+#	       |                             ebp                               |
+#	       |                             -----------                       |
+#	       |                             esi                               |
+#	       |                             -----------                       |
+#	       |                             edi                               |
+#	        ->                   esp ->  -----------  <--------------------
+#	                     (kernel sp)     ...
+#	                                     
+#	                                     empty
+#	                                     
+#	                                     ...
+#	                       p->kstack ->  -----------
+#	        (bottom of kernel stack)

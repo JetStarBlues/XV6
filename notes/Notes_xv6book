@@ -2689,7 +2689,7 @@ exec
 	      |       ---------------
 	      |       x                argv[2] if existed
 	      |   ->  ---------------
-	      |  |    0                end of arguments
+	      |  |    0                end of argv
 	'ustack' |    ---------------
 	      |  |    x                argv[2] pointer if existed ...
 	      |  |    ---------------
@@ -2905,7 +2905,7 @@ x86 protection
 		                 -----------
 		                 cs
 		                 -----------
-		                 eip
+		                 eip          <- address specified in IDT entry
 		                 -----------
 		                 error code
 		         esp ->  -----------
@@ -3183,50 +3183,55 @@ Assembly trap handlers
 
 	. Kernel stack looks like this now:
 
-	         ->  sp from task  ->  -----------  <-                 <-
-	        |    segment           ss             | only present     |
-	        |   (cpu->ts.esp0)     -----------    | on privilege     |
-	        |                      esp            | change           |
-	        |                      -----------  <-                   |
-	        |                      eflags                            | pushed
-	        |                      -----------                       | by x86
-	        |                      cs                                |
-	        |                      -----------                       |
-	        |                      eip                               |
-	        |                      -----------                       |
-	   trap |                      error code   <- can be pushed     |
-	  frame |                                      by trap vector    |
-	        |                      -----------  <--------------------
-	        |
-	        |                      trapno       <--------------------  pushed by
-	        |                                                          trap vector
-	        |                      -----------  <--------------------
-	        |                      ds                                |
-	        |                      -----------                       |
-	        |                      es                                |
-	        |                      -----------                       |
-	        |                      fs                                |
-	        |                      -----------                       |
-	        |                      gs                                |
-	        |                      -----------                       |
-	        |                      eax                               |
-	        |                      -----------                       | pushed by
-	        |                      ecx                               | alltraps
-	        |                      -----------                       |
-	        |                      edx                               |
-	        |                      -----------                       |
-	        |                      ebx                               |
-	        |                      -----------                       |
-	        |                      o_esp                             |
-	        |                      -----------                       |
-	        |                      ebp                               |
-	        |                      -----------                       |
-	        |                      esi                               |
-	        |                      -----------                       |
-	        |                      edi                               |
-	         ->            esp ->  -----------  <--------------------
-	                               ...
-	                 p->kstack ->  -----------
+	        ->         cpu->ts.esp0  ->  -----------  <-                 <-
+	       |  (top of kernel stack)      ss             | only present     |
+	       |                             -----------    | on privilege     |
+	       |                             esp            | upgrade (u to k) |
+	       |                             -----------  <-                   |
+	       |                             eflags                            | pushed
+	       |                             -----------                       | by x86
+	       |                             cs                                |
+	       |                             -----------                       |
+	       |                             eip                               |
+	       |                             -----------                       |
+	  trap |                             error code   <- can be pushed     |
+	 frame |                                             by trap vector    |
+	       |                             -----------  <--------------------
+	       |                             
+	       |                             trapno       <--------------------  pushed by
+	       |                                                                 trap vector
+	       |                             -----------  <--------------------
+	       |                             ds                                |
+	       |                             -----------                       |
+	       |                             es                                |
+	       |                             -----------                       |
+	       |                             fs                                |
+	       |                             -----------                       |
+	       |                             gs                                |
+	       |                             -----------                       |
+	       |                             eax                               |
+	       |                             -----------                       | pushed by
+	       |                             ecx                               | alltraps
+	       |                             -----------                       |
+	       |                             edx                               |
+	       |                             -----------                       |
+	       |                             ebx                               |
+	       |                             -----------                       |
+	       |                             o_esp                             |
+	       |                             -----------                       |
+	       |                             ebp                               |
+	       |                             -----------                       |
+	       |                             esi                               |
+	       |                             -----------                       |
+	       |                             edi                               |
+	        ->                   esp ->  -----------  <--------------------
+	                     (kernel sp)     ...
+	                                     
+	                                     empty
+	                                     
+	                                     ...
+	                       p->kstack ->  -----------
+	        (bottom of kernel stack)
 
 
 	. The trap frame contains all the information necessary

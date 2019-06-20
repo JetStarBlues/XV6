@@ -8,9 +8,34 @@
 #include "traps.h"
 #include "spinlock.h"
 
-// Interrupt descriptor table ( shared by all CPUs ).
-struct gatedesc idt     [ 256 ];
-extern uint     vectors [];  // in vectors.S: array of 256 entry pointers
+/* There are three cases when control must be transferred from a user
+   program to the kernel:
+     . When a user program asks the OS for a service via a syscall
+     . When a user program performs an illegal action and thus raises
+       an exception (ex. divide by zero, page fault)
+     . When an external device generates a signal to indicate that it
+       needs attention from the OS
+
+    In a x86 CPU, these three events are traditionally handled by a
+    single hardware mechanism - the interrupt.
+
+    The OS must arrange for the following to happen:
+
+      . The processor's registers must be saved for future transparent resume
+        . xv6 does this in 'alltraps'...
+
+      . Choose a place for the kernel to start executing
+        . see IDT entries
+
+      . The kernel must be able to retrieve information about the event
+        ex. system call arguments
+        . In xv6, system call number is saved in %eax. The number can
+          later be used to determine how to read arguments from the
+          user stack. See 'argint'
+*/
+
+struct gatedesc idt     [ 256 ];  // Interrupt descriptor table (shared by all CPUs).
+extern uint     vectors [];       // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
 uint            ticks;
 
@@ -24,8 +49,10 @@ void tvinit ( void )
 		SETGATE( idt[ i ], 0, SEG_KCODE << 3, vectors[ i ], DPL_KERN );
 	}
 
-	// If system call, do not disable interrupts.
-	// Also set privilege level to DPL_USER.
+	/* If system call, do not disable interrupts.
+	   Also set privilege level to DPL_USER (this allows a user program
+	   to explicitly call "int $T_SYSCALL")
+	*/
 	SETGATE( idt[ T_SYSCALL ], 1, SEG_KCODE << 3, vectors[ T_SYSCALL ], DPL_USER );
 
 	initlock( &tickslock, "time" );
