@@ -3,16 +3,14 @@
 
 # User code makes a system call with "int $T_SYSCALL"
 # System call number is in %eax, and arguments are on the stack.
+
+# For example, the line "exec( my_path, my_argv )", is compiled as:
 #
-# For example, a call to "exec( path, argv )":
+#    pushl $my_argv
+#    pushl $my_path
+#    call  exec
 #
-#    # arguments pushed to stack by compiler ?? (TODO - trace with gdb/objdump?)
-#    pushl $argv
-#    pushl $path
-#    pushl $0     # ??
-#    call exec    # ??
-#
-# Corresponds to the following code we generate below:
+# The "call exec" goes to the following code we generate below:
 #
 #    exec:
 #        movl $SYS_exec, %eax
