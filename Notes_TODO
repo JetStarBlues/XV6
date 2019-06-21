@@ -23,3 +23,20 @@
 
 . What changes did DoctorWkt make to kernel?
 
+
+. DMA (p.49)
+	. High-bandwidth devices (disks, graphics, network) use DMA instead
+	  of explicit IO instructions (in/out)
+	. DMA allows the device to directly access physical memory
+	. The respective driver gives the device the physical address of
+	  the data, and the device copies it directly from main memory,
+	  interrupting once the copy is complete...
+	. I.e. the CPU is not involved in the transfer (it does not send out
+	  individual data bytes from memory to the device)
+
+
+
+
+
+
+
