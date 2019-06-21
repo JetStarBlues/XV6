@@ -1,5 +1,7 @@
-// The local APIC manages internal ( non-I/O ) interrupts.
+// The local APIC manages internal (non-I/O) interrupts.
 // See Chapter 8 & Appendix C of Intel processor manual volume 3.
+
+// Per CPU...
 
 #include "param.h"
 #include "types.h"
@@ -41,9 +43,35 @@
 #define TCCR     ( 0x0390 / 4 )   // Timer Current Count
 #define TDCR     ( 0x03E0 / 4 )   // Timer Divide Configuration
 
-volatile uint *lapic;  // Initialized in mp.c
+// CMOS...
+/* The timer chip is inside the LAPIC, so that each processor can
+   receive timer interrupts independently...
+*/
+#define CMOS_PORT     0x70
+#define CMOS_RETURN   0x71
+#define CMOS_STATA    0x0a
+#define CMOS_STATB    0x0b
+#define CMOS_UIP    ( 1 << 7 )  // RTC update in progress
 
-//PAGEBREAK!
+#define SECS          0x00
+#define MINS          0x02
+#define HOURS         0x04
+#define DAY           0x07
+#define MONTH         0x08
+#define YEAR          0x09
+
+
+volatile uint* lapic;  // Initialized in mp.c
+
+
+// Spin for a given number of microseconds.
+// On real hardware would want to tune this dynamically.
+void microdelay ( int us )
+{
+	//
+}
+
+
 static void lapicw ( int index, int value )
 {
 	lapic[ index ] = value;
@@ -61,6 +89,7 @@ void lapicinit ( void )
 	// Enable local APIC; set spurious interrupt vector.
 	lapicw( SVR, ENABLE | ( T_IRQ0 + IRQ_SPURIOUS ) );
 
+
 	// The timer repeatedly counts down at bus frequency
 	// from lapic[TICR] and then issues an interrupt.
 	// If xv6 cared more about precise timekeeping,
@@ -69,9 +98,11 @@ void lapicinit ( void )
 	lapicw( TIMER, PERIODIC | ( T_IRQ0 + IRQ_TIMER ) );
 	lapicw( TICR, 10000000 );
 
+
 	// Disable logical interrupt lines.
 	lapicw( LINT0, MASKED );
 	lapicw( LINT1, MASKED );
+
 
 	// Disable performance counter overflow interrupts
 	// on machines that provide that interrupt entry.
@@ -80,15 +111,19 @@ void lapicinit ( void )
 		lapicw( PCINT, MASKED );
 	}
 
+
 	// Map error interrupt to IRQ_ERROR.
 	lapicw( ERROR, T_IRQ0 + IRQ_ERROR );
 
-	// Clear error status register ( requires back-to-back writes ).
+
+	// Clear error status register (requires back-to-back writes).
 	lapicw( ESR, 0 );
 	lapicw( ESR, 0 );
 
+
 	// Ack any outstanding interrupts.
 	lapicw( EOI, 0 );
+
 
 	// Send an Init Level De-Assert to synchronise arbitration ID's.
 	lapicw( ICRHI, 0 );
@@ -99,7 +134,8 @@ void lapicinit ( void )
 		//
 	}
 
-	// Enable interrupts on the APIC ( but not on the processor ).
+
+	// Enable interrupts on this CPU's LAPIC
 	lapicw( TPR, 0 );
 }
 
@@ -122,22 +158,15 @@ void lapiceoi ( void )
 	}
 }
 
-// Spin for a given number of microseconds.
-// On real hardware would want to tune this dynamically.
-void microdelay ( int us )
-{
-	//
-}
 
-#define CMOS_PORT   0x70
-#define CMOS_RETURN 0x71
+// ____________________________________________________________________________
 
 // Start additional processor running entry code at addr.
 // See Appendix B of MultiProcessor Specification.
 void lapicstartap ( uchar apicid, uint addr )
 {
 	int     i;
-	ushort *wrv;
+	ushort* wrv;
 
 	// "The BSP must initialize CMOS shutdown code to 0AH
 	// and the warm reset vector ( DWORD based at 40:67 ) to point at
@@ -145,7 +174,7 @@ void lapicstartap ( uchar apicid, uint addr )
 	outb( CMOS_PORT, 0xF );  // offset 0xF is shutdown code
 	outb( CMOS_PORT + 1, 0x0A );
 
-	wrv = ( ushort* )P2V( ( 0x40 << 4 | 0x67 ) );  // Warm reset vector
+	wrv = ( ushort* ) P2V( ( 0x40 << 4 | 0x67 ) );  // Warm reset vector
 	wrv[ 0 ] = 0;
 	wrv[ 1 ] = addr >> 4;
 
@@ -172,18 +201,7 @@ void lapicstartap ( uchar apicid, uint addr )
 }
 
 
-// Why is CMOS code here ??
-
-#define CMOS_STATA   0x0a
-#define CMOS_STATB   0x0b
-#define CMOS_UIP   ( 1 << 7 )  // RTC update in progress
-
-#define SECS  0x00
-#define MINS  0x02
-#define HOURS 0x04
-#define DAY   0x07
-#define MONTH 0x08
-#define YEAR  0x09
+// ____________________________________________________________________________
 
 static uint cmos_read ( uint reg )
 {
@@ -194,7 +212,7 @@ static uint cmos_read ( uint reg )
 	return inb( CMOS_RETURN );
 }
 
-static void fill_rtcdate ( struct rtcdate *r )
+static void fill_rtcdate ( struct rtcdate* r )
 {
 	r->second = cmos_read( SECS );
 	r->minute = cmos_read( MINS );
@@ -204,8 +222,8 @@ static void fill_rtcdate ( struct rtcdate *r )
 	r->year   = cmos_read( YEAR );
 }
 
-// qemu seems to use 24-hour GWT and the values are BCD encoded
-void cmostime ( struct rtcdate *r )
+// QEMU seems to use 24-hour GWT and the values are BCD encoded
+void cmostime ( struct rtcdate* r )
 {
 	struct rtcdate t1,
 	               t2;

@@ -3,7 +3,7 @@
 #include "mmu.h"
 	
 # Each non-boot CPU ("AP") is started up in response to a STARTUP
-# IPI from the boot CPU.  Section B.4.2 of the Multi-Processor
+# IPI from the boot CPU. Section B.4.2 of the Multi-Processor
 # Specification says that the AP will start in real mode with CS:IP
 # set to XY00:0000, where XY is an 8-bit value sent with the
 # STARTUP. Thus this code must start at a 4096-byte boundary.
@@ -12,36 +12,37 @@
 # at an address in the low 2^16 bytes.
 #
 # Startothers (in main.c) sends the STARTUPs one at a time.
-# It copies this code (start) at 0x7000.  It puts the address of
+# It copies this code (start) at 0x7000. It puts the address of
 # a newly allocated per-core stack in start-4,the address of the
 # place to jump to (mpenter) in start-8, and the physical address
 # of entrypgdir in start-12.
 #
 # This code combines elements of bootasm.S and entry.S.
 
-.code16           
+.code16  # Assemble for 16-bit mode
 
 .globl start
 start:
 
-	cli            
+	# Disable interrupts on this CPU
+	cli
 
 	# Zero data segment registers DS, ES, and SS.
-	xorw  %ax, %ax
-	movw  %ax, %ds
-	movw  %ax, %es
-	movw  %ax, %ss
+	xorw   %ax, %ax   # Set %ax to zero
+	movw   %ax, %ds   # -> Data Segment
+	movw   %ax, %es   # -> Extra Segment
+	movw   %ax, %ss   # -> Stack Segment
 
-	# Switch from real to protected mode.  Use a bootstrap GDT that makes
+	# Switch from real to protected mode. Use a bootstrap GDT that makes
 	# virtual addresses map directly to physical addresses so that the
 	# effective memory map doesn't change during the transition.
-	lgdt  gdtdesc
-	movl  %cr0,    %eax
-	orl   $CR0_PE, %eax
-	movl  %eax,    %cr0
+	lgdt   gdtdesc
+	movl   %cr0,    %eax
+	orl    $CR0_PE, %eax
+	movl   %eax,    %cr0
 
 	# Complete the transition to 32-bit protected mode by using a long jmp
-	# to reload %cs and %eip.  The segment descriptors are set up with no
+	# to reload %cs and %eip. The segment descriptors are set up with no
 	# translation, so that the mapping is still the identity mapping.
 	ljmpl  $( SEG_KCODE << 3 ), $( start32 )
 
@@ -59,6 +60,7 @@ start32:
 	movw  %ax, %fs                  # -> FS
 	movw  %ax, %gs                  # -> GS
 
+
 	# Turn on page size extension for 4Mbyte "super" pages
 	movl  %cr4, %eax
 	orl   $( CR4_PSE ), %eax
@@ -73,11 +75,13 @@ start32:
 	orl   $( CR0_PE | CR0_PG | CR0_WP ), %eax
 	movl  %eax, %cr0
 
+
 	# Switch to the stack allocated by startothers()
 	movl  ( start - 4 ), %esp
 
 	# Call mpenter()
 	call  *( start - 8 )
+
 
 	# If mpenter returns (it shouldn't), trigger a Bochs
 	# breakpoint if running under Bochs, then loop.
@@ -89,19 +93,19 @@ start32:
 
 spin:
 
-	jmp  spin
+	jmp   spin
 
-.p2align 2
+
+# Bootstrap GDT
+.p2align 2  # force 4 byte alignment
 
 gdt:
 
-	SEG_NULLASM
-	SEG_ASM( STA_X | STA_R, 0, 0xffffffff )
-	SEG_ASM( STA_W,         0, 0xffffffff )
-
+	SEG_NULLASM                              # null seg
+	SEG_ASM( STA_X | STA_R, 0, 0xffffffff )  # code seg
+	SEG_ASM( STA_W,         0, 0xffffffff )  # data seg
 
 gdtdesc:
 
-	.word  ( gdtdesc - gdt - 1 )
-	.long  gdt
-
+	.word  ( gdtdesc - gdt - 1 )  # sizeof( gdt ) - 1
+	.long  gdt                    # address gdt

@@ -11,7 +11,10 @@ start:
 
 	pushl $argv
 	pushl $init
-	pushl $0               # where caller pc would be ??
+	pushl $0     # Fake the return address that would have been pushed by a 'call' instruction...
+	             # 'argint' which is used to fetch argumets from the stack, exepects
+	             # a return position to be present in stack
+
 	movl  $SYS_exec, %eax
 	int   $T_SYSCALL
 

@@ -92,7 +92,7 @@ int sys_sleep ( void )
 	return 0;
 }
 
-// return how many clock tick interrupts have occurred
+// Return how many clock tick interrupts have occurred
 // since start.
 int sys_uptime ( void )
 {
@@ -106,3 +106,5 @@ int sys_uptime ( void )
 
 	return xticks;
 }
+
+// Why is 'cmostime' not used ??

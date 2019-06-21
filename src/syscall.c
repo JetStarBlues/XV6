@@ -17,29 +17,32 @@
 */
 
 // Fetch the int at addr from the current process.
-int fetchint ( uint addr, int *ip )
+int fetchint ( uint addr, int* ip )
 {
-	struct proc *curproc = myproc();
+	struct proc* curproc = myproc();
 
-	// Check that points to address within user address space
+	// Check that the address lies within the user address space
+	// Why not just check (addr + 4) ??
 	if ( ( addr >= curproc->sz ) || ( addr + 4 > curproc->sz ) )
 	{
 		return - 1;
 	}
 
-	*ip = *( int* )( addr );
+	// We can simply cast the address to a pointer because the
+	// user and kernel share the same page table ??
+	*ip = *( ( int* ) ( addr ) );
 
 	return 0;
 }
 
-// Fetch the nul-terminated string at addr from the current process.
+// Fetch the null-terminated string at addr from the current process.
 // Doesn't actually copy the string - just sets *pp to point at it.
 // Returns length of string, not including nul.
-int fetchstr ( uint addr, char **pp )
+int fetchstr ( uint addr, char** pp )
 {
-	char        *s,
-	            *ep;
-	struct proc *curproc = myproc();
+	char*        s;
+	char*        ep;
+	struct proc* curproc = myproc();
 
 	// Check that points to address within user address space
 	if ( addr >= curproc->sz )
@@ -47,13 +50,14 @@ int fetchstr ( uint addr, char **pp )
 		return - 1;
 	}
 
-	*pp = ( char* )addr;
+	*pp = ( char* ) addr;
 
-	ep = ( char* )curproc->sz;
+	ep = ( char* ) curproc->sz;  // Used to check that entire string lies
+	                             // within user address space
 
 	for ( s = *pp; s < ep; s += 1 )
 	{
-		if ( *s == 0 )  // null terminated
+		if ( *s == 0 )  // reached null terminal
 		{
 			return s - *pp;
 		}
@@ -64,18 +68,22 @@ int fetchstr ( uint addr, char **pp )
 
 // Fetch the nth 32-bit system call argument.
 // Get arguments from user stack (instead of kernel stack)
-int argint ( int n, int *ip )
+int argint ( int n, int* ip )
 {
-	return fetchint( ( myproc()->tf->esp ) + 4 + ( 4 * n ), ip );
+	return fetchint(
+
+		( myproc()->tf->esp ) + 4 + ( 4 * n ),  // +4 to skip the return position
+		ip
+	);
 }
 
 // Fetch the nth word-sized system call argument as a pointer
-// to a block of memory of size bytes.  Check that the pointer
+// to a block of memory of size bytes. Check that the pointer
 // lies within the process address space.
-int argptr ( int n, char **pp, int size )
+int argptr ( int n, char** pp, int size )
 {
 	int          i;
-	struct proc *curproc = myproc();
+	struct proc* curproc = myproc();
  
 	if ( argint( n, &i ) < 0 )
 	{
@@ -83,14 +91,14 @@ int argptr ( int n, char **pp, int size )
 	}
 
 	// Check that points to address within user address space
-	if ( size < 0 ||
-	     ( uint )i >= curproc->sz ||
-	     ( uint )i + size > curproc->sz )
+	if ( size < 0                          ||
+	     ( uint ) i >= curproc->sz         ||
+	     ( uint ) i + size > curproc->sz )
 	{
 		return - 1;
 	}
 
-	*pp = ( char* )i;
+	*pp = ( char* ) i;
 
 	return 0;
 }
@@ -99,7 +107,7 @@ int argptr ( int n, char **pp, int size )
 // Check that the pointer is valid and the string is nul-terminated.
 // (There is no shared writable memory, so the string can't change
 // between this check and being used by the kernel.)
-int argstr ( int n, char **pp )
+int argstr ( int n, char** pp )
 {
 	int addr;
 
@@ -162,13 +170,18 @@ static int ( *syscalls[] )( void ) = {
 void syscall ( void )
 {
 	int          num;
-	struct proc *curproc = myproc();
+	struct proc* curproc = myproc();
 
 	num = curproc->tf->eax;
 
 	// Valid syscall number
 	if ( num > 0 && num < NELEM( syscalls ) && syscalls[ num ] )
 	{
+		// Execute the requested syscall and place its return value in tf->eax
+		/* When the trap returns to user space, it will load values
+		   from the trapframe into the CPU's registers.
+		   Thus %eax will hold the value returned by the syscall.
+		*/
 		curproc->tf->eax = syscalls[ num ]();
 	}
 	else

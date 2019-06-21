@@ -1,8 +1,6 @@
-//
 // File-system system calls.
-// Mostly argument checking, since we don't trust
-// user code, and calls into file.c and fs.c.
-//
+// Mostly argument checking (since we don't trust
+// user code) and calls into file.c and fs.c.
 
 #include "types.h"
 #include "defs.h"
@@ -18,9 +16,9 @@
 
 // Fetch the nth word-sized system call argument as a file descriptor
 // and return both the descriptor and the corresponding struct file.
-static int argfd ( int n, int *pfd, struct file **pf )
+static int argfd ( int n, int* pfd, struct file** pf )
 {
-	struct file *f;
+	struct file* f;
 	int          fd;
 
 	if ( argint( n, &fd ) < 0 )
@@ -28,16 +26,19 @@ static int argfd ( int n, int *pfd, struct file **pf )
 		return - 1;
 	}
 
+	// Check that valid file descriptor
 	if ( fd < 0 || fd >= NOFILE || ( f = myproc()->ofile[ fd ] ) == 0 )
 	{
 		return - 1;
 	}
 
+	// Return the fd
 	if ( pfd )
 	{
 		*pfd = fd;
 	}
 
+	// Return corrsponding struct file
 	if ( pf )
 	{
 		*pf = f;
@@ -48,9 +49,9 @@ static int argfd ( int n, int *pfd, struct file **pf )
 
 // Allocate a file descriptor for the given file.
 // Takes over file reference from caller on success.
-static int fdalloc ( struct file *f )
+static int fdalloc ( struct file* f )
 {
-	struct proc *curproc = myproc();
+	struct proc* curproc = myproc();
 	int          fd;
 
 	for ( fd = 0; fd < NOFILE; fd += 1 )
@@ -66,9 +67,12 @@ static int fdalloc ( struct file *f )
 	return - 1;
 }
 
+
+// ___________________________________________________________________________
+
 int sys_dup ( void )
 {
-	struct file *f;
+	struct file* f;
 	int          fd;
 
 	if ( argfd( 0, 0, &f ) < 0 )
@@ -88,12 +92,12 @@ int sys_dup ( void )
 
 int sys_read ( void )
 {
-	struct file *f;
+	struct file* f;
 	int          n;
-	char        *p;
+	char*        p;
 
-	if ( argfd( 0, 0, &f )  < 0 ||
-		 argint( 2, &n )    < 0 ||
+	if ( argfd( 0, 0, &f )  < 0   ||
+		 argint( 2, &n )    < 0   ||
 		 argptr( 1, &p, n ) < 0 )
 	{
 		return - 1;
@@ -104,12 +108,12 @@ int sys_read ( void )
 
 int sys_write ( void )
 {
-	struct file *f;
+	struct file* f;
 	int          n;
-	char        *p;
+	char*        p;
 
-	if ( argfd( 0, 0, &f )  < 0 ||
-		 argint( 2, &n )    < 0 ||
+	if ( argfd( 0, 0, &f )  < 0   ||
+		 argint( 2, &n )    < 0   ||
 		 argptr( 1, &p, n ) < 0 )
 	{
 		return - 1;
@@ -120,7 +124,7 @@ int sys_write ( void )
 
 int sys_close ( void )
 {
-	struct file *f;
+	struct file* f;
 	int          fd;
 
 	if ( argfd( 0, &fd, &f ) < 0 )
@@ -137,11 +141,11 @@ int sys_close ( void )
 
 int sys_fstat ( void )
 {
-	struct file *f;
-	struct stat *st;
+	struct file* f;
+	struct stat* st;
 
 	if ( argfd( 0, 0, &f ) < 0 ||
-		 argptr( 1, ( void* )&st, sizeof( *st ) ) < 0 )
+		 argptr( 1, ( void* ) &st, sizeof( *st ) ) < 0 )
 	{
 		return - 1;
 	}
@@ -149,14 +153,17 @@ int sys_fstat ( void )
 	return filestat( f, st );
 }
 
+
+// ___________________________________________________________________________
+
 // Create the path new as a link to the same inode as old.
 int sys_link ( void )
 {
-	struct inode *dp,
-	             *ip;
-	char          name [ DIRNAMESZ ],
-	             *new,
-	             *old;
+	struct inode* dp;
+	struct inode* ip;
+	char          name [ DIRNAMESZ ];
+	char*         new;
+	char*         old;
 
 	if ( argstr( 0, &old ) < 0 || argstr( 1, &new ) < 0 )
 	{
@@ -227,14 +234,14 @@ bad:
 }
 
 // Is the directory dp empty except for "." and ".." ?
-static int isdirempty ( struct inode *dp )
+static int isdirempty ( struct inode* dp )
 {
 	struct dirent de;
 	int           off;
 
 	for ( off = 2 * sizeof( de ); off < dp->size; off += sizeof( de ) )
 	{
-		if ( readi( dp, ( char* )&de, off, sizeof( de ) ) != sizeof( de ) )
+		if ( readi( dp, ( char* ) &de, off, sizeof( de ) ) != sizeof( de ) )
 		{
 			panic( "isdirempty: readi" );
 		}
@@ -248,14 +255,13 @@ static int isdirempty ( struct inode *dp )
 	return 1;
 }
 
-//PAGEBREAK!
 int sys_unlink ( void )
 {
-	struct inode  *ip,
-	              *dp;
+	struct inode*  ip;
+	struct inode*  dp;
 	struct dirent  de;
-	char           name [ DIRNAMESZ ],
-	              *path;
+	char           name [ DIRNAMESZ ];
+	char*          path;
 	uint           off;
 
 	if ( argstr( 0, &path ) < 0 )
@@ -301,7 +307,7 @@ int sys_unlink ( void )
 
 	memset( &de, 0, sizeof( de ) );
 
-	if ( writei( dp, ( char* )&de, off, sizeof( de ) ) != sizeof( de ) )
+	if ( writei( dp, ( char* ) &de, off, sizeof( de ) ) != sizeof( de ) )
 	{
 		panic( "unlink: writei" );
 	}
@@ -334,10 +340,13 @@ bad:
 	return - 1;
 }
 
-static struct inode* create ( char *path, short type, short major, short minor )
+
+// ___________________________________________________________________________
+
+static struct inode* create ( char* path, short type, short major, short minor )
 {
-	struct inode *ip,
-	             *dp;
+	struct inode* ip;
+	struct inode* dp;
 	uint          off;
 	char          name [ DIRNAMESZ ];
 
@@ -408,11 +417,14 @@ static struct inode* create ( char *path, short type, short major, short minor )
 	return ip;
 }
 
+
+// ___________________________________________________________________________
+
 int sys_open ( void )
 {
-	struct inode *ip;
-	struct file  *f;
-	char         *path;
+	struct inode* ip;
+	struct file * f;
+	char*         path;
 	int           fd,
 	              omode;
 	uint          foffset;  // JK
@@ -511,10 +523,39 @@ int sys_open ( void )
 	return fd;
 }
 
+
+// ___________________________________________________________________________
+
+int sys_mknod ( void )
+{
+	struct inode* ip;
+	char*         path;
+	int           major,
+	              minor;
+
+	begin_op();
+
+	if ( argstr( 0, &path )  < 0                             ||
+		 argint( 1, &major ) < 0                             ||
+		 argint( 2, &minor ) < 0                             ||
+		 ( ip = create( path, T_DEV, major, minor ) ) == 0 )
+	{
+		end_op();
+
+		return - 1;
+	}
+
+	iunlockput( ip );
+
+	end_op();
+
+	return 0;
+}
+
 int sys_mkdir ( void )
 {
-	struct inode *ip;
-	char         *path;
+	struct inode* ip;
+	char*         path;
 
 	begin_op();
 
@@ -532,37 +573,11 @@ int sys_mkdir ( void )
 	return 0;
 }
 
-int sys_mknod ( void )
-{
-	struct inode *ip;
-	char         *path;
-	int           major,
-	              minor;
-
-	begin_op();
-
-	if ( argstr( 0, &path )  < 0 ||
-		 argint( 1, &major ) < 0 ||
-		 argint( 2, &minor ) < 0 ||
-		 ( ip = create( path, T_DEV, major, minor ) ) == 0 )
-	{
-		end_op();
-
-		return - 1;
-	}
-
-	iunlockput( ip );
-
-	end_op();
-
-	return 0;
-}
-
 int sys_chdir ( void )
 {
-	char         *path;
-	struct inode *ip;
-	struct proc  *curproc = myproc();
+	char*         path;
+	struct inode* ip;
+	struct proc*  curproc = myproc();
 	
 	begin_op();
 
@@ -595,15 +610,18 @@ int sys_chdir ( void )
 	return 0;
 }
 
+
+// ___________________________________________________________________________
+
 int sys_exec ( void )
 {
-	char *path,
-	     *argv [ MAXARG ];
+	char* path;
+	char* argv [ MAXARG ];
 	int   i;
 	uint  uargv,
 	      uarg;
 
-	if ( argstr( 0, &path ) < 0 || argint( 1, ( int* )&uargv ) < 0 )
+	if ( argstr( 0, &path ) < 0 || argint( 1, ( int* ) &uargv ) < 0 )
 	{
 		return - 1;
 	}
@@ -617,7 +635,7 @@ int sys_exec ( void )
 			return - 1;
 		}
 
-		if ( fetchint( uargv + 4 * i, ( int* )&uarg ) < 0 )
+		if ( fetchint( uargv + 4 * i, ( int* ) &uarg ) < 0 )
 		{
 			return - 1;
 		}
@@ -638,15 +656,18 @@ int sys_exec ( void )
 	return exec( path, argv );
 }
 
+
+// ___________________________________________________________________________
+
 int sys_pipe ( void )
 {
-	struct file *rf,
-	            *wf;
-	int         *fd,
-	             fd0,
+	struct file *rf;
+	struct file *wf;
+	int*         fd;
+	int          fd0,
 	             fd1;
 
-	if ( argptr( 0, ( void* )&fd, 2 * sizeof( fd[ 0 ] ) ) < 0 )
+	if ( argptr( 0, ( void* ) &fd, 2 * sizeof( fd[ 0 ] ) ) < 0 )
 	{
 		return - 1;
 	}

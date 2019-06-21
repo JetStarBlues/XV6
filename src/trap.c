@@ -37,7 +37,7 @@
 struct gatedesc idt     [ 256 ];  // Interrupt descriptor table (shared by all CPUs).
 extern uint     vectors [];       // in vectors.S: array of 256 entry pointers
 struct spinlock tickslock;
-uint            ticks;
+uint            ticks;            // Where is this initialized to 0?
 
 // Initialize IDT
 void tvinit ( void )
@@ -182,16 +182,19 @@ void trap ( struct trapframe *tf )
 			}
 
 			// In user space, assume process misbehaved.
-			cprintf( "Kill misbehaved user process:\n" );
-			cprintf( "    pid  : %d\n",     myproc()->pid  );
-			cprintf( "    name : %s\n",     myproc()->name );
-			cprintf( "    trap : %d\n",     tf->trapno     );
-			cprintf( "    err  : %d\n",     tf->err        );
-			cprintf( "    cpu  : %d\n",     cpuid()        );
-			cprintf( "    eip  : 0x%x\n",   tf->eip        );
-			cprintf( "    cr2  : 0x%x\n\n", rcr2()         );
+			else
+			{
+				cprintf( "Kill misbehaved user process:\n" );
+				cprintf( "    pid  : %d\n",     myproc()->pid  );
+				cprintf( "    name : %s\n",     myproc()->name );
+				cprintf( "    trap : %d\n",     tf->trapno     );
+				cprintf( "    err  : %d\n",     tf->err        );
+				cprintf( "    cpu  : %d\n",     cpuid()        );
+				cprintf( "    eip  : 0x%x\n",   tf->eip        );
+				cprintf( "    cr2  : 0x%x\n\n", rcr2()         );
 
-			myproc()->killed = 1;
+				myproc()->killed = 1;
+			}
 	}
 
 

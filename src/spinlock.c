@@ -9,7 +9,7 @@
 #include "proc.h"
 #include "spinlock.h"
 
-void initlock ( struct spinlock* lk, char *name )
+void initlock ( struct spinlock* lk, char* name )
 {
 	lk->name   = name;
 	lk->locked = 0;
@@ -72,6 +72,73 @@ void release ( struct spinlock* lk )
 	popcli();
 }
 
+// Check whether this cpu is holding the lock.
+int holding ( struct spinlock* lock )
+{
+	int r;
+
+	pushcli();
+
+	r = lock->locked && lock->cpu == mycpu();
+
+	popcli();
+
+	return r;
+}
+
+
+// __________________________________________________________________________________
+
+// Pushcli/popcli are like cli/sti except that they are matched:
+// it takes two popcli to undo two pushcli. Also, if interrupts
+// are off, then pushcli, popcli leaves them off.
+
+void pushcli ( void )
+{
+	int eflags;
+
+	eflags = readeflags();
+
+	// Disable interrupts
+	cli();
+
+	// Save interrupt state at start of outermost
+	if ( mycpu()->ncli == 0 )
+	{
+		mycpu()->intena = eflags & FL_IF;
+	}
+
+	// Track depth of pushcli nesting
+	mycpu()->ncli += 1;
+}
+
+void popcli ( void )
+{
+	// If interrupts are enabled, panic...
+	if ( readeflags() & FL_IF )
+	{
+		panic( "popcli - interruptible" );
+	}
+
+	// Track depth of pushcli nesting
+	mycpu()->ncli -= 1;
+
+	// Popped more than were pushed...
+	if ( mycpu()->ncli < 0 )
+	{
+		panic( "popcli" );
+	}
+
+	// Reached outermost, so restore interrupt state
+	if ( mycpu()->ncli == 0 && mycpu()->intena )
+	{
+		sti();  // enable interrupts
+	}
+}
+
+
+// __________________________________________________________________________________
+
 // Record the current call stack in pcs[] by following the %ebp chain.
 void getcallerpcs ( void* v, uint pcs [] )
 {
@@ -99,61 +166,3 @@ void getcallerpcs ( void* v, uint pcs [] )
 		pcs[ i ] = 0;
 	}
 }
-
-// Check whether this cpu is holding the lock.
-int holding ( struct spinlock* lock )
-{
-	int r;
-
-	pushcli();
-
-	r = lock->locked && lock->cpu == mycpu();
-
-	popcli();
-
-	return r;
-}
-
-
-// Pushcli/popcli are like cli/sti except that they are matched:
-// it takes two popcli to undo two pushcli. Also, if interrupts
-// are off, then pushcli, popcli leaves them off.
-
-void pushcli ( void )
-{
-	int eflags;
-
-	eflags = readeflags();
-
-	cli();
-
-	// Save interrupt state at start of outermost
-	if ( mycpu()->ncli == 0 )
-	{
-		mycpu()->intena = eflags & FL_IF;
-	}
-
-	mycpu()->ncli += 1;  // track depth of pushcli nesting
-}
-
-void popcli ( void )
-{
-	if ( readeflags() & FL_IF )
-	{
-		panic( "popcli - interruptible" );
-	}
-
-	mycpu()->ncli -= 1;
-
-	if ( mycpu()->ncli < 0 )
-	{
-		panic( "popcli" );
-	}
-
-	// Reached outermost, so restore interrupt state
-	if ( mycpu()->ncli == 0 && mycpu()->intena )
-	{
-		sti();
-	}
-}
-

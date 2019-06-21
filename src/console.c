@@ -2,6 +2,9 @@
 // Input is from the keyboard or serial port.
 // Output is written to the screen and serial port.
 
+/* Why is panic detected and handled here ??
+*/
+
 #include "types.h"
 #include "defs.h"
 #include "param.h"
@@ -15,9 +18,11 @@
 #include "proc.h"
 #include "x86.h"
 
-static void consputc ( int );
+#define BACKSPACE 0x100
+#define INPUT_BUF 128
 
-static int panicked = 0;
+#define C( x ) ( ( x ) - '@' )  // Control-x
+
 
 static struct
 {
@@ -25,6 +30,38 @@ static struct
 	int             locking;
 
 } cons;
+
+struct {
+
+	char buf [ INPUT_BUF ];
+	uint r;                  // Read index
+	uint w;                  // Write index
+	uint e;                  // Edit index
+
+} input;
+
+static int panicked = 0;
+
+static void cgaputc      ( int );
+static void consputc     ( int );
+int         consoleread  ( struct inode*, char*, int );
+int         consolewrite ( struct inode*, char*, int );
+
+
+void consoleinit ( void )
+{
+	initlock( &cons.lock, "console" );
+
+	devsw[ CONSOLE ].write = consolewrite;
+	devsw[ CONSOLE ].read  = consoleread;
+
+	cons.locking = 1;
+
+	ioapicenable( IRQ_KBD, 0 );
+}
+
+
+// _____________________________________________________________________________
 
 static void printint ( int xx, int base, int sign )
 {
@@ -63,17 +100,16 @@ static void printint ( int xx, int base, int sign )
 		consputc( buf[ i ] );
 	}
 }
-//PAGEBREAK: 50
 
 // Print to the console
 // Only understands %d, %x, %p, %c, %s,
-void cprintf ( char *fmt, ... )
+void cprintf ( char* fmt, ... )
 {
 	int   i,
 	      c,
 	      locking;
-	uint *argp;
-	char *s;
+	uint* argp;
+	char* s;
 
 	locking = cons.locking;
 
@@ -87,7 +123,7 @@ void cprintf ( char *fmt, ... )
 		panic( "null fmt" );
 	}
 
-	argp = ( uint* )( void* )( &fmt + 1 );
+	argp = ( uint* ) ( void* ) ( &fmt + 1 );
 
 	for ( i = 0; ( c = fmt[ i ] & 0xff ) != 0; i += 1 )
 	{
@@ -136,7 +172,7 @@ void cprintf ( char *fmt, ... )
 
 			case 's':
 
-				s = ( char* )*argp;
+				s = ( char* ) *argp;
 
 				argp += 1;
 
@@ -174,11 +210,15 @@ void cprintf ( char *fmt, ... )
 	}
 }
 
-void panic ( char *s )
+
+// _____________________________________________________________________________
+
+void panic ( char* s )
 {
 	int  i;
 	uint pcs [ 10 ];
 
+	// Disable interrupts
 	cli();
 
 	cons.locking = 0;
@@ -197,75 +237,24 @@ void panic ( char *s )
 		cprintf( "    %p\n", pcs[ i ] );
 	}
 
-	panicked = 1; // freeze other CPU
+	panicked = 1;  // freeze other CPUs
 
+	// Freeze this CPU
 	for ( ;; )
 	{
 		//
 	}
 }
 
-//PAGEBREAK: 50
-#define BACKSPACE 0x100
-#define CRTPORT   0x3d4
 
-static ushort *crt = ( ushort* )P2V( 0xb8000 );  // CGA memory
-
-static void cgaputc ( int c )
-{
-	int pos;
-
-	// Cursor position: col + 80*row.
-	outb( CRTPORT, 14 );
-
-	pos = inb( CRTPORT + 1 ) << 8;
-
-	outb( CRTPORT, 15 );
-
-	pos |= inb( CRTPORT + 1 );
-
-	if ( c == '\n' )
-	{
-		pos += 80 - pos % 80;
-	}
-	else if ( c == BACKSPACE )
-	{
-		if ( pos > 0 ) --pos;
-	}
-	else
-	{
-		crt[ pos ] = ( c & 0xff ) | 0x0700;  // black on white
-
-		pos += 1;
-	}
-
-	if ( pos < 0 || pos > 25 * 80 )
-	{
-		panic( "pos under/overflow" );
-	}
-
-	if ( ( pos / 80 ) >= 24 )  // Scroll up.
-	{
-		memmove( crt, crt + 80, sizeof( crt[ 0 ] ) * 23 * 80 );
-
-		pos -= 80;
-
-		memset( crt + pos, 0, sizeof( crt[ 0 ] ) * ( 24 * 80 - pos ) );
-	}
-
-	outb( CRTPORT, 14 );
-	outb( CRTPORT + 1, pos >> 8 );
-	outb( CRTPORT, 15 );
-	outb( CRTPORT + 1, pos );
-
-	crt[ pos ] = ' ' | 0x0700;
-}
+// _____________________________________________________________________________
 
 void consputc ( int c )
 {
+	// If panicked, freeze this CPU
 	if ( panicked )
 	{
-		cli();
+		cli();  // disable interrupts
 
 		for ( ;; )
 		{
@@ -273,9 +262,12 @@ void consputc ( int c )
 		}
 	}
 
+
 	if ( c == BACKSPACE )
 	{
-		uartputc( '\b' ); uartputc( ' ' ); uartputc( '\b' );
+		uartputc( '\b' );
+		uartputc( ' ' );  // overwrite character on display with space
+		uartputc( '\b' );
 	}
 	else
 	{
@@ -285,19 +277,10 @@ void consputc ( int c )
 	cgaputc( c );
 }
 
-#define INPUT_BUF 128
-struct {
 
-	char buf [ INPUT_BUF ];
-	uint r;                  // Read index
-	uint w;                  // Write index
-	uint e;                  // Edit index
+// _____________________________________________________________________________
 
-} input;
-
-#define C( x ) ( ( x ) - '@' )  // Control-x
-
-void consoleintr ( int ( *getc )( void ) )
+void consoleintr ( int ( *getc ) ( void ) )
 {
 	int c,
 	    doprocdump = 0;
@@ -356,9 +339,9 @@ void consoleintr ( int ( *getc )( void ) )
 
 					// Gather until either of the following conditions met,
 					// then wakeup whoever is sleeping on input
-					if ( c == '\n'      ||                 // enter key
-					     c == C( 'D' )  ||                 // ctrl-D
-					     input.e == input.r + INPUT_BUF )  // input buffer is full
+					if ( c == '\n'                        ||  // enter key
+					     c == C( 'D' )                    ||  // ctrl-D
+					     input.e == input.r + INPUT_BUF )     // input buffer is full
 					{
 						input.w = input.e;
 
@@ -378,7 +361,10 @@ void consoleintr ( int ( *getc )( void ) )
 	}
 }
 
-int consoleread ( struct inode *ip, char *dst, int n )
+
+// _____________________________________________________________________________
+
+int consoleread ( struct inode* ip, char* dst, int n )
 {
 	uint target;
 	int  c;
@@ -440,7 +426,7 @@ int consoleread ( struct inode *ip, char *dst, int n )
 	return target - n;
 }
 
-int consolewrite ( struct inode *ip, char *buf, int n )
+int consolewrite ( struct inode* ip, char* buf, int n )
 {
 	int i;
 
@@ -460,15 +446,59 @@ int consolewrite ( struct inode *ip, char *buf, int n )
 	return n;
 }
 
-void consoleinit ( void )
+
+// _____________________________________________________________________________
+
+#define CRTPORT 0x3d4
+
+static ushort* crt = ( ushort* ) P2V( 0xb8000 );  // CGA memory
+
+static void cgaputc ( int c )
 {
-	initlock( &cons.lock, "console" );
+	int pos;
 
-	devsw[ CONSOLE ].write = consolewrite;
-	devsw[ CONSOLE ].read  = consoleread;
+	// Cursor position: col + 80*row.
+	outb( CRTPORT, 14 );
 
-	cons.locking = 1;
+	pos = inb( CRTPORT + 1 ) << 8;
 
-	ioapicenable( IRQ_KBD, 0 );
+	outb( CRTPORT, 15 );
+
+	pos |= inb( CRTPORT + 1 );
+
+	if ( c == '\n' )
+	{
+		pos += 80 - pos % 80;
+	}
+	else if ( c == BACKSPACE )
+	{
+		if ( pos > 0 ) --pos;
+	}
+	else
+	{
+		crt[ pos ] = ( c & 0xff ) | 0x0700;  // black on white
+
+		pos += 1;
+	}
+
+	if ( pos < 0 || pos > 25 * 80 )
+	{
+		panic( "pos under/overflow" );
+	}
+
+	if ( ( pos / 80 ) >= 24 )  // Scroll up.
+	{
+		memmove( crt, crt + 80, sizeof( crt[ 0 ] ) * 23 * 80 );
+
+		pos -= 80;
+
+		memset( crt + pos, 0, sizeof( crt[ 0 ] ) * ( 24 * 80 - pos ) );
+	}
+
+	outb( CRTPORT, 14 );
+	outb( CRTPORT + 1, pos >> 8 );
+	outb( CRTPORT, 15 );
+	outb( CRTPORT + 1, pos );
+
+	crt[ pos ] = ' ' | 0x0700;
 }
-
