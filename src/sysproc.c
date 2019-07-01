@@ -71,7 +71,7 @@ int sys_sleep ( void )
 		return - 1;
 	}
 
-	acquire( &tickslock );
+	acquire( &tickslock );  // lock is held because ??
 
 	ticks0 = ticks;
 

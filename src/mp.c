@@ -134,7 +134,7 @@ void mpinit ( void )
 
 	if ( ( conf = mpconfig( &mp ) ) == 0 )
 	{
-		panic( "Expect to run on an SMP" );
+		panic( "mpinit: Expect to run on an SMP" );
 	}
 
 	ismp = 1;
@@ -188,7 +188,7 @@ void mpinit ( void )
 
 	if ( ! ismp )
 	{
-		panic( "Didn't find a suitable machine" );
+		panic( "mpinit: Didn't find a suitable machine" );
 	}
 
 	if ( mp->imcrp )

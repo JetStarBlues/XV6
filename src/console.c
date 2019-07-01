@@ -26,6 +26,8 @@
 
 static struct
 {
+	/* This lock is used for ... ??
+	*/
 	struct spinlock lock;
 	int             locking;
 
@@ -55,7 +57,7 @@ void consoleinit ( void )
 	devsw[ CONSOLE ].write = consolewrite;
 	devsw[ CONSOLE ].read  = consoleread;
 
-	cons.locking = 1;
+	cons.locking = 1;  // Why distinguish ??
 
 	ioapicenable( IRQ_KBD, 0 );
 }
@@ -120,7 +122,7 @@ void cprintf ( char* fmt, ... )
 
 	if ( fmt == 0 )
 	{
-		panic( "null fmt" );
+		panic( "cprintf: null fmt" );
 	}
 
 	argp = ( uint* ) ( void* ) ( &fmt + 1 );
@@ -483,7 +485,7 @@ static void cgaputc ( int c )
 
 	if ( pos < 0 || pos > 25 * 80 )
 	{
-		panic( "pos under/overflow" );
+		panic( "cgaputc: pos under/overflow" );
 	}
 
 	if ( ( pos / 80 ) >= 24 )  // Scroll up.

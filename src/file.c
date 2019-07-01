@@ -10,10 +10,16 @@
 #include "sleeplock.h"
 #include "file.h"
 
+// ??
 struct devsw devsw [ NDEV ];
+
+// ??
 struct {
 
+	/* This lock is used for ... ??
+	*/
 	struct spinlock lock;
+
 	struct file     file [ NFILE ];
 
 } ftable;
@@ -26,7 +32,7 @@ void fileinit ( void )
 // Allocate a file structure.
 struct file* filealloc ( void )
 {
-	struct file *f;
+	struct file* f;
 
 	acquire( &ftable.lock );
 
@@ -48,7 +54,7 @@ struct file* filealloc ( void )
 }
 
 // Increment ref count for file f.
-struct file* filedup ( struct file *f )
+struct file* filedup ( struct file* f )
 {
 	acquire( &ftable.lock );
 
@@ -65,7 +71,7 @@ struct file* filedup ( struct file *f )
 }
 
 // Close file f. (Decrement ref count, close when reaches 0.)
-void fileclose ( struct file *f )
+void fileclose ( struct file* f )
 {
 	struct file ff;
 
@@ -107,7 +113,7 @@ void fileclose ( struct file *f )
 }
 
 // Get metadata about file f.
-int filestat ( struct file *f, struct stat *st )
+int filestat ( struct file* f, struct stat *st )
 {
 	if ( f->type == FD_INODE )
 	{
@@ -124,7 +130,7 @@ int filestat ( struct file *f, struct stat *st )
 }
 
 // Read from file f.
-int fileread ( struct file *f, char *addr, int n )
+int fileread ( struct file* f, char* addr, int n )
 {
 	int r;
 
@@ -155,9 +161,8 @@ int fileread ( struct file *f, char *addr, int n )
 	panic( "fileread" );
 }
 
-//PAGEBREAK!
 // Write to file f.
-int filewrite ( struct file *f, char *addr, int n )
+int filewrite ( struct file* f, char* addr, int n )
 {
 	int r;
 
@@ -212,7 +217,7 @@ int filewrite ( struct file *f, char *addr, int n )
 
 			if ( r != n1 )
 			{
-				panic( "short filewrite" );
+				panic( "filewrite: short filewrite" );
 			}
 
 			i += r;

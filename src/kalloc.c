@@ -21,8 +21,9 @@ struct run
 
 struct
 {
-	struct spinlock lock;
+	struct spinlock lock;      // Held when modifying freelist
 	int             use_lock;
+
 	struct run*     freelist;  // Where is this initialized ?? Is it default 0?
 
 } kmem;

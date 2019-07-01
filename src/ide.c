@@ -24,13 +24,18 @@
 #define IDE_CMD_RDMUL 0xc4
 #define IDE_CMD_WRMUL 0xc5
 
-// idequeue points to the buf now being read/written to the disk.
-// idequeue->qnext points to the next buf to be processed.
-// You must hold idelock while manipulating queue.
+/* Queue of pending disk requests
+   idequeue points to the buf now being read/written to the disk.
+   idequeue->qnext points to the next buf to be processed.
+*/
+static struct buf* idequeue;
 
-static struct spinlock  idelock;
-static struct buf*      idequeue;
-static int              havedisk1;  // Why do we care?
+// Must hold idelock when modifying idequeue
+static struct spinlock idelock;
+
+//
+static int havedisk1;  // Why do we care?
+
 
 static void idestart ( struct buf* );
 
@@ -97,7 +102,7 @@ static void idestart ( struct buf* b )
 
 	if ( b->blockno >= FSSIZE )
 	{
-		panic( "incorrect blockno" );
+		panic( "idestart: incorrect blockno" );
 	}
 
 	int sector_per_block = BSIZE / SECTOR_SIZE;
@@ -109,7 +114,7 @@ static void idestart ( struct buf* b )
 
 	if ( sector_per_block > 7 )
 	{
-		panic( "idestart" );
+		panic( "idestart: sector_per_block" );
 	}
 
 	idewait( 0 );

@@ -217,7 +217,7 @@ pde_t* setupkvm ( void )
 	// ?
 	if ( P2V( PHYSTOP ) > ( void* ) DEVSPACE )
 	{
-		panic( "PHYSTOP too high" );
+		panic( "setupkvm: PHYSTOP too high" );
 	}
 
 	// ?
@@ -448,7 +448,7 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 
 		if ( mem == 0 )
 		{
-			cprintf( "allocuvm out of memory\n" );
+			cprintf( "allocuvm: out of memory\n" );
 
 			deallocuvm( pgdir, newsz, oldsz );
 
@@ -459,7 +459,7 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 
 		if ( mappages( pgdir, ( char* ) a, PGSIZE, V2P( mem ), PTE_W | PTE_U ) < 0 )
 		{
-			cprintf( "allocuvm out of memory (2)\n" );
+			cprintf( "allocuvm: out of memory (2)\n" );
 
 			deallocuvm( pgdir, newsz, oldsz );
 

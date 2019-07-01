@@ -402,7 +402,7 @@ static struct inode* create ( char* path, short type, short major, short minor )
 		if ( dirlink( ip, ".",  ip->inum ) < 0 ||  // current directory
 			 dirlink( ip, "..", dp->inum ) < 0 )   // parent directory
 		{
-			panic( "create dots" );
+			panic( "create: dots" );
 		}
 	}
 

@@ -1,5 +1,15 @@
 // Sleeping locks
 
+/* Sometimes a lock needs to held for a long time, and thus
+   spinning is un-ideal.
+
+   Sleeplocks support yielding the CPU during their critcal sections ??
+
+   Because sleeplocks leave interrupts enabled, they cannot be used:
+     . in interrupt handlers ??
+     . inside a spinlock's critical section ??
+*/
+
 #include "types.h"
 #include "defs.h"
 #include "param.h"
@@ -10,54 +20,71 @@
 #include "spinlock.h"
 #include "sleeplock.h"
 
-void initsleeplock ( struct sleeplock *lk, char *name )
+void initsleeplock ( struct sleeplock* slk, char* name )
 {
-	initlock( &lk->lk, "sleep lock" );
+	initlock( &slk->lock, "sleep lock" );
 
-	lk->name   = name;
-	lk->locked = 0;
-	lk->pid    = 0;
+	slk->locked = 0;
+
+	// Init debugging info
+	slk->name = name;
+	slk->pid  = 0;
 }
 
-void acquiresleep ( struct sleeplock *lk )
-{
-	acquire( &lk->lk );
+/* Yields the CPU while waiting to acquire the lock? and does not
+   disable interrupts?
 
-	while ( lk->locked )
+   Revisit explanation on p.58
+*/
+void acquiresleep ( struct sleeplock* slk )
+{
+	// Acquire spinlock...
+	acquire( &slk->lock );
+
+	// While sleeplock is held by someone else, sleep...
+	while ( slk->locked )
 	{
-		sleep( lk, &lk->lk );
+		sleep( slk, &slk->lock );
 	}
 
-	lk->locked = 1;
-	lk->pid    = myproc()->pid;
+	// Acquire sleeplock...
+	slk->locked = 1;
 
-	release( &lk->lk );
+	// Set debugging info
+	slk->pid = myproc()->pid;
+
+	// Release spinlock...
+	release( &slk->lock );
 }
 
-void releasesleep ( struct sleeplock *lk )
+void releasesleep ( struct sleeplock* slk )
 {
-	acquire( &lk->lk );
+	// Acquire spinlock...
+	acquire( &slk->lock );
 
-	lk->locked = 0;
-	lk->pid    = 0;
+	// Clear debugging info
+	slk->pid = 0;
 
-	wakeup( lk );
+	// Release sleeplock...
+	slk->locked = 0;
 
-	release( &lk->lk );
+	// Wakeup processes sleeping on the sleeplock...
+	wakeup( slk );
+
+	// Releease spinlock...
+	release( &slk->lock );
 }
 
-int holdingsleep ( struct sleeplock *lk )
+// Does the current process hold the sleeplock
+int holdingsleep ( struct sleeplock* slk )
 {
 	int r;
 	
-	acquire( &lk->lk );
+	acquire( &slk->lock );
 
-	r = lk->locked && ( lk->pid == myproc()->pid );
+	r = slk->locked && ( slk->pid == myproc()->pid );
 
-	release( &lk->lk );
+	release( &slk->lock );
 
 	return r;
 }
-
-
-

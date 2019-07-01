@@ -39,7 +39,10 @@ struct logheader
 
 struct log
 {
+	/* This lock is used for ... ??
+	*/
 	struct spinlock  lock;
+
 	int              start;
 	int              size;
 	int              outstanding;  // how many FS sys calls are executing.
@@ -96,9 +99,9 @@ static void read_head ( void )
 {
 	int i;
 
-	struct buf *buf = bread( log.dev, log.start );
+	struct buf* buf = bread( log.dev, log.start );
 
-	struct logheader *lh = ( struct logheader * ) ( buf->data );
+	struct logheader* lh = ( struct logheader* ) ( buf->data );
 
 	log.lh.n = lh->n;
 
@@ -117,9 +120,9 @@ static void write_head ( void )
 {
 	int i;
 
-	struct buf *buf = bread( log.dev, log.start );
+	struct buf* buf = bread( log.dev, log.start );
 
-	struct logheader *lh = ( struct logheader * ) ( buf->data );
+	struct logheader* lh = ( struct logheader* ) ( buf->data );
 
 	lh->n = log.lh.n;
 
@@ -183,7 +186,7 @@ void end_op ( void )
 
 	if ( log.committing )
 	{
-		panic( "log.committing" );
+		panic( "end_op: log.committing" );
 	}
 
 	if ( log.outstanding == 0 )
@@ -225,8 +228,8 @@ static void write_log ( void )
 
 	for ( tail = 0; tail < log.lh.n; tail += 1 )
 	{
-		struct buf *from = bread( log.dev, log.lh.block[ tail ] );  // cache block
-		struct buf *to   = bread( log.dev, log.start + tail + 1 );  // log block
+		struct buf* from = bread( log.dev, log.lh.block[ tail ] );  // cache block
+		struct buf* to   = bread( log.dev, log.start + tail + 1 );  // log block
 
 		memmove( to->data, from->data, BSIZE );
 
@@ -262,18 +265,18 @@ static void commit ()
 //   modify bp->data[]
 //   log_write( bp )
 //   brelse( bp )
-void log_write ( struct buf *b )
+void log_write ( struct buf* b )
 {
 	int i;
 
 	if ( log.lh.n >= LOGSIZE || log.lh.n >= log.size - 1 )
 	{
-		panic( "too big a transaction" );
+		panic( "log_write: too big a transaction" );
 	}
 
 	if ( log.outstanding < 1 )
 	{
-		panic( "log_write outside of trans" );
+		panic( "log_write: outside of trans" );
 	}
 
 	acquire( &log.lock );

@@ -28,22 +28,26 @@
 
 struct {
 
+	/* This lock is used for ... ??
+	*/
 	struct spinlock lock;
+
 	struct buf      buf [ NBUF ];
 
-	// Linked list of all buffers, through prev/next.
-	// head.next is most recently used.
+	/* Linked list of all buffers, through buf->prev and buf->next.
+	    head->next is most recently used,
+	    head->prev is least recently used.
+	*/
 	struct buf      head;
 
 } bcache;
 
 void binit ( void )
 {
-	struct buf *b;
+	struct buf* b;
 
 	initlock( &bcache.lock, "bcache" );
 
-//PAGEBREAK!
 	// Create linked list of buffers
 	bcache.head.prev = &bcache.head;
 	bcache.head.next = &bcache.head;
@@ -53,7 +57,7 @@ void binit ( void )
 		b->next = bcache.head.next;
 		b->prev = &bcache.head;
 
-		initsleeplock( &b->lock, "buffer" );
+		initsleeplock( &b->lock, "buffer" );  // can concat idx to make name unique
 
 		bcache.head.next->prev = b;
 		bcache.head.next       = b;
@@ -65,7 +69,7 @@ void binit ( void )
 // In either case, return locked buffer.
 static struct buf* bget ( uint dev, uint blockno )
 {
-	struct buf *b;
+	struct buf* b;
 
 	acquire( &bcache.lock );
 
@@ -110,7 +114,7 @@ static struct buf* bget ( uint dev, uint blockno )
 // Return a locked buf with the contents of the indicated block.
 struct buf* bread ( uint dev, uint blockno )
 {
-	struct buf *b;
+	struct buf* b;
 
 	b = bget( dev, blockno );
 
@@ -123,7 +127,7 @@ struct buf* bread ( uint dev, uint blockno )
 }
 
 // Write b's contents to disk.  Must be locked.
-void bwrite ( struct buf *b )
+void bwrite ( struct buf* b )
 {
 	if ( ! holdingsleep( &b->lock ) )
 	{
@@ -137,7 +141,7 @@ void bwrite ( struct buf *b )
 
 // Release a locked buffer.
 // Move to the head of the MRU list.
-void brelse ( struct buf *b )
+void brelse ( struct buf* b )
 {
 	if ( ! holdingsleep( &b->lock ) )
 	{
@@ -165,6 +169,3 @@ void brelse ( struct buf *b )
 
 	release( &bcache.lock );
 }
-//PAGEBREAK!
-// Blank page.
-

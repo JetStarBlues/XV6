@@ -1,13 +1,23 @@
 struct buf {
 
-	int               flags;
+	int               flags;           // ?
 	uint              dev;             // device number ??
 	uint              blockno;         // block number
+
+	/* This lock is used for ... ??
+	*/
 	struct sleeplock  lock;
-	uint              refcnt;
+
+	uint              refcnt;          // ?
+
+	// ...
 	struct buf       *prev;            // LRU cache list
 	struct buf       *next;            // MRU cache list
+
+	// ...
 	struct buf       *qnext;           // disk queue
+
+	// ...
 	uchar             data [ BSIZE ];  // in-memory copy of disk contents
 };
 

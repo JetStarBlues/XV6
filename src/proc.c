@@ -1,12 +1,6 @@
 /*
 Context switching
 
-	scheduler calls:
-
-		swtch( &( c->scheduler ), p->context )
-
-		. from kernel to user
-
 	sched calls:
 
 		swtch( &p->context, mycpu()->scheduler )
@@ -16,7 +10,39 @@ Context switching
 		. sched is called by
 			. yield
 			. sleep
+
+	scheduler calls:
+
+		swtch( &( c->scheduler ), p->context )
+
+		. from kernel to user
 			. exit
+
+	xv6 multiplexes in two situations:
+		. sleep and wakeup mechanism - when a process waits for an event
+		. periodically (on timer interrupt) with yield
+
+	Multiplexing (from user space) steps:
+		. User to kernel transition (via INT instruction)
+		  into the current process's kernel thread
+		. Context switch to the CPU's scheduler thread
+		  (via alltraps                                 >
+		       trap                                     >
+		       yield                                    >
+		       sched                                    >
+		       swtch( &p->context, mycpu()->scheduler ) >
+		       switchkvm
+		   )
+		. Context switch to the new process's kernel thread
+		  (via switchuvm                              >
+		       swtch( &( c->scheduler ), p->context ) >
+		       trapret
+		  )
+		. Kernel to user transition (via IRET instruction)
+		  into the new process's user thread
+
+	xv6 uses two context switches because the scheduler runs on its
+	own stack in order to simplify cleaning up user processes... ??
 */
 
 #include "types.h"
@@ -30,7 +56,10 @@ Context switching
 
 struct
 {
+	/* This lock is used for ... ??
+	*/
 	struct spinlock lock;
+
 	struct proc     proc [ NPROC ];
 
 } ptable;
@@ -65,7 +94,7 @@ struct cpu* mycpu ( void )
 
 	if ( readeflags() & FL_IF )
 	{
-		panic( "mycpu called with interrupts enabled\n" );
+		panic( "mycpu: called with interrupts enabled\n" );
 	}
 
 	apicid = lapicid();
@@ -80,7 +109,7 @@ struct cpu* mycpu ( void )
 		}
 	}
 
-	panic( "unknown apicid\n" );
+	panic( "mycpu: unknown apicid\n" );
 }
 
 // Disable interrupts so that we are not rescheduled
@@ -108,7 +137,7 @@ struct proc* myproc ( void )
    If found, change state to EMBRYO and initialize a kernel stack.
    Otherwise return 0.
 
-   allocproc is designed to be ued both by userinit (when creating the
+   allocproc is designed to be used both by userinit (when creating the
    first process) and fork
 */
 static struct proc* allocproc ( void )
@@ -401,68 +430,20 @@ int fork ( void )
 	return pid;
 }
 
-// Exit the current process. Does not return.
-// An exited process remains in the zombie state
-// until its parent calls wait() to find out it exited.
-void exit ( void )
-{
-	struct proc* curproc = myproc();
-	struct proc* p;
-	int          fd;
 
-	if ( curproc == initproc )
-	{
-		panic( "init exiting" );
-	}
-
-	// Close all open files.
-	for ( fd = 0; fd < NOFILE; fd += 1 )
-	{
-		if ( curproc->ofile[ fd ] )
-		{
-			fileclose( curproc->ofile[ fd ] );
-
-			curproc->ofile[ fd ] = 0;
-		}
-	}
-
-	begin_op();
-
-	iput( curproc->cwd );
-
-	end_op();
-
-	curproc->cwd = 0;
-
-	acquire( &ptable.lock );
-
-	// Parent might be sleeping in wait()
-	wakeup1( curproc->parent );
-
-	// Pass abandoned children to init.
-	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
-	{
-		if ( p->parent == curproc )
-		{
-			p->parent = initproc;
-
-			if ( p->state == ZOMBIE )
-			{
-				wakeup1( initproc );
-			}
-		}
-	}
-
-	// Jump into the scheduler, never to return.
-	curproc->state = ZOMBIE;
-
-	sched();
-
-	panic( "zombie exit" );
-}
+// _________________________________________________________________________________
 
 // Wait for a child process to exit and return its pid.
 // Return -1 if this process has no children.
+/*  . When a child exits, it does not die immediately.
+      Instead, it switches to the ZOMBIE state until its parent
+      calls 'wait' to learn of the exit.
+    . The parent is then responsible for freeing the memory
+      associated with the child and preparing its "struct proc"
+      for reuse.
+    . If the parent exits before the child, the init process
+      adopts the child and waits for it.
+*/
 int wait ( void )
 {
 	struct proc* p;
@@ -486,17 +467,21 @@ int wait ( void )
 
 			havekids = 1;
 
-			// Found one
+			// Found one, clean up after it
 			if ( p->state == ZOMBIE )
 			{
 				pid = p->pid;
 
+				// Free associated memory
+				/* The parent fres p->kstack and p->pgdir because the
+				   child uses them one last time when running 'exit'
+				*/
 				kfree( p->kstack );
-
-				p->kstack = 0;
 
 				freevm( p->pgdir );
 
+				// Prepare the "struct proc" for reuse
+				p->kstack    = 0;
 				p->pid       = 0;
 				p->parent    = 0;
 				p->name[ 0 ] = 0;
@@ -517,21 +502,149 @@ int wait ( void )
 			return - 1;
 		}
 
-		// Wait for children to exit. (See wakeup1 call in proc_exit.)
-		sleep( curproc, &ptable.lock );  //DOC: wait-sleep
+		// Wait for children to exit. See wakeup1 call in exit.
+		sleep( curproc, &ptable.lock );
 	}
+}
+
+// Exit the current process. Does not return.
+// An exited process remains in the zombie state
+// until its parent calls wait() to find out it exited.
+void exit ( void )
+{
+	struct proc* curproc = myproc();
+	struct proc* p;
+	int          fd;
+
+	if ( curproc == initproc )
+	{
+		panic( "exit: init exiting" );
+	}
+
+	// Close all open files.
+	for ( fd = 0; fd < NOFILE; fd += 1 )
+	{
+		if ( curproc->ofile[ fd ] )
+		{
+			fileclose( curproc->ofile[ fd ] );
+
+			curproc->ofile[ fd ] = 0;
+		}
+	}
+
+	// ??
+	begin_op();
+
+	iput( curproc->cwd );
+
+	end_op();
+
+	curproc->cwd = 0;
+
+
+	acquire( &ptable.lock );
+
+	// Wakeup parent. They might be sleeping in wait()
+	wakeup1( curproc->parent );
+
+	// Pass abandoned children to init.
+	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+	{
+		if ( p->parent == curproc )
+		{
+			p->parent = initproc;
+
+			if ( p->state == ZOMBIE )
+			{
+				wakeup1( initproc );
+			}
+		}
+	}
+
+	// Jump into the scheduler, never to return.
+	curproc->state = ZOMBIE;
+
+	sched();
+
+	panic( "exit: zombie exit" );
+}
+
+// Kill the process with the given pid
+/* Lets one process request that another be terminated.
+
+   Just sets p->killed, and if the process is sleeping,
+   wakes it up.
+   Eventually the process will enter or leave the kernel
+   (ex. via system call, timer interrupt), at which point
+   code in trap will call exit if p->killed is set.
+*/
+int kill ( int pid )
+{
+	struct proc* p;
+
+	acquire( &ptable.lock );
+
+	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+	{
+		if ( p->pid == pid )
+		{
+			p->killed = 1;
+
+			// Wake process from sleep if necessary
+			/* Potenially dangerous because the condition the
+			   process is waiting on might not be true. However,
+			   xv6 convention is to wrap sleep calls in a while-loop
+			   that retests the condition after sleep returns.
+			   Some calls to sleep test p->killed to abandon early.
+			*/
+			if ( p->state == SLEEPING )
+			{
+				p->state = RUNNABLE;
+			}
+
+			release( &ptable.lock );
+
+			return 0;
+		}
+	}
+
+	release( &ptable.lock );
+
+	return - 1;
 }
 
 
 // _________________________________________________________________________________
 
 // Per-CPU process scheduler.
-// Each CPU calls scheduler() after setting itself up.
-// Scheduler never returns. It loops, doing:
-//  - choose a process to run
-//  - swtch to start running that process
-//  - eventually that process transfers control
-//      via swtch back to the scheduler.
+/* Each CPU calls scheduler() after setting itself up.
+   Scheduler never returns. It loops, doing:
+    - choose a process to run
+    - swtch to start running that process
+    - eventually that process transfers control
+        via swtch back to the scheduler.
+*/
+/* Each CPU has a seperate scheduler thread for use when
+   it is executing the scheduler. (Instead of using the
+   current process's kernel thread)
+
+   Switching from one thread to another (for ex. from the
+   current process's kernel thread to the CPU's scheduler
+   thread) involves saving the current thread's registers, and
+   restoring the new thread's registers (including %eip and %esp
+   which specify what code is executing and which stack is used)
+
+   The scheduler releases ptable.lock and explicitly enables
+   interrupts once in each iteration of its outer loop.
+   This is important for the case where there are multiple
+   CPUs and one is idle (it has no RUNNABLE processes).
+   If ptable.lock was continuously held, other CPUs cannot perform
+   context switches as they cannot acquire ptable.lock.
+   They also cannot mark a process as RUNNABLE so as to break the
+   idling CPU out of its scheduling loop...
+   Interrupts are periodically enabled because on an idling CPU,
+   perharps some of the processes are actually waiting for IO (lapic...)
+*/
 void scheduler ( void )
 {
 	struct proc* p;
@@ -573,11 +686,20 @@ void scheduler ( void )
 
 			   swtch will save the current registers to cpu->scheduler
 			   and restore those saved in p->context
+
+			   From there 'trapret' will execute as the process's
+			   kernel thread returns from the 'trap' function that
+			   led it here...
 			*/
 			swtch( &( c->scheduler ), p->context );
 
 
-			/* ...
+			// - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+			/* A call to 'sched' ends up here...
+			   More specifically, the call to:
+			     swtch( &p->context, mycpu()->scheduler )
 			*/
 
 			// switch to the kernel-only page table...
@@ -592,13 +714,18 @@ void scheduler ( void )
 	}
 }
 
-// Enter scheduler. Must hold only ptable.lock
-// and have changed proc->state. Saves and restores
-// intena because intena is a property of this
-// kernel thread, not this CPU. It should
-// be proc->intena and proc->ncli, but that would
-// break in the few places where a lock is held but
-// there's no process.
+// Enter scheduler.
+/* Must hold only ptable.lock and have changed proc->state.
+   Saves and restores intena because intena is a property of this
+   kernel thread, not this CPU.
+   It should be proc->intena and proc->ncli, but that would
+   break in the few places where a lock is held but there's no process
+   (such as ??)
+*/
+/* When context switching, the thread that acquires the lock is
+   not responsible for releasing it...
+   The convention is broken because ... see p.63 & p.64
+*/
 void sched ( void )
 {
 	int          intena;
@@ -606,33 +733,61 @@ void sched ( void )
 
 	if ( ! holding( &ptable.lock ) )
 	{
-		panic( "sched ptable.lock" );
+		panic( "sched: ptable.lock" );
 	}
 
 	if ( mycpu()->ncli != 1 )
 	{
-		panic( "sched locks" );
+		// Only ptable.lock should be held
+		panic( "sched: number of locks" );
 	}
 
 	if ( p->state == RUNNING )
 	{
-		panic( "sched running" );
+		panic( "sched: running" );
 	}
 
 	if ( readeflags() & FL_IF )
 	{
-		panic( "sched interruptible" );
+		// Since a lock is held, the CPU should be running with interrupts disabled
+		panic( "sched: interruptible" );
 	}
 
+
+	// Save the process's interrupt enable state
 	intena = mycpu()->intena;
 
+	/* Context switch into the scheduler's kernel thread...
+
+	   swtch will save the current registers to p->context
+	   and restore those saved in cpu->scheduler
+
+	   From there, 'scheduler' will go on to schedule
+	   another process to run
+	*/
 	swtch( &p->context, mycpu()->scheduler );
 
+
+	// - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+
+	/* A call to:
+	     swtch( &( c->scheduler ), p->context )
+	   by the scheduler ends up here...
+	*/
+
+	// Restore the process's interrupt enable state
 	mycpu()->intena = intena;
 }
 
-// A fork child's very first scheduling by scheduler()
-// will swtch here. "Return" to user space.
+/* A fork child's very first scheduling by scheduler()
+   will 'swtch' here.
+   And then "return" to user-space via trapret.
+*/
+/* forkret exists to release the ptable.lock held
+   by the scheduler. Otherwise, the new process could
+   start at trapret
+*/
 void forkret ( void )
 {
 	static int first = 1;
@@ -661,7 +816,7 @@ void forkret ( void )
 // Give up the CPU for one scheduling round.
 void yield ( void )
 {
-	acquire( &ptable.lock );  //DOC: yieldlock
+	acquire( &ptable.lock );
 
 	myproc()->state = RUNNABLE;
 
@@ -670,8 +825,64 @@ void yield ( void )
 	release( &ptable.lock );
 }
 
-// Atomically release lock and sleep on chan.
-// Reacquires lock when awakened.
+
+// _________________________________________________________________________________
+
+/* Sleep and wakeup allow processes to intentionally interact.
+   One process can sleep to wait for an event, and another can
+   wake it up once the event has happened...
+*/
+
+/* Atomically release lock and sleeps on chan ??
+   Reacquires lock when awakened.
+*/
+/* Used to:
+    . implement 'sleep' system call
+    . implement sleeplocks
+    . wait on slow IO (disk, console)
+    . wait on pipe ends...
+    . wait on a child to exit
+
+   Instead of wasting CPU cycles polling for the occurence
+   of an event, a process can give up the CPU and sleep
+   waiting for the event. Another process can then wake it up
+   when the event occurs.
+*/
+/* Sleeps on the arbitrary value 'chan'.
+
+   Caller passes lock to sleep so that 'sleep' can release
+   the lock before sleeping, and reacquire it when
+   it wakes up... p.68
+
+   We need sleep to atomically release the lock and put
+   the process to sleep... ??
+
+   p.69 ...
+*/
+/* Sleep must always be called inside a loop that checks the
+   condition it is sleeping on.
+   For example:
+
+       while ( ( b->flags & ( B_VALID | B_DIRTY ) ) != B_VALID )
+       {
+            sleep( b, &idelock );
+       }
+
+    This handles two scenarios:
+    . If multiple processes are sleeping on a channel, a call to wakeup
+      will wake them all
+    . The first to run does its thing and may leave the sleep condition as
+      no longer true (for ex might read all the new data)
+    . In this case, despite being woken up, the condition is no longer
+      true for all the other processes
+    . From their perspective, the wakeup was "spurious"
+    . If inside a condition loop, they will sleep again
+
+    . The second scenario arises if two unrelated 'chan' are accidentally
+      the same value
+    . For the process that the wakeup was not intended for, it
+      will view the wakeup as spurious since the sleep condition is not met
+*/
 void sleep ( void* chan, struct spinlock* lk )
 {
 	struct proc* p = myproc();
@@ -683,18 +894,19 @@ void sleep ( void* chan, struct spinlock* lk )
 
 	if ( lk == 0 )
 	{
-		panic( "sleep without lk" );
+		panic( "sleep: without lk" );
 	}
 
-	// Must acquire ptable.lock in order to
-	// change p->state and then call sched.
-	// Once we hold ptable.lock, we can be
-	// guaranteed that we won't miss any wakeup
-	// (wakeup runs with ptable.lock locked),
-	// so it's okay to release lk.
-	if ( lk != &ptable.lock )  //DOC: sleeplock0
+	/* Must acquire ptable.lock in order to change p->state
+	   and then call sched.
+
+	   Once we hold ptable.lock, we can be guaranteed that we won't
+	   miss any wakeup since wakeup runs with ptable.lock locked.
+	   It is now safe to release lk... p.69
+	*/
+	if ( lk != &ptable.lock )
 	{
-		acquire( &ptable.lock );  //DOC: sleeplock1
+		acquire( &ptable.lock );
 
 		release( lk );
 	}
@@ -705,11 +917,16 @@ void sleep ( void* chan, struct spinlock* lk )
 
 	sched();
 
+
+	// - - - - - - - - - - - - - - - - -
+	// Continues from here after wakeup
+
+
 	// Tidy up.
 	p->chan = 0;
 
 	// Reacquire original lock.
-	if ( lk != &ptable.lock )  //DOC: sleeplock2
+	if ( lk != &ptable.lock )
 	{
 		release( &ptable.lock );
 
@@ -719,7 +936,9 @@ void sleep ( void* chan, struct spinlock* lk )
 
 // Wake up all processes sleeping on chan.
 // The ptable lock must be held.
-static void wakeup1 ( void *chan )
+/* Causes the processes's sleep calls to return.
+*/
+static void wakeup1 ( void* chan )
 {
 	struct proc* p;
 
@@ -740,38 +959,6 @@ void wakeup ( void* chan )
 	wakeup1( chan );
 
 	release( &ptable.lock );
-}
-
-// Kill the process with the given pid.
-// Process won't exit until it returns
-// to user space ( see trap in trap.c ).
-int kill ( int pid )
-{
-	struct proc* p;
-
-	acquire( &ptable.lock );
-
-	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
-	{
-		if ( p->pid == pid )
-		{
-			p->killed = 1;
-
-			// Wake process from sleep if necessary.
-			if( p->state == SLEEPING )
-			{
-				p->state = RUNNABLE;
-			}
-
-			release( &ptable.lock );
-
-			return 0;
-		}
-	}
-
-	release( &ptable.lock );
-
-	return - 1;
 }
 
 
@@ -821,7 +1008,7 @@ void procdump ( void )
 
 		if ( p->state == SLEEPING )
 		{
-			getcallerpcs( ( uint* )p->context->ebp + 2, pc );
+			getcallerpcs( ( uint* ) p->context->ebp + 2, pc );
 
 			cprintf( "call stack:\n" );
 

@@ -36,7 +36,8 @@
 
 struct gatedesc idt     [ 256 ];  // Interrupt descriptor table (shared by all CPUs).
 extern uint     vectors [];       // in vectors.S: array of 256 entry pointers
-struct spinlock tickslock;
+
+struct spinlock tickslock;        // Must hold tickslock when modifying ticks
 uint            ticks;            // Where is this initialized to 0?
 
 // Initialize IDT
@@ -219,4 +220,7 @@ void trap ( struct trapframe *tf )
 	{
 		exit();
 	}
+
+
+	// Returns to trapret
 }

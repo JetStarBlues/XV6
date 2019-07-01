@@ -8,7 +8,7 @@ struct cpu
 	volatile uint     started;        // Has the CPU started?
 	int               ncli;           // Depth of pushcli nesting.
 	int               intena;         // Were interrupts enabled before pushcli?
-	struct proc*      proc;           // The process running on this cpu or null
+	struct proc*      proc;           // The process currently running on this cpu or null
 };
 
 extern struct cpu cpus [ NCPU ];
@@ -18,7 +18,9 @@ extern int        ncpu;
 
    Unlike 'trapframe' don't need to save all registers:
      . segment registers (%cs, etc) - constant across kernel contexts
-     . %eax, %ecx, %edx - x86 convention is that the caller has saved them ??
+     . %eax, %ecx, %edx - x86 convention is that the caller has already
+                          saved them. The callee can modify them without
+                          needing to restore them to their previous state
 
    Contexts are stored at the bottom of the stack they
    describe; the stack pointer is the address of the context.

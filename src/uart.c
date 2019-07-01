@@ -19,7 +19,7 @@ static int uart;  // is there a uart?
 
 void uartinit ( void )
 {
-	char *p;
+	char* p;
 
 	// Turn off the FIFO
 	outb( COM1 + 2, 0 );
@@ -48,7 +48,6 @@ void uartinit ( void )
 	ioapicenable( IRQ_COM1, 0 );
 
 	// Announce that we're here.
-	// for ( p="xv6...\n"; *p; p++ )
 	for ( p = "xv6...\n\n"; *p; p += 1 )
 	{
 		uartputc( *p );
