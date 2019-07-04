@@ -27,7 +27,7 @@ static int argfd ( int n, int* pfd, struct file** pf )
 	}
 
 	// Check that valid file descriptor
-	if ( fd < 0 || fd >= NOFILE || ( f = myproc()->ofile[ fd ] ) == 0 )
+	if ( fd < 0 || fd >= NOPENFILE_PROC || ( f = myproc()->ofile[ fd ] ) == 0 )
 	{
 		return - 1;
 	}
@@ -54,7 +54,7 @@ static int fdalloc ( struct file* f )
 	struct proc* curproc = myproc();
 	int          fd;
 
-	for ( fd = 0; fd < NOFILE; fd += 1 )
+	for ( fd = 0; fd < NOPENFILE_PROC; fd += 1 )
 	{
 		if ( curproc->ofile[ fd ] == 0 )
 		{

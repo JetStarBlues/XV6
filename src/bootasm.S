@@ -4,12 +4,12 @@
 
 # Start the first CPU: switch to 32-bit protected mode, jump into C.
 # The BIOS loads this code from the first sector of the hard disk into
-# memory at physical address 0x7c00 and starts executing in real mode
-# with %cs=0 %ip=7c00.
+# memory at physical address 0x7C00 and starts executing in real mode
+# with %cs=0 %ip=0x7C00.
 
 .code16  # Assemble for 16-bit mode
 
-.globl start
+.globl start  # 0x7C00
 start:
 
 	# Disable interrupts on main CPU. (BIOS previously enabled interrutps)
@@ -71,8 +71,12 @@ start32:
 	movw    %ax, %fs                  # -> FS
 	movw    %ax, %gs                  # -> GS
 
-	# Set up the stack pointer and call into C.
+	# Set up the stack pointer
+	# %esp is set to 0x7C00. This is not a problem since
+	# the stack will grow downwards towards 0
 	movl    $start, %esp
+
+	# Call into the C portion of the bootblock
 	call    bootmain
 
 
@@ -84,6 +88,8 @@ start32:
 	movw    $0x8ae0, %ax  # 0x8ae0 -> port 0x8a00
 	outw    %ax, %dx
 
+# Before spinning, a real bootloader might try to print
+# an error message first.
 spin:
 
 	jmp     spin

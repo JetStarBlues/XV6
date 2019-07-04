@@ -1,9 +1,8 @@
 // On-disk file system format.
 // Both the kernel and user programs use this header file.
 
-
-#define ROOTINO 1    // root i-number
-#define BSIZE   512  // block size
+#define ROOTINUM   1    // root i-number
+#define BLOCKSIZE  512  // block size
 
 // Disk layout:
 // [ boot block | super block | log | inode blocks | free bit map | data blocks]
@@ -13,16 +12,16 @@
 struct superblock
 {
 	uint size;         // Size of file system image (blocks)
-	uint nblocks;      // Number of data blocks
 	uint ninodes;      // Number of inodes.
-	uint nlog;         // Number of log blocks
+	uint nlogblocks;   // Number of log blocks
+	uint ndatablocks;  // Number of data blocks
 	uint logstart;     // Block number of first log block
 	uint inodestart;   // Block number of first inode block
 	uint bmapstart;    // Block number of first free map block
 };
 
 #define NDIRECT   12
-#define NINDIRECT ( BSIZE / sizeof( uint ) )
+#define NINDIRECT ( BLOCKSIZE / sizeof( uint ) )
 #define MAXFILE   ( NDIRECT + NINDIRECT )
 
 // On-disk inode structure
@@ -37,19 +36,19 @@ struct dinode
 };
 
 // Inodes per block.
-#define IPB ( BSIZE / sizeof( struct dinode ) )
+#define INODES_PER_BLOCK ( BLOCKSIZE / sizeof( struct dinode ) )
 
 // Block containing inode i
-#define IBLOCK( i, sb ) ( ( i ) / IPB + sb.inodestart )
+#define IBLOCK( i, sb ) ( ( i ) / INODES_PER_BLOCK + sb.inodestart )
 
 // Bitmap bits per block
-#define BPB ( BSIZE * 8 )
+#define BITS_PER_BLOCK ( BLOCKSIZE * 8 )
 
 // Block of free map containing bit for block b
-// JK - Because FSSIZE is 1000 and BPB is 4096,
+// JK - Because FSSIZE is 1000 blocks and BITS_PER_BLOCK is 4096,
 //      this will always evaluate to 0 + sb.bmapstart
 //      i.e. one bitmap block
-#define BBLOCK( b, sb ) ( b / BPB + sb.bmapstart )
+#define BBLOCK( b, sb ) ( b / BITS_PER_BLOCK + sb.bmapstart )
 
 // Directory is a file containing a sequence of dirent structures.
 #define DIRNAMESZ 14

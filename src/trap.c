@@ -200,8 +200,8 @@ void trap ( struct trapframe *tf )
 
 
 	// Force process exit if it has been killed and is in user space.
-	// (If it is still executing in the kernel, let it keep running
-	// until it gets to the regular system call return.)
+	// If it is still executing in the kernel, let it keep running
+	// until it gets to the regular system call return.
 	if ( myproc() && myproc()->killed && ( tf->cs & 3 ) == DPL_USER )
 	{
 		exit();

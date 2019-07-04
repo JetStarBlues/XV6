@@ -12,7 +12,7 @@ static void mpmain      ( void )  __attribute__( ( noreturn ) );
 extern pde_t* kpgdir;
 extern char   end [];  // first address after kernel loaded from ELF file
 
-// Bootstrap processor starts running C code here.
+// Bootstrap CPU starts running C code here.
 // Allocate a real stack and switch to it, first
 // doing some setup required for memory allocator to work.
 int main ( void )
@@ -20,7 +20,7 @@ int main ( void )
 	kinit1( end, P2V( 4 * 1024 * 1024 ) );  // ?..4MB  ?? phys page allocator
 
 	kvmalloc();      // kernel page table
-	mpinit();        // detect other processors
+	mpinit();        // detect other CPUs
 	lapicinit();     // interrupt controller
 	seginit();       // segment descriptors
 	picinit();       // disable pic
@@ -32,12 +32,18 @@ int main ( void )
 	binit();         // buffer cache
 	fileinit();      // file table
 	ideinit();       // disk 
-	startothers();   // start other processors
+	startothers();   // start other CPUs
 
 	kinit2( P2V( 4 * 1024 * 1024 ), P2V( PHYSTOP ) );  // 4MB..PHYSTOP  ?? must come after startothers()
 
 	userinit();      // create first user process
-	mpmain();        // finish this processor's setup
+	mpmain();        // finish this CPU's setup
+
+	/* The following are initialized by the first process:
+
+	   iinit( ROOTDEV );    // ...
+	   initlog( ROOTDEV );  // initialize log. Recover file system if necessary
+	*/
 }
 
 // Other CPUs jump here from entryother.S.
@@ -100,11 +106,11 @@ static void startothers ( void )
 		// is running in low memory, so we use entrypgdir for the APs too.
 		stack = kalloc();
 
-		*( void** )( code - 4 ) = stack + KSTACKSIZE;  // ?
+		*( void** ) ( code - 4 ) = stack + KSTACKSIZE;  // ?
 
-		*( void( ** )( void ) )( code - 8 ) = mpenter;
+		*( void ( ** ) ( void ) ) ( code - 8 ) = mpenter;
 
-		*( int** )( code - 12 ) = ( void* ) V2P( entrypgdir );  // pdgdir to use
+		*( int** ) ( code - 12 ) = ( void* ) V2P( entrypgdir );  // pdgdir to use
 
 		lapicstartap( c->apicid, V2P( code ) );
 

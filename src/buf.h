@@ -1,24 +1,24 @@
 struct buf {
 
-	int               flags;           // ?
+	int               flags;           // valid, dirty
 	uint              dev;             // device number ??
 	uint              blockno;         // block number
 
-	/* This lock is used for ... ??
+	/* The per-buffer sleeplock is used to ensure that only
+	   one thread/processes at a time uses each buffer.
+	   That is, it serializes what would otherwise be
+	   concurrent access.
 	*/
 	struct sleeplock  lock;
 
-	uint              refcnt;          // ?
+	uint              refcnt;              // ?
 
-	// ...
-	struct buf       *prev;            // LRU cache list
-	struct buf       *next;            // MRU cache list
+	struct buf       *prev;                // buffer cache linked list
+	struct buf       *next;                // buffer cache linked list
 
-	// ...
-	struct buf       *qnext;           // disk queue
+	struct buf       *qnext;               // disk queue
 
-	// ...
-	uchar             data [ BSIZE ];  // in-memory copy of disk contents
+	uchar             data [ BLOCKSIZE ];  // in-memory copy of disk contents
 };
 
 #define B_VALID 0x2  // buffer has been read from disk

@@ -23,10 +23,10 @@ static uchar* memdisk;
 void ideinit ( void )
 {
 	// memdisk  = _binary_fs_img_start;
-	// disksize = ( uint )_binary_fs_img_size / BSIZE;
+	// disksize = ( uint )_binary_fs_img_size / BLOCKSIZE;
 
-	memdisk  = _binary_img_fs_img_start;                 // JK, new path
-	disksize = ( uint )_binary_img_fs_img_size / BSIZE;  // JK, new path
+	memdisk  = _binary_img_fs_img_start;                     // JK, new path
+	disksize = ( uint )_binary_img_fs_img_size / BLOCKSIZE;  // JK, new path
 }
 
 // Interrupt handler
@@ -63,17 +63,17 @@ void iderw ( struct buf* b )
 	}
 
 
-	p = memdisk + b->blockno * BSIZE;
+	p = memdisk + b->blockno * BLOCKSIZE;
 
 	if ( b->flags & B_DIRTY )
 	{
 		b->flags &= ~ B_DIRTY;
 
-		memmove( p, b->data, BSIZE );
+		memmove( p, b->data, BLOCKSIZE );
 	}
 	else
 	{
-		memmove( b->data, p, BSIZE );
+		memmove( b->data, p, BLOCKSIZE );
 	}
 
 	b->flags |= B_VALID;

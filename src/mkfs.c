@@ -27,16 +27,17 @@
 
 // Disk layout:
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
+// 1 fs block equals 1 disk sector
 
-int nbitmap      = FSSIZE / ( BSIZE * 8 ) + 1;
-int ninodeblocks = ( NINODES / IPB ) + 1;
-int nlog         = LOGSIZE;
-int nmeta;     // Number of meta blocks ( boot, sb, nlog, inode, bitmap )
-int nblocks;   // Number of data blocks
+int nlogblocks,     // Number of log blocks 
+    ninodeblocks,   // Number of inode blocks 
+    nbitmapblocks,  // Number of bitmap blocks 
+    nmeta,          // Number of meta blocks ( boot, sb, log, inode, bitmap )
+    ndatablocks;    // Number of data blocks
 
 int               fsfd;
 struct superblock sb;
-char              zeroes [ BSIZE ];
+char              zeroes [ BLOCKSIZE ];
 uint              freeinode;
 uint              freeblock;
 
@@ -44,10 +45,10 @@ uint              freeblock;
 void balloc  ( int );
 void wsect   ( uint, void* );
 void winode  ( uint, struct dinode* );
-void rinode  ( uint inum, struct dinode *ip );
-void rsect   ( uint sec, void *buf );
+void rinode  ( uint inum, struct dinode* ip );
+void rsect   ( uint sec, void* buf );
 uint ialloc  ( ushort type );
-void iappend ( uint inum, void *p, int n );
+void iappend ( uint inum, void* p, int n );
 
 void addDirectoryEntry ( int, char*, int );
 void addFile           ( int, char* );
@@ -62,7 +63,7 @@ ushort xshort ( ushort x )
 {
 	ushort y;
 
-	uchar *a = ( uchar* )&y;
+	uchar *a = ( uchar* ) &y;
 
 	a[ 0 ] = x;
 	a[ 1 ] = x >> 8;
@@ -74,7 +75,7 @@ uint xint ( uint x )
 {
 	uint y;
 
-	uchar *a = ( uchar* )&y;
+	uchar *a = ( uchar* ) &y;
 
 	a[ 0 ] = x;
 	a[ 1 ] = x >> 8;
@@ -87,16 +88,14 @@ uint xint ( uint x )
 
 // ___________________________________________________________________
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv[] )
 {
 	int           i;
-	uint          rootino,
+	uint          root_inum,
 	              off;
-	char          buf [ BSIZE ];
+	char          buf [ BLOCKSIZE ];
 	struct dinode din;
 
-
-	static_assert( sizeof( int ) == 4, "Integers must be 4 bytes!" );
 
 	if ( argc < 2 )
 	{
@@ -105,8 +104,11 @@ int main ( int argc, char *argv[] )
 		exit( 1 );
 	}
 
-	assert( ( BSIZE % sizeof( struct dinode ) ) == 0 );
-	assert( ( BSIZE % sizeof( struct xv6_dirent ) ) == 0 );
+	static_assert( sizeof( int ) == 4, "Integers must be 4 bytes!" );
+
+	assert( ( BLOCKSIZE % sizeof( struct dinode ) ) == 0 );
+	assert( ( BLOCKSIZE % sizeof( struct xv6_dirent ) ) == 0 );
+
 
 	// Open fs.img
 	fsfd = open( argv[ 1 ], O_RDWR | O_CREAT | O_TRUNC, 0666 );
@@ -118,18 +120,23 @@ int main ( int argc, char *argv[] )
 		exit( 1 );
 	}
 
-	// 1 fs block == 1 disk sector
-	nmeta = 2 + nlog + ninodeblocks + nbitmap;
 
-	nblocks = FSSIZE - nmeta;
+	// Prepare superblock
+	nbitmapblocks = FSSIZE / ( BLOCKSIZE * 8 ) + 1;
+	ninodeblocks  = ( NINODES / INODES_PER_BLOCK ) + 1;
+	nlogblocks    = LOGSIZE;
 
-	sb.size       = xint( FSSIZE );
-	sb.nblocks    = xint( nblocks );
-	sb.ninodes    = xint( NINODES );  // why not ninodeblocks ??
-	sb.nlog       = xint( nlog );
-	sb.logstart   = xint( 2 );
-	sb.inodestart = xint( 2 + nlog );
-	sb.bmapstart  = xint( 2 + nlog + ninodeblocks );
+	nmeta = 2 + nlogblocks + ninodeblocks + nbitmapblocks;
+
+	ndatablocks = FSSIZE - nmeta;
+
+	sb.size        = xint( FSSIZE );
+	sb.ndatablocks = xint( ndatablocks );
+	sb.ninodes     = xint( NINODES );
+	sb.nlogblocks  = xint( nlogblocks );
+	sb.logstart    = xint( 2 );
+	sb.inodestart  = xint( 2 + nlogblocks );
+	sb.bmapstart   = xint( 2 + nlogblocks + ninodeblocks );
 
 	printf(
 
@@ -142,18 +149,25 @@ int main ( int argc, char *argv[] )
 		"data blocks  %d\n"
 		"total blocks %d\n\n",
 
-		nmeta, nlog, ninodeblocks, nbitmap,
-		nblocks, FSSIZE 
+		nmeta, nlogblocks, ninodeblocks, nbitmapblocks,
+		ndatablocks, FSSIZE 
 	);
 
 	// the first free block that we can allocate
 	freeblock = nmeta;
+
+	// Start value for inode numbers
+	//  0 - reserved for ??
+	//  1 - root directory
+	freeinode = 1;
+
 
 	// Write zeroes to entire fs ??
 	for ( i = 0; i < FSSIZE; i += 1 )
 	{
 		wsect( i, zeroes );
 	}
+
 
 	// Write super block
 	memset( buf, 0, sizeof( buf ) );
@@ -163,38 +177,32 @@ int main ( int argc, char *argv[] )
 	wsect( 1, buf );
 
 
-	// Start value for inode numbers
-	//  0 - reserved for ??
-	//  1 - root directory
-	freeinode = 1;
-
-
 	// Create root inode
-	rootino = ialloc( T_DIR );
+	root_inum = ialloc( T_DIR );
 
-	assert( rootino == ROOTINO );
+	assert( root_inum == ROOTINUM );
 
 
 	// Create "." directory entry for root
-	addDirectoryEntry( rootino, ".", rootino );
+	addDirectoryEntry( root_inum, ".", root_inum );
 
 	// Create ".." directory entry for root
-	addDirectoryEntry( rootino, "..", rootino );
+	addDirectoryEntry( root_inum, "..", root_inum );
 
 
 	// Clone an exisiting directory
-	addDirectory( rootino, argv[ 2 ] );
+	addDirectory( root_inum, argv[ 2 ] );
 
 
 	// Fix size of root inode dir ??
-	rinode( rootino, &din );
+	rinode( root_inum, &din );
 
 	off = xint( din.size );
-	off = ( ( off / BSIZE ) + 1 ) * BSIZE;
+	off = ( ( off / BLOCKSIZE ) + 1 ) * BLOCKSIZE;
 
 	din.size = xint( off );
 
-	winode( rootino, &din );
+	winode( root_inum, &din );
 
 
 	// Create bitmap
@@ -213,46 +221,46 @@ int main ( int argc, char *argv[] )
 */
 
 // Add the given filename and i-number as a directory entry
-void addDirectoryEntry ( int dirino, char *name, int fileino )
+void addDirectoryEntry ( int dir_inum, char* name, int file_inum )
 {
 	struct xv6_dirent de;
 
 	bzero( &de, sizeof( de ) );
 
-	de.inum = xshort( fileino );
+	de.inum = xshort( file_inum );
 
 	strncpy( de.name, name, DIRNAMESZ );
 
-	iappend( dirino, &de, sizeof( de ) );
+	iappend( dir_inum, &de, sizeof( de ) );
 }
 
 /* Make a new directory entry in the directory specified by
    the given i-number. Return the new directory's i-number
 */
-int makeDirectory ( int parentdirino, char *newdirname )
+int makeDirectory ( int parentdir_inum, char* newdir_name )
 {
-	int newdirino;
+	int newdir_inum;
 
 	// Allocate an inode number for the directory
-	newdirino = ialloc( T_DIR );
+	newdir_inum = ialloc( T_DIR );
 
 	// Set up the "." and ".." entries
-	addDirectoryEntry( newdirino, ".",  newdirino );     // self
-	addDirectoryEntry( newdirino, "..", parentdirino );  // parent
+	addDirectoryEntry( newdir_inum, ".",  newdir_inum );     // self
+	addDirectoryEntry( newdir_inum, "..", parentdir_inum );  // parent
 
 	// Add the new directory to the parent directory
-	addDirectoryEntry( parentdirino, newdirname, newdirino );
+	addDirectoryEntry( parentdir_inum, newdir_name, newdir_inum );
 
-	return newdirino;
+	return newdir_inum;
 }
 
 // Add a file to the directory specified by the given i-number
-void addFile ( int dirino, char *filename )
+void addFile ( int dir_inum, char* filename )
 {
-	char buf [ BSIZE ];
+	char buf [ BLOCKSIZE ];
 	int  cc,
 	     fd,
-	     inum;
+	     file_inum;
 
 	// Open the file
 	if ( ( fd = open( filename, 0 ) ) < 0 )
@@ -263,15 +271,15 @@ void addFile ( int dirino, char *filename )
 	}
 
 	// Create an i-node for the file
-	inum = ialloc( T_FILE );
+	file_inum = ialloc( T_FILE );
 
 	// Create a directory entry for the file
-	addDirectoryEntry( dirino, filename, inum );
+	addDirectoryEntry( dir_inum, filename, file_inum );
 
 	// Write the file's contents to the inode's data blocks
 	while ( ( cc = read( fd, buf, sizeof( buf ) ) ) > 0 )
 	{
-		iappend( inum, buf, cc );
+		iappend( file_inum, buf, cc );
 	}
 
 	close( fd );
@@ -281,12 +289,12 @@ void addFile ( int dirino, char *filename )
    on the image, add all the files from the local directory
    to the on-image directory.
 */
-void addDirectory ( int dirino, char *localdirname )
+void addDirectory ( int dir_inum, char* localdirname )
 {
-	DIR           *dir;
-	struct dirent *dent;
+	DIR*           dir;
+	struct dirent* dent;
 	struct stat    st;
-	int            newdirino;
+	int            newdir_inum;
 
 	dir = opendir( localdirname );
 
@@ -324,14 +332,14 @@ void addDirectory ( int dirino, char *localdirname )
 		// File is a directory
 		if ( S_ISDIR( st.st_mode ) )
 		{
-			newdirino = makeDirectory( dirino, dent->d_name );
+			newdir_inum = makeDirectory( dir_inum, dent->d_name );
 
-			addDirectory( newdirino, dent->d_name );
+			addDirectory( newdir_inum, dent->d_name );
 		}
 		// File is a regular file
 		else if ( S_ISREG( st.st_mode ) )
 		{
-			addFile( dirino, dent->d_name );
+			addFile( dir_inum, dent->d_name );
 		}
 	}
 
@@ -343,16 +351,16 @@ void addDirectory ( int dirino, char *localdirname )
 
 // ___________________________________________________________________
 
-void wsect ( uint sec, void *buf )
+void wsect ( uint sec, void* buf )
 {
-	if ( lseek( fsfd, sec * BSIZE, 0 ) != sec * BSIZE )
+	if ( lseek( fsfd, sec * BLOCKSIZE, 0 ) != sec * BLOCKSIZE )
 	{
 		perror( "lseek" );
 
 		exit( 1 );
 	}
 
-	if ( write( fsfd, buf, BSIZE ) != BSIZE )
+	if ( write( fsfd, buf, BLOCKSIZE ) != BLOCKSIZE )
 	{
 		perror( "write" );
 
@@ -360,15 +368,15 @@ void wsect ( uint sec, void *buf )
 	}
 }
 
-void rsect ( uint sec, void *buf )
+void rsect ( uint sec, void* buf )
 {
-	if ( lseek( fsfd, sec * BSIZE, 0 ) != sec * BSIZE )
+	if ( lseek( fsfd, sec * BLOCKSIZE, 0 ) != sec * BLOCKSIZE )
 	{
 		perror( "lseek" );
 
 		exit( 1 );
 	}
-	if ( read( fsfd, buf, BSIZE ) != BSIZE )
+	if ( read( fsfd, buf, BLOCKSIZE ) != BLOCKSIZE )
 	{
 		perror( "read" );
 
@@ -376,34 +384,34 @@ void rsect ( uint sec, void *buf )
 	}
 }
 
-void winode ( uint inum, struct dinode *ip )
+void winode ( uint inum, struct dinode* ip )
 {
-	char           buf [ BSIZE ];
+	char           buf [ BLOCKSIZE ];
 	uint           bn;
-	struct dinode *dip;
+	struct dinode* dip;
 
 	bn = IBLOCK( inum, sb );
 
 	rsect( bn, buf );
 
-	dip = ( ( struct dinode* )buf ) + ( inum % IPB );
+	dip = ( ( struct dinode* ) buf ) + ( inum % INODES_PER_BLOCK );
 
 	*dip = *ip;
 
 	wsect( bn, buf );
 }
 
-void rinode ( uint inum, struct dinode *ip )
+void rinode ( uint inum, struct dinode* ip )
 {
-	char           buf [ BSIZE ];
+	char           buf [ BLOCKSIZE ];
 	uint           bn;
-	struct dinode *dip;
+	struct dinode* dip;
 
 	bn = IBLOCK( inum, sb );
 
 	rsect( bn, buf );
 
-	dip = ( ( struct dinode* )buf ) + ( inum % IPB );
+	dip = ( ( struct dinode* ) buf ) + ( inum % INODES_PER_BLOCK );
 
 	*ip = *dip;
 }
@@ -433,14 +441,14 @@ uint ialloc ( ushort type )
 
 void balloc ( int used )
 {
-	uchar buf [ BSIZE ];
+	uchar buf [ BLOCKSIZE ];
 	int   i;
 
 	printf( "balloc: first %d blocks have been allocated\n", used );
 
-	assert( used < BSIZE * 8 );
+	assert( used < BLOCKSIZE * 8 );
 
-	bzero( buf, BSIZE );  // clear all bits
+	bzero( buf, BLOCKSIZE );  // clear all bits
 
 	for ( i = 0; i < used; i += 1 )
 	{
@@ -454,15 +462,15 @@ void balloc ( int used )
 
 #define min( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
-void iappend ( uint inum, void *xp, int n )
+void iappend ( uint inum, void* xp, int n )
 {
-	char *p = ( char* )xp;
+	char* p = ( char* ) xp;
 	uint  fbn,
 	      off,
 	      n1;
 
 	struct dinode  din;
-	char           buf [ BSIZE ];
+	char           buf [ BLOCKSIZE ];
 	uint           indirect [ NINDIRECT ];
 	uint           x;
 
@@ -474,7 +482,7 @@ void iappend ( uint inum, void *xp, int n )
 
 	while ( n > 0 )
 	{
-		fbn = off / BSIZE;
+		fbn = off / BLOCKSIZE;
 
 		assert( fbn < MAXFILE );
 
@@ -502,7 +510,7 @@ void iappend ( uint inum, void *xp, int n )
 			}
 
 			// Block pointed to by indirect block
-			rsect( xint( din.addrs[ NDIRECT ] ), ( char* )indirect );
+			rsect( xint( din.addrs[ NDIRECT ] ), ( char* ) indirect );
 
 			if ( indirect[ fbn - NDIRECT ] == 0 )
 			{
@@ -510,17 +518,17 @@ void iappend ( uint inum, void *xp, int n )
 
 				freeblock += 1;
 
-				wsect( xint( din.addrs[ NDIRECT ] ), ( char* )indirect );
+				wsect( xint( din.addrs[ NDIRECT ] ), ( char* ) indirect );
 			}
 
 			x = xint( indirect[fbn - NDIRECT] );
 		}
 
-		n1 = min( n, ( fbn + 1 ) * BSIZE - off );
+		n1 = min( n, ( fbn + 1 ) * BLOCKSIZE - off );
 
 		rsect( x, buf );
 
-		bcopy( p, buf + off - ( fbn * BSIZE ), n1 );
+		bcopy( p, buf + off - ( fbn * BLOCKSIZE ), n1 );
 
 		wsect( x, buf );
 

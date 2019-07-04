@@ -1,13 +1,60 @@
-// File system implementation.  Five layers:
-//   + Blocks: allocator for raw disk blocks.
-//   + Log: crash recovery for multi-step updates.
-//   + Files: inode allocator, reading, writing, metadata.
-//   + Directories: inode with special contents ( list of other inodes! )
-//   + Names: paths like /usr/rtm/xv6/fs.c for convenient naming.
+// File system implementation. Five layers:
+//   + Blocks      : allocator for raw disk blocks.
+//   + Log         : crash recovery for multi-step updates.
+//   + Files       : inode allocator, reading, writing, metadata.
+//   + Directories : inode with special contents (list of other inodes!)
+//   + Names       : paths like /usr/rtm/xv6/fs.c for convenient naming.
 //
 // This file contains the low-level file system manipulation
-// routines.  The ( higher-level ) system call implementations
+// routines. The (higher-level) system call implementations
 // are in sysfile.c.
+
+/* The xv6 file system addresses the following challenges:
+     . support for crash recovery
+     . support for different processes operating on the fs at the same time
+     . in-memory cache of popular blocks, because disk access is slow
+
+   Seven layers ??
+     . file descriptor : Abstracts many Unix resources (ex. pipes, devices,
+                          files) using the fs interface
+     . pathname        : Provides hiearchical path names like "/usr/bin/cats"
+                          and resolves them with recursive lookup
+     . directory       : Implements directories as a special kind of inode
+                          whose content is a sequence of directory entries,
+                          each of which contains a file's name and i-number
+     . inode           : Provides individual files, each represented as an
+                          inode with a unique i-number and some blocks
+                          holding the file's data
+     . logging         : Allows updates to several blocks to be wrapped into
+                          a transaction. Ensures that the blocks in a
+                          transaction are updated atomically in the face of
+                          crashes (i.e. all are updated or none)
+     . buffer cache    : Caches disk blocks and synchronizes access to them,
+                          making sure that only one kernel process at a time
+                          can modify the data stored in any particular block
+     . disk            : Reads and writes blocks to a disk
+
+
+   Disk contents:
+ 
+       -------
+       boot     block 0  // Why? If fs.img and xv6.img (bootblock + kernel) are separate
+       -------
+       super    block 1
+       -------
+       log      block 2..w
+       ...
+       -------
+       inodes   block w..x
+       ...
+       -------
+       bitmap   block x..y
+       ...
+       -------
+       data     block y..z
+       ...
+       -------
+*/
 
 #include "types.h"
 #include "defs.h"
@@ -48,7 +95,7 @@ static void bzero ( int dev, int bno )
 
 	bp = bread( dev, bno );
 
-	memset( bp->data, 0, BSIZE );
+	memset( bp->data, 0, BLOCKSIZE );
 
 	log_write( bp );
 
@@ -70,11 +117,11 @@ static uint balloc ( uint dev )
 
 	bp = 0;
 
-	for ( b = 0; b < sb.size; b += BPB )  // for every block in the fs
+	for ( b = 0; b < sb.size; b += BITS_PER_BLOCK )  // for every block in the fs
 	{
 		bp = bread( dev, BBLOCK( b, sb ) );  // get the corresponding bitmap block
 
-		for ( bidx = 0; bidx < BPB && ( b + bidx < sb.size ); bidx += 1 )  // for every bit in the bitmap block
+		for ( bidx = 0; bidx < BITS_PER_BLOCK && ( b + bidx < sb.size ); bidx += 1 )  // for every bit in the bitmap block
 		{
 			bitmask = 1 << ( bidx % 8 );
 
@@ -109,7 +156,7 @@ static void bfree ( int dev, uint b )
 
 	bp = bread( dev, BBLOCK( b, sb ) );
 
-	bidx = b % BPB;
+	bidx = b % BITS_PER_BLOCK;
 
 	bitmask = 1 << ( bidx % 8 );
 
@@ -222,27 +269,27 @@ void iinit ( int dev )
 	/*cprintf(
 
 		"superblock:\n"
-		"    size       %d\n"
-		"    nblocks    %d\n"
-		"    ninodes    %d\n"
-		"    nlog       %d\n"
-		"    logstart   %d\n"
-		"    inodestart %d\n"
-		"    bmapstart  %d\n\n",
+		"    size        %d\n"
+		"    nlogblocks  %d\n"
+		"    ninodes     %d\n"
+		"    ndatablocks %d\n"
+		"    logstart    %d\n"
+		"    inodestart  %d\n"
+		"    bmapstart   %d\n\n",
 
-		sb.size, sb.nblocks, sb.ninodes, sb.nlog,
+		sb.size, sb.ndatablocks, sb.ninodes, sb.nlogblocks,
 		sb.logstart, sb.inodestart, sb.bmapstart
 	);*/
 
 	cprintf( "superblock:\n" );
-	cprintf( "    size (total blocks) %d\n",   sb.size       );
-	cprintf( "    nblocks(data)       %d\n",   sb.nblocks    );
-	cprintf( "    ninodes             %d\n",   sb.ninodes    );
-	cprintf( "    ninodeblocks        %d\n",   ( sb.ninodes / IPB ) + 1 );
-	cprintf( "    nlog(blocks)        %d\n",   sb.nlog       );
-	cprintf( "    logstart            %d\n",   sb.logstart   );
-	cprintf( "    inodestart          %d\n",   sb.inodestart );
-	cprintf( "    bmapstart           %d\n\n", sb.bmapstart  );
+	cprintf( "    size (total blocks) %d\n",   sb.size                               );
+	cprintf( "    ninodes             %d\n",   sb.ninodes                            );
+	cprintf( "    ninodeblocks        %d\n",   ( sb.ninodes / INODES_PER_BLOCK ) + 1 );
+	cprintf( "    nlogblocks          %d\n",   sb.nlogblocks                         );
+	cprintf( "    ndatablocks         %d\n",   sb.ndatablocks                        );
+	cprintf( "    logstart            %d\n",   sb.logstart                           );
+	cprintf( "    inodestart          %d\n",   sb.inodestart                         );
+	cprintf( "    bmapstart           %d\n\n", sb.bmapstart                          );
 }
 
 static struct inode* iget ( uint dev, uint inum );
@@ -260,7 +307,7 @@ struct inode* ialloc ( uint dev, short type )
 	{
 		bp = bread( dev, IBLOCK( inum, sb ) );
 
-		dip = ( struct dinode* ) bp->data + ( inum % IPB );
+		dip = ( struct dinode* ) bp->data + ( inum % INODES_PER_BLOCK );
 
 		// a free inode
 		if ( dip->type == 0 )
@@ -293,7 +340,7 @@ void iupdate ( struct inode* ip )
 
 	bp = bread( ip->dev, IBLOCK( ip->inum, sb ) );
 
-	dip = ( struct dinode* ) bp->data + ( ip->inum % IPB );
+	dip = ( struct dinode* ) bp->data + ( ip->inum % INODES_PER_BLOCK );
 
 	dip->type  = ip->type;
 	dip->major = ip->major;
@@ -387,7 +434,7 @@ void ilock ( struct inode* ip )
 	{
 		bp = bread( ip->dev, IBLOCK( ip->inum, sb ) );
 
-		dip = ( struct dinode* ) bp->data + ( ip->inum % IPB );
+		dip = ( struct dinode* ) bp->data + ( ip->inum % INODES_PER_BLOCK );
 
 		ip->type  = dip->type;
 		ip->major = dip->major;
@@ -472,7 +519,7 @@ void iunlockput ( struct inode* ip )
 // The content (data) associated with each inode is stored
 // in blocks on the disk. The first NDIRECT block numbers
 // are listed in ip->addrs[]. The next NINDIRECT blocks are
-// listed in block ip->addrs[NDIRECT].
+// listed in block ip->addrs[ NDIRECT ].
 
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
@@ -560,7 +607,7 @@ void itrunc ( struct inode* ip )  // JK - make public so can use for O_TRUNC...
 	{
 		bp = bread( ip->dev, ip->addrs[ NDIRECT ] );
 
-		a = ( uint* )bp->data;
+		a = ( uint* ) bp->data;
 
 		for ( j = 0; j < NINDIRECT; j += 1 )
 		{
@@ -627,11 +674,11 @@ int readi ( struct inode* ip, char* dst, uint off, uint n )
 	// Copy data from inode data blocks to dst
 	for ( tot = 0; tot < n; tot += m )
 	{
-		bp = bread( ip->dev, bmap( ip, off / BSIZE ) );
+		bp = bread( ip->dev, bmap( ip, off / BLOCKSIZE ) );
 
-		m = min( n - tot, BSIZE - ( off % BSIZE ) );
+		m = min( n - tot, BLOCKSIZE - ( off % BLOCKSIZE ) );
 
-		memmove( dst, bp->data + ( off % BSIZE ), m );
+		memmove( dst, bp->data + ( off % BLOCKSIZE ), m );
 
 		brelse( bp );
 
@@ -667,7 +714,7 @@ int writei ( struct inode* ip, char* src, uint off, uint n )
 	}
 
 	// Write grows beyond maximum file size
-	if ( off + n > MAXFILE * BSIZE )
+	if ( off + n > MAXFILE * BLOCKSIZE )
 	{
 		return - 1;
 	}
@@ -675,11 +722,11 @@ int writei ( struct inode* ip, char* src, uint off, uint n )
 	// Copy data from src to inode data blocks
 	for ( tot = 0; tot < n; tot += m )
 	{
-		bp = bread( ip->dev, bmap( ip, off / BSIZE ) );
+		bp = bread( ip->dev, bmap( ip, off / BLOCKSIZE ) );
 
-		m = min( n - tot, BSIZE - ( off % BSIZE ) );
+		m = min( n - tot, BLOCKSIZE - ( off % BLOCKSIZE ) );
 
-		memmove( bp->data + ( off % BSIZE ), src, m );
+		memmove( bp->data + ( off % BLOCKSIZE ), src, m );
 
 		log_write( bp );
 
@@ -875,7 +922,7 @@ static struct inode* namex ( char* path, int nameiparent, char* name )
 	// Choose starting point
 	if ( *path == '/' )
 	{
-		ip = iget( ROOTDEV, ROOTINO );
+		ip = iget( ROOTDEV, ROOTINUM );
 	}
 	else
 	{

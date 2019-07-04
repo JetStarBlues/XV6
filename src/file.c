@@ -20,7 +20,7 @@ struct {
 	*/
 	struct spinlock lock;
 
-	struct file     file [ NFILE ];
+	struct file     file [ NOPENFILE_SYS ];
 
 } ftable;
 
@@ -36,7 +36,7 @@ struct file* filealloc ( void )
 
 	acquire( &ftable.lock );
 
-	for ( f = ftable.file; f < ftable.file + NFILE; f += 1 )
+	for ( f = ftable.file; f < ftable.file + NOPENFILE_SYS; f += 1 )
 	{
 		if ( f->ref == 0 )
 		{
@@ -184,8 +184,7 @@ int filewrite ( struct file* f, char* addr, int n )
 		// and 2 blocks of slop for non-aligned writes.
 		// this really belongs lower down, since writei()
 		// might be writing a device like the console.
-		int max = ( ( MAXOPBLOCKS - 1 - 1 - 2 ) / 2 ) * BSIZE;
-		// int max = ( ( MAXOPBLOCKS - 1 - 1 - 2 ) / 2 ) * 512;
+		int max = ( ( MAXOPBLOCKS - 1 - 1 - 2 ) / 2 ) * BLOCKSIZE;
 		int i   = 0;
 
 		while ( i < n )

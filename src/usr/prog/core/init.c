@@ -62,7 +62,8 @@ int main ( void )
 		   Why do we not wait for the shell (pid 0)?
 		   If we cleanup while shell is running in child, we can handle its
 		   abandoned children immediately ??
-
+		*/
+		/*
 		   Only the parent (init) reaches this code section because
 		   exec never returns if successful. If it fails, the child
 		   calls 'exit', so it still won't reach here.
@@ -71,7 +72,7 @@ int main ( void )
 		{
 			printf( 1, "zombie!\n" );
 
-			/* Why does init handle processes abandoned inirectly by child?
+			/* Why does init handle processes abandoned indirectly by child?
 			   For example, why does it handle grandchildren abandoned by
 			   sh's children?
 			   Is this because of the while loop iterating through all

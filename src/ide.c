@@ -105,7 +105,7 @@ static void idestart ( struct buf* b )
 		panic( "idestart: incorrect blockno" );
 	}
 
-	int sector_per_block = BSIZE / SECTOR_SIZE;
+	int sector_per_block = BLOCKSIZE / SECTOR_SIZE;
 
 	int sector = b->blockno * sector_per_block;
 
@@ -133,7 +133,7 @@ static void idestart ( struct buf* b )
 	if ( b->flags & B_DIRTY )
 	{
 		outb( 0x1f7, write_cmd );
-		outsl( 0x1f0, b->data, BSIZE / 4 );
+		outsl( 0x1f0, b->data, BLOCKSIZE / 4 );
 	}
 	// If the operation is a read, the interrupt will signal that the
 	// data is ready and the handler ('ideintr') will read it.
@@ -168,7 +168,7 @@ void ideintr ( void )
 	*/
 	if ( ! ( b->flags & B_DIRTY ) && idewait( 1 ) >= 0 )
 	{
-		insl( 0x1f0, b->data, BSIZE / 4 );
+		insl( 0x1f0, b->data, BLOCKSIZE / 4 );
 	}
 
 

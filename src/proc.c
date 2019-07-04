@@ -407,7 +407,7 @@ int fork ( void )
 	np->tf->eax = 0;
 
 	// Copy file descriptors
-	for ( i = 0; i < NOFILE; i += 1 )
+	for ( i = 0; i < NOPENFILE_PROC; i += 1 )
 	{
 		if ( curproc->ofile[ i ] )
 		{
@@ -522,7 +522,7 @@ void exit ( void )
 	}
 
 	// Close all open files.
-	for ( fd = 0; fd < NOFILE; fd += 1 )
+	for ( fd = 0; fd < NOPENFILE_PROC; fd += 1 )
 	{
 		if ( curproc->ofile[ fd ] )
 		{
@@ -802,9 +802,8 @@ void forkret ( void )
 		// be run from main().
 		first = 0;
 
-		iinit( ROOTDEV );
-
-		initlog( ROOTDEV );
+		iinit( ROOTDEV );    // ...
+		initlog( ROOTDEV );  // initialize log. Recover file system if necessary
 	}
 
 	// Return to "caller", actually trapret (see allocproc).
@@ -856,6 +855,7 @@ void yield ( void )
 
    We need sleep to atomically release the lock and put
    the process to sleep... ??
+   By holding ptable.lock, we ensure atomicity because fkdslfdf
 
    p.69 ...
 */
@@ -951,7 +951,7 @@ static void wakeup1 ( void* chan )
 	}
 }
 
-// Wake up all processes sleeping on chan.
+// Wake up all processes sleeping on chan ("thundering herd")
 void wakeup ( void* chan )
 {
 	acquire( &ptable.lock );
@@ -965,7 +965,7 @@ void wakeup ( void* chan )
 // _________________________________________________________________________________
 
 // Print a process listing to console. For debugging.
-// Runs when user types ^P on console.
+// Runs when user types Ctrl+P on console.
 // No lock to avoid wedging a stuck machine further.
 void procdump ( void )
 {

@@ -1,6 +1,7 @@
-//
-// assembler macros to create x86 segments
-//
+/* Assembler macros to create x86 segments
+   Used by bootasm.S.
+   See p.100 for details.
+*/
 
 #define SEG_NULLASM   \
 	.word 0, 0;       \
