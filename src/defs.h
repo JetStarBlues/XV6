@@ -171,6 +171,9 @@ void            uartinit ( void );
 void            uartintr ( void );
 void            uartputc ( int );
 
+// vga.c
+// void            cgaputc ( int );
+
 // vm.c
 void            seginit    ( void );
 void            kvmalloc   ( void );
