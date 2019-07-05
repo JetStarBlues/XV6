@@ -157,7 +157,7 @@ int main ( int argc, char* argv[] )
 	freeblock = nmeta;
 
 	// Start value for inode numbers
-	//  0 - reserved for ??
+	//  0 - reserved for null inode pointer
 	//  1 - root directory
 	freeinode = 1;
 
@@ -484,7 +484,7 @@ void iappend ( uint inum, void* xp, int n )
 	{
 		fbn = off / BLOCKSIZE;
 
-		assert( fbn < MAXFILE );
+		assert( fbn < MAXFILESZ );
 
 		// Direct blocks
 		if ( fbn < NDIRECT )

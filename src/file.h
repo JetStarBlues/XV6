@@ -22,7 +22,8 @@ struct inode
 {
 	uint             dev;    // Device number
 	uint             inum;   // Inode number
-	int              ref;    // Reference count
+	int              ref;    // Reference count - number of C pointers referring to
+	                         // this in-memory copy
 
 	/* This lock is used for ... ??
 	*/
@@ -30,11 +31,13 @@ struct inode
 
 	int              valid;  // inode has been read from disk?
 
-	// copy of disk inode
+	// Copy of disk inode
 	short            type;                   // File type
 	short            major;                  // Major device number (T_DEV only)
 	short            minor;                  // Minor device number (T_DEV only)
-	short            nlink;                  // Number of links to inode in file system
+	short            nlink;                  // Number of links to inode in file system.
+	                                         /* I.e. number of directory entries that refer to
+	                                            the on-disk inode */
 	uint             size;                   // Size of file (bytes)
 	uint             addrs [ NDIRECT + 1 ];  // Data block addresses
 };

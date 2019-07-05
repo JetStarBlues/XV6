@@ -1,11 +1,3 @@
-#include "types.h"
-#include "defs.h"
-#include "param.h"
-#include "spinlock.h"
-#include "sleeplock.h"
-#include "fs.h"
-#include "buf.h"
-
 // Simple logging that allows concurrent FS system calls.
 //
 // A log transaction contains the updates of multiple FS system
@@ -55,12 +47,15 @@
    recovery, either all of the operation's writes will appear on
    the disk, or none of them.
 
-   The log resides at a known fixed location (superblock->logstart).
+   The log resides in the disk at a known fixed location (superblock->logstart).
    It consists of a header block followed by a sequence of updated
-   block copies ??
+   block copies ("logged blocks").
 
+   The header block contains:
+     . an array of sector numbers, one for each loggged block
+     . a count of the number of logged blocks
 
-   ...
+   Diagram of the log: 
 
      on-disk
        | logheader | logblock | ... | logblock |
@@ -71,30 +66,56 @@
      in-memory ("struct log")
        | spinlock | start | size | dev | outstanding | committing | logheader |
 
-   ...
 
    Interface:
-     . begin_op : 
-     . end_op   : 
-     . log_write : 
+     . begin_op / end_op : Indicate start of sequence of writes that must be
+                           atomic with respect to crashes
+     . log_write         : Acts as a proxy for bwrite
 
-   ...
+   Typical use looks like:
+
+       begin_op();
+
+       ...
+
+       buf = bread( ... );
+
+       buf->data[ ... ] = ...;
+
+       log_write( buf );
+
+       ...
+
+       end_op();
 
 
+   To allow concurrent execution of fs operations, the logging system can
+   accumulate the writes of multiple processes into one transaction
+   (log->outstanding += 1)
 
-   ...
+   To avoid splitting an fs syscall across transactions, the log only
+   commits when no fs syscalls are underway (log->outstanding == 0)
 
 
+   xv6 dedicates a fixed amount of space on the disk to hold the log.
+   As such, no single syscall can be allowed to write more distinct blocks
+   than there is space in the log.
+   The syscalls 'write' and 'unlink'(?) can potentially write many blocks
+   (when handling large files...).
+   To address this, the 'write' syscall breaks up large writes into
+   multiple smaller writes.
 */
 
+#include "types.h"
+#include "defs.h"
+#include "param.h"
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "buf.h"
 
-/* Contents of the header block, used for both the on-disk header block
-   and to keep track in memory of logged block# before commit ??
-*/
-/* xv6 writes the header block only when a transaction commits.
-   It sets the count to zero after copying the logged blocks to the fs.
-
-   A crash midway will result in ??
+/* Used by both the on-disk and in-memory log headers
+   to keep track of logged blocks
 */
 struct logheader
 {
@@ -102,8 +123,7 @@ struct logheader
 	int blocklist [ LOGSIZE ];  // array of block numbers, one for each logged block...
 };
 
-/* Holds one transaction...
-*/
+// Holds one transaction...
 struct log
 {
 	/* This lock is used for ... ??
@@ -152,13 +172,13 @@ void initlog ( int dev )
 // Read the log header from disk into the in-memory log header
 static void read_disk_logheader ( void )
 {
-	struct buf*       buf;
+	struct buf*       buffer;
 	struct logheader* header_disk;
 	int               i;
 
-	buf = bread( log.dev, log.start );
+	buffer = bread( log.dev, log.start );
 
-	header_disk = ( struct logheader* ) ( buf->data );
+	header_disk = ( struct logheader* ) ( buffer->data );
 
 	log.header.n = header_disk->n;
 
@@ -167,20 +187,20 @@ static void read_disk_logheader ( void )
 		log.header.blocklist[ i ] = header_disk->blocklist[ i ];
 	}
 
-	brelse( buf );
+	brelse( buffer );
 }
 
 // Write the in-memory log header to the on-disk log header.
 // This is the true point at which the current transaction commits.
 static void write_disk_logheader ( void )
 {
-	struct buf*       buf;
+	struct buf*       buffer;
 	struct logheader* header_disk;
 	int               i;
 
-	buf = bread( log.dev, log.start );
+	buffer = bread( log.dev, log.start );
 
-	header_disk = ( struct logheader* ) ( buf->data );
+	header_disk = ( struct logheader* ) ( buffer->data );
 
 	header_disk->n = log.header.n;
 
@@ -189,9 +209,9 @@ static void write_disk_logheader ( void )
 		header_disk->blocklist[ i ] = log.header.blocklist[ i ];
 	}
 
-	bwrite( buf );  // write changes to disk
+	bwrite( buffer );  // write changes to disk
 
-	brelse( buf );
+	brelse( buffer );
 }
 
 
@@ -245,6 +265,10 @@ static void install_transaction ( void )
 }
 
 //
+/* xv6 writes the header block only when a transaction commits.
+   It sets the count to zero after copying the logged blocks
+   to the fs.
+*/
 static void commit ()
 {
 	if ( log.header.n > 0 )
@@ -252,21 +276,23 @@ static void commit ()
 		// Copy modified blocks from buffer cache to on-disk log
 		write_disk_logblocks();
 
+
 		// Write in-memory header to on-disk header
 		/* This is the *real* commit point.
 		   On recovery, this is now the logheader that will be read
 		   from disk and used to replay writes...
 		*/
-		write_disk_logheader();
+		write_disk_logheader();  // after this, the on-disk header.n > 0
+
 
 		// Install writes to on-disk fs
 		install_transaction();
 
-		// ...
-		log.header.n = 0;
 
 		// Erase the transaction from the log
-		write_disk_logheader();
+		log.header.n = 0;
+
+		write_disk_logheader();  // after this, the on-disk header.n == 0
 	}
 }
 
@@ -279,13 +305,14 @@ static void recover_from_log ( void )
 	// Read on-disk header into in-memory header
 	read_disk_logheader();
 
+
 	// If committed (log.header.n > 0), copy from on-disk log to on-disk fs
 	install_transaction();
 
-	// ...
-	log.header.n = 0;
 
 	// Erase the transaction from the log
+	log.header.n = 0;
+
 	write_disk_logheader();
 }
 

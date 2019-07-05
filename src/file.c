@@ -164,7 +164,10 @@ int fileread ( struct file* f, char* addr, int n )
 // Write to file f.
 int filewrite ( struct file* f, char* addr, int n )
 {
-	int r;
+	int r,   // TODO: better names for these!
+	    max,
+	    i,  // nblocks_written ??
+	    n1;
 
 	if ( f->writable == 0 )
 	{
@@ -184,17 +187,23 @@ int filewrite ( struct file* f, char* addr, int n )
 		// and 2 blocks of slop for non-aligned writes.
 		// this really belongs lower down, since writei()
 		// might be writing a device like the console.
-		int max = ( ( MAXOPBLOCKS - 1 - 1 - 2 ) / 2 ) * BLOCKSIZE;
-		int i   = 0;
+		max = ( ( MAXOPBLOCKS - 1 - 1 - 2 ) / 2 ) * BLOCKSIZE;
+		i   = 0;
 
+		/* Breakup large writes into individual transactions of
+		   just a few (#?) sectors at a time, to avoid overflowing
+		   the log
+		*/
 		while ( i < n )
 		{
-			int n1 = n - i;
+			// n1 equals ??
+			n1 = n - i;
 
 			if ( n1 > max )
 			{
 				n1 = max;
 			}
+
 
 			begin_op();
 

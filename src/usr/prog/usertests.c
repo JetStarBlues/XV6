@@ -10,7 +10,7 @@
 
 char  buf      [ 8192 ];
 char  name     [ 3 ];
-char *echoargv [] = { "echo", "ALL", "TESTS", "PASSED", 0 };
+char* echoargv [] = { "echo", "ALL", "TESTS", "PASSED", 0 };
 int   stdout = 1;
 
 // does chdir() call iput( p->cwd ) in a transaction?
@@ -291,11 +291,12 @@ void writetest1 ( void )
 		exit();
 	}
 
-	for ( i = 0; i < MAXFILE; i += 1 )
+	// Create largest file possible (i.e force allocation of all data blocks)
+	for ( i = 0; i < MAXFILESZ; i += 1 )
 	{
-		( ( int* )buf )[ 0 ] = i;
+		( ( int* ) buf )[ 0 ] = i;
 
-		if ( write( fd, buf, 512 ) != 512 )
+		if ( write( fd, buf, BLOCKSIZE ) != BLOCKSIZE )
 		{
 			printf( stdout, "error: write big file failed\n", i );
 
@@ -319,11 +320,11 @@ void writetest1 ( void )
 	for ( ;; )
 	{
 
-		i = read( fd, buf, 512 );
+		i = read( fd, buf, BLOCKSIZE );
 
 		if ( i == 0 )
 		{
-			if ( n == MAXFILE - 1 )
+			if ( n == MAXFILESZ - 1 )
 			{
 				printf( stdout, "read only %d blocks from big", n );
 
@@ -332,21 +333,21 @@ void writetest1 ( void )
 
 			break;
 		}
-		else if ( i != 512 )
+		else if ( i != BLOCKSIZE )
 		{
 			printf( stdout, "read failed %d\n", i );
 
 			exit();
 		}
 
-		if ( ( ( int* )buf )[ 0 ] != n )
+		if ( ( ( int* ) buf )[ 0 ] != n )
 		{
 			printf(
 
 				stdout,
 				"read content of block %d is %d\n",
 				n,
-				( ( int* )buf )[ 0 ]
+				( ( int* ) buf )[ 0 ]
 			);
 
 			exit();
@@ -438,7 +439,7 @@ void exectest ( void )
 {
 	printf( stdout, "exec test\n" );
 
-	if ( exec( "echo", echoargv ) < 0 )
+	if ( exec( "bin/echo", echoargv ) < 0 )
 	{
 		printf( stdout, "exec echo failed\n" );
 
@@ -659,8 +660,8 @@ void exitwait ( void )
 
 void mem ( void )
 {
-	void *m1,
-	     *m2;
+	void* m1;
+	void* m2;
 	int   pid,
 	      ppid;
 
@@ -674,14 +675,14 @@ void mem ( void )
 
 		while ( ( m2 = malloc( 10001 ) ) != 0 )
 		{
-			*( char** )m2 = m1;
+			*( char** ) m2 = m1;
 
 			m1 = m2;
 		}
 
 		while ( m1 )
 		{
-			m2 = *( char** )m1;
+			m2 = *( char** ) m1;
 
 			free( m1 );
 
@@ -816,8 +817,8 @@ void fourfiles ( void )
 	      n,
 	      total,
 	      pi;
-	char *names [] = { "f0", "f1", "f2", "f3" };
-	char *fname;
+	char* names [] = { "f0", "f1", "f2", "f3" };
+	char* fname;
 
 	printf( stdout, "fourfiles test\n" );
 
@@ -847,7 +848,7 @@ void fourfiles ( void )
 				exit();
 			}
 
-			memset( buf, '0' + pi, 512 );
+			memset( buf, '0' + pi, BLOCKSIZE );
 
 			for ( i = 0; i < 12; i += 1 )
 			{
@@ -909,7 +910,10 @@ void fourfiles ( void )
 // four processes create and delete different files in same directory
 void createdelete ( void )
 {
-	enum { N = 20 };
+	enum {
+
+		N = 20
+	};
 
 	int  pid,
 	     i,
@@ -1740,7 +1744,7 @@ void bigwrite ( void )
 
 	unlink( "bigwrite" );
 
-	for ( sz = 499; sz < 12 * 512; sz += 471 )
+	for ( sz = 499; sz < 12 * BLOCKSIZE; sz += 471 )
 	{
 		fd = open( "bigwrite", O_CREATE | O_RDWR );
 
@@ -2192,13 +2196,13 @@ void sbrktest ( void )
 	      pid,
 	      pids [ 10 ],
 	      ppid;
-	char *a,
-	     *b,
-	     *c,
-	     *lastaddr,
-	     *oldbrk,
-	     *p,
-	      scratch;
+	char* a;
+	char* b;
+	char* c;
+	char* lastaddr;
+	char* oldbrk;
+	char* p;
+	char  scratch;
 	uint  amt;
 
 	printf( stdout, "sbrk test\n" );
@@ -2276,7 +2280,7 @@ void sbrktest ( void )
 	a = sbrk( 0 );
 	c = sbrk( - 4096 );
 
-	if ( c == ( char* )0xffffffff )
+	if ( c == ( char* ) 0xffffffff )
 	{
 		printf( stdout, "sbrk could not deallocate\n" );
 
@@ -2322,7 +2326,7 @@ void sbrktest ( void )
 	}
 
 	// can we read the kernel's memory?
-	for ( a = ( char* )( KERNBASE ); a < ( char* ) ( KERNBASE + 2000000 ); a += 50000 )
+	for ( a = ( char* ) ( KERNBASE ); a < ( char* ) ( KERNBASE + 2000000 ); a += 50000 )
 	{
 		ppid = getpid();
 
@@ -2361,7 +2365,7 @@ void sbrktest ( void )
 		if ( ( pids[ i ] = fork() ) == 0 )
 		{
 			// allocate a lot of memory
-			sbrk( BIG - ( uint )sbrk( 0 ) );
+			sbrk( BIG - ( uint ) sbrk( 0 ) );
 
 			write( fds[ 1 ], "x", 1 );
 
@@ -2393,7 +2397,7 @@ void sbrktest ( void )
 		wait();
 	}
 
-	if ( c == ( char* )0xffffffff )
+	if ( c == ( char* ) 0xffffffff )
 	{
 		printf( stdout, "failed sbrk leaked memory\n" );
 
@@ -2439,7 +2443,7 @@ void validatetest ( void )
 		if ( ( pid = fork() ) == 0 )
 		{
 			// try to crash the kernel by passing in a badly placed integer
-			validateint( ( int* )p );
+			validateint( ( int* ) p );
 
 			exit();
 		}
@@ -2452,7 +2456,7 @@ void validatetest ( void )
 		wait();
 
 		// try to crash the kernel by passing in a bad string pointer
-		if ( link( "nosuchfile", ( char* )p ) != - 1 )
+		if ( link( "nosuchfile", ( char* ) p ) != - 1 )
 		{
 			printf( stdout, "link should not succeed\n" );
 
@@ -2499,19 +2503,19 @@ void bigargtest ( void )
 
 	if ( pid == 0 )
 	{
-		static char *args [ MAXARG ];
+		static char* args [ MAXARG ];
 		int          i;
 
-		for ( i = 0; i < MAXARG- 1; i += 1 )
+		for ( i = 0; i < MAXARG - 1; i += 1 )
 		{
 			args[ i ] = "bigargs test: failed\n                                                                                                                                                                                                       ";
 		}
 
-		args[ MAXARG - 1] = 0;
+		args[ MAXARG - 1 ] = 0;
 
 		printf( stdout, "bigarg test\n" );
 
-		exec( "echo", args );
+		exec( "bin/echo", args );
 
 		printf( stdout, "bigarg test ok\n" );
 
@@ -2579,9 +2583,9 @@ void fsfull ()
 
 		while ( 1 )
 		{
-			int cc = write( fd, buf, 512 );
+			int cc = write( fd, buf, BLOCKSIZE );
 
-			if ( cc < 512 )
+			if ( cc < BLOCKSIZE )
 			{
 				break;
 			}
@@ -2666,7 +2670,7 @@ void argptest()
 {
 	int fd;
 
-	fd = open( "init", O_RDONLY );
+	fd = open( "bin/init", O_RDONLY );
 
 	if ( fd < 0 )
 	{
@@ -2691,7 +2695,7 @@ unsigned int rand ()
 	return randstate;
 }
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv[] )
 {
 	printf( stdout, "usertests starting\n" );
 

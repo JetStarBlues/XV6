@@ -22,7 +22,7 @@ struct superblock
 
 #define NDIRECT   12
 #define NINDIRECT ( BLOCKSIZE / sizeof( uint ) )
-#define MAXFILE   ( NDIRECT + NINDIRECT )
+#define MAXFILESZ ( NDIRECT + NINDIRECT )
 
 // On-disk inode structure
 struct dinode
@@ -31,6 +31,8 @@ struct dinode
 	short major;                  // Major device number (T_DEV only)
 	short minor;                  // Minor device number (T_DEV only)
 	short nlink;                  // Number of links to inode in file system
+	                              /* I.e. number of directory entries that refer to
+	                                 the on-disk inode */
 	uint  size;                   // Size of file (bytes)
 	uint  addrs [ NDIRECT + 1 ];  // Data block addresses
 };
@@ -39,7 +41,7 @@ struct dinode
 #define INODES_PER_BLOCK ( BLOCKSIZE / sizeof( struct dinode ) )
 
 // Block containing inode i
-#define IBLOCK( i, sb ) ( ( i ) / INODES_PER_BLOCK + sb.inodestart )
+#define IBLOCK( inum, sb ) ( ( inum ) / INODES_PER_BLOCK + sb.inodestart )
 
 // Bitmap bits per block
 #define BITS_PER_BLOCK ( BLOCKSIZE * 8 )
@@ -48,7 +50,7 @@ struct dinode
 // JK - Because FSSIZE is 1000 blocks and BITS_PER_BLOCK is 4096,
 //      this will always evaluate to 0 + sb.bmapstart
 //      i.e. one bitmap block
-#define BBLOCK( b, sb ) ( b / BITS_PER_BLOCK + sb.bmapstart )
+#define BBLOCK( bnum, sb ) ( bnum / BITS_PER_BLOCK + sb.bmapstart )
 
 // Directory is a file containing a sequence of dirent structures.
 #define DIRNAMESZ 14
