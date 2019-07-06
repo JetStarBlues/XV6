@@ -63,7 +63,7 @@ ushort xshort ( ushort x )
 {
 	ushort y;
 
-	uchar *a = ( uchar* ) &y;
+	uchar* a = ( uchar* ) &y;
 
 	a[ 0 ] = x;
 	a[ 1 ] = x >> 8;
@@ -75,7 +75,7 @@ uint xint ( uint x )
 {
 	uint y;
 
-	uchar *a = ( uchar* ) &y;
+	uchar* a = ( uchar* ) &y;
 
 	a[ 0 ] = x;
 	a[ 1 ] = x >> 8;
@@ -88,7 +88,7 @@ uint xint ( uint x )
 
 // ___________________________________________________________________
 
-int main ( int argc, char* argv[] )
+int main ( int argc, char* argv [] )
 {
 	int           i;
 	uint          root_inum,

@@ -12,7 +12,7 @@ union header {
 
 	struct {
 
-		union header *ptr;
+		union header* ptr;
 		uint          size;
 
 	} s;
@@ -23,13 +23,14 @@ union header {
 typedef union header Header;
 
 static Header  base;
-static Header *freep;
+static Header* freep;
 
-void free ( void *ap )
+void free ( void* ap )
 {
-	Header *bp, *p;
+	Header* bp;
+	Header* p;
 
-	bp = ( Header* )ap - 1;
+	bp = ( Header* ) ap - 1;
 
 	for ( p = freep; ! ( bp > p && bp < p->s.ptr ); p = p->s.ptr )
 	{
@@ -66,8 +67,8 @@ void free ( void *ap )
 
 static Header* morecore ( uint nu )
 {
-	char   *p;
-	Header *hp;
+	char*   p;
+	Header* hp;
 
 	if ( nu < 4096 )
 	{
@@ -81,19 +82,19 @@ static Header* morecore ( uint nu )
 		return 0;
 	}
 
-	hp = ( Header* )p;
+	hp = ( Header* ) p;
 
 	hp->s.size = nu;
 
-	free( ( void* )( hp + 1 ) );
+	free( ( void* ) ( hp + 1 ) );
 
 	return freep;
 }
 
 void* malloc ( uint nbytes )
 {
-	Header *p,
-	       *prevp;
+	Header* p;
+	Header* prevp;
 	uint    nunits;
 
 	nunits = ( nbytes + sizeof( Header ) - 1 ) / sizeof( Header ) + 1;
@@ -125,7 +126,7 @@ void* malloc ( uint nbytes )
 
 			freep = prevp;
 
-			return ( void* )( p + 1 );
+			return ( void* ) ( p + 1 );
 		}
 
 		if ( p == freep )

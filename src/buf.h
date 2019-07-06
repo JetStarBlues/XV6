@@ -13,10 +13,10 @@ struct buf {
 
 	uint              refcnt;              // ?
 
-	struct buf       *prev;                // buffer cache linked list
-	struct buf       *next;                // buffer cache linked list
+	struct buf*       prev;                // buffer cache linked list
+	struct buf*       next;                // buffer cache linked list
 
-	struct buf       *qnext;               // disk queue
+	struct buf*       qnext;               // disk queue
 
 	uchar             data [ BLOCKSIZE ];  // in-memory copy of disk contents
 };

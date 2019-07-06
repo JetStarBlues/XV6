@@ -2,7 +2,7 @@
 #include "user.h"
 #include "fcntl.h"
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
 	int fds [ 2 ];
 	int pid;

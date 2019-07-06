@@ -54,16 +54,16 @@ struct cmd
 struct execcmd
 {
 	int   type;
-	char *argv  [ MAXARGS ];
-	char *eargv [ MAXARGS ];
+	char* argv  [ MAXARGS ];
+	char* eargv [ MAXARGS ];
 };
 
 struct redircmd
 {
 	int         type;
-	struct cmd *cmd;
-	char       *file;
-	char       *efile;
+	struct cmd* cmd;
+	char*       file;
+	char*       efile;
 	int         mode;
 	int         fd;
 };
@@ -71,37 +71,37 @@ struct redircmd
 struct pipecmd
 {
 	int         type;
-	struct cmd *left;
-	struct cmd *right;
+	struct cmd* left;
+	struct cmd* right;
 };
 
 struct listcmd
 {
 	int         type;
-	struct cmd *left;
-	struct cmd *right;
+	struct cmd* left;
+	struct cmd* right;
 };
 
 struct backcmd
 {
 	int         type;
-	struct cmd *cmd;
+	struct cmd* cmd;
 };
 
 int         fork1    ( void );  // Fork but panics on failure.
 void        panic    ( char* );
-struct cmd *parsecmd ( char* );
+struct cmd* parsecmd ( char* );
 int         exists   ( char*, char* );  // JK
 
 // Execute cmd. Never returns.
-void runcmd ( struct cmd *cmd )
+void runcmd ( struct cmd* cmd )
 {
 	int              p[ 2 ];
-	struct backcmd  *bcmd;
-	struct execcmd  *ecmd;
-	struct listcmd  *lcmd;
-	struct pipecmd  *pcmd;
-	struct redircmd *rcmd;
+	struct backcmd*  bcmd;
+	struct execcmd*  ecmd;
+	struct listcmd*  lcmd;
+	struct pipecmd*  pcmd;
+	struct redircmd* rcmd;
 
 	char binbuf [ 100 ];  //
 
@@ -119,7 +119,7 @@ void runcmd ( struct cmd *cmd )
 
 		case EXEC:
 
-			ecmd = ( struct execcmd* )cmd;
+			ecmd = ( struct execcmd* ) cmd;
 
 			if ( ecmd->argv[ 0 ] == 0 )
 			{
@@ -193,7 +193,7 @@ void runcmd ( struct cmd *cmd )
 			// Replace stdin/out/err with specified file,
 			// by closing it and opening the file
 
-			rcmd = ( struct redircmd* )cmd;
+			rcmd = ( struct redircmd* ) cmd;
 
 			close( rcmd->fd );
 
@@ -213,7 +213,7 @@ void runcmd ( struct cmd *cmd )
 
 			// Set stdout of left cmd to stdin of right cmd
 
-			pcmd = ( struct pipecmd* )cmd;
+			pcmd = ( struct pipecmd* ) cmd;
 
 			if ( pipe( p ) < 0 )
 			{
@@ -262,7 +262,7 @@ void runcmd ( struct cmd *cmd )
 
 			// Run multiple commands sequentially
 
-			lcmd = ( struct listcmd* )cmd;
+			lcmd = ( struct listcmd* ) cmd;
 
 			if ( fork1() == 0 )
 			{
@@ -282,7 +282,7 @@ void runcmd ( struct cmd *cmd )
 			// Run command without waiting for its exit
 			// The child returns immediately, while the grandchild continues running
 
-			bcmd = ( struct backcmd* )cmd;
+			bcmd = ( struct backcmd* ) cmd;
 
 			if ( fork1() == 0 )
 			{
@@ -297,7 +297,7 @@ void runcmd ( struct cmd *cmd )
 	exit();
 }
 
-int getcmd ( char *buf, int nbuf )
+int getcmd ( char* buf, int nbuf )
 {
 	printf( 2, "$ " );
 
@@ -360,7 +360,7 @@ int main ( void )
 	exit();
 }
 
-void panic ( char *s )
+void panic ( char* s )
 {
 	printf( 2, "%s\n", s );
 
@@ -386,7 +386,7 @@ int fork1 ( void )
 
 struct cmd* execcmd ( void )
 {
-	struct execcmd *cmd;
+	struct execcmd* cmd;
 
 	cmd = malloc( sizeof( *cmd ) );
 
@@ -394,12 +394,12 @@ struct cmd* execcmd ( void )
 
 	cmd->type = EXEC;
 
-	return ( struct cmd* )cmd;
+	return ( struct cmd* ) cmd;
 }
 
-struct cmd* redircmd ( struct cmd *subcmd, char *file, char *efile, int mode, int fd )
+struct cmd* redircmd ( struct cmd* subcmd, char* file, char* efile, int mode, int fd )
 {
-	struct redircmd *cmd;
+	struct redircmd* cmd;
 
 	cmd = malloc( sizeof( *cmd ) );
 
@@ -412,12 +412,12 @@ struct cmd* redircmd ( struct cmd *subcmd, char *file, char *efile, int mode, in
 	cmd->mode  = mode;
 	cmd->fd    = fd;
 
-	return ( struct cmd* )cmd;
+	return ( struct cmd* ) cmd;
 }
 
-struct cmd* pipecmd ( struct cmd *left, struct cmd *right )
+struct cmd* pipecmd ( struct cmd* left, struct cmd* right )
 {
-	struct pipecmd *cmd;
+	struct pipecmd* cmd;
 
 	cmd = malloc( sizeof( *cmd ) );
 
@@ -427,12 +427,12 @@ struct cmd* pipecmd ( struct cmd *left, struct cmd *right )
 	cmd->left  = left;
 	cmd->right = right;
 
-	return ( struct cmd* )cmd;
+	return ( struct cmd* ) cmd;
 }
 
-struct cmd* listcmd ( struct cmd *left, struct cmd *right )
+struct cmd* listcmd ( struct cmd* left, struct cmd* right )
 {
-	struct listcmd *cmd;
+	struct listcmd* cmd;
 
 	cmd = malloc( sizeof( *cmd ) );
 
@@ -442,12 +442,12 @@ struct cmd* listcmd ( struct cmd *left, struct cmd *right )
 	cmd->left  = left;
 	cmd->right = right;
 
-	return ( struct cmd* )cmd;
+	return ( struct cmd* ) cmd;
 }
 
-struct cmd* backcmd ( struct cmd *subcmd )
+struct cmd* backcmd ( struct cmd* subcmd )
 {
-	struct backcmd *cmd;
+	struct backcmd* cmd;
 
 	cmd = malloc( sizeof( *cmd ) );
 
@@ -456,7 +456,7 @@ struct cmd* backcmd ( struct cmd *subcmd )
 	cmd->type = BACK;
 	cmd->cmd  = subcmd;
 
-	return ( struct cmd* )cmd;
+	return ( struct cmd* ) cmd;
 }
 
 
@@ -465,9 +465,9 @@ struct cmd* backcmd ( struct cmd *subcmd )
 char whitespace [] = " \t\r\n\v";
 char symbols []    = "<|>&;()";
 
-int gettoken ( char **ps, char *es, char **q, char **eq )
+int gettoken ( char** ps, char* es, char** q, char** eq )
 {
-	char *s;
+	char* s;
 	int   ret;
 
 	s = *ps;
@@ -541,9 +541,9 @@ int gettoken ( char **ps, char *es, char **q, char **eq )
 	return ret;
 }
 
-int peek ( char **ps, char *es, char *toks )
+int peek ( char** ps, char* es, char* toks )
 {
-	char *s;
+	char* s;
 
 	s = *ps;
 
@@ -557,16 +557,16 @@ int peek ( char **ps, char *es, char *toks )
 	return *s && strchr( toks, *s );
 }
 
-struct cmd *parseline    ( char**, char* );
-struct cmd *parsepipe    ( char**, char* );
+struct cmd* parseline    ( char**, char* );
+struct cmd* parsepipe    ( char**, char* );
 struct cmd* parseredirs  ( struct cmd*, char**, char* );
-struct cmd *parseexec    ( char**, char* );
-struct cmd *nulterminate ( struct cmd* );
+struct cmd* parseexec    ( char**, char* );
+struct cmd* nulterminate ( struct cmd* );
 
-struct cmd* parsecmd ( char *s )
+struct cmd* parsecmd ( char* s )
 {
 	char        *es;
-	struct cmd *cmd;
+	struct cmd* cmd;
 
 	es = s + strlen( s );
 
@@ -586,9 +586,9 @@ struct cmd* parsecmd ( char *s )
 	return cmd;
 }
 
-struct cmd* parseline ( char **ps, char *es )
+struct cmd* parseline ( char** ps, char* es )
 {
-	struct cmd *cmd;
+	struct cmd* cmd;
 
 	cmd = parsepipe( ps, es );
 
@@ -615,9 +615,9 @@ struct cmd* parseline ( char **ps, char *es )
 	return cmd;
 }
 
-struct cmd* parsepipe ( char **ps, char *es )
+struct cmd* parsepipe ( char** ps, char* es )
 {
-	struct cmd *cmd;
+	struct cmd* cmd;
 
 	cmd = parseexec( ps, es );
 
@@ -631,11 +631,11 @@ struct cmd* parsepipe ( char **ps, char *es )
 	return cmd;
 }
 
-struct cmd* parseredirs ( struct cmd *cmd, char **ps, char *es )
+struct cmd* parseredirs ( struct cmd* cmd, char** ps, char* es )
 {
 	int   tok;
-	char *q,
-	     *eq;
+	char* q;
+	char* eq;
 
 	while ( peek( ps, es, "<>" ) )
 	{
@@ -670,9 +670,9 @@ struct cmd* parseredirs ( struct cmd *cmd, char **ps, char *es )
 	return cmd;
 }
 
-struct cmd* parseblock ( char **ps, char *es )
+struct cmd* parseblock ( char** ps, char* es )
 {
-	struct cmd *cmd;
+	struct cmd* cmd;
 
 	if ( ! peek( ps, es, "(" ) )
 	{
@@ -695,14 +695,14 @@ struct cmd* parseblock ( char **ps, char *es )
 	return cmd;
 }
 
-struct cmd* parseexec ( char **ps, char *es )
+struct cmd* parseexec ( char** ps, char* es )
 {
-	char           *q,
-	               *eq;
+	char*           q;
+	char*           eq;
 	int             tok,
 	                argc;
-	struct execcmd *cmd;
-	struct cmd     *ret;
+	struct execcmd* cmd;
+	struct cmd*     ret;
 
 	if ( peek( ps, es, "(" ) )
 	{
@@ -711,7 +711,7 @@ struct cmd* parseexec ( char **ps, char *es )
 
 	ret = execcmd();
 
-	cmd = ( struct execcmd* )ret;
+	cmd = ( struct execcmd* ) ret;
 
 	argc = 0;
 
@@ -751,14 +751,14 @@ struct cmd* parseexec ( char **ps, char *es )
 }
 
 // NUL-terminate all the counted strings.
-struct cmd* nulterminate ( struct cmd *cmd )
+struct cmd* nulterminate ( struct cmd* cmd )
 {
 	int              i;
-	struct backcmd  *bcmd;
-	struct execcmd  *ecmd;
-	struct listcmd  *lcmd;
-	struct pipecmd  *pcmd;
-	struct redircmd *rcmd;
+	struct backcmd*  bcmd;
+	struct execcmd*  ecmd;
+	struct listcmd*  lcmd;
+	struct pipecmd*  pcmd;
+	struct redircmd* rcmd;
 
 	if ( cmd == 0 )
 	{
@@ -769,7 +769,7 @@ struct cmd* nulterminate ( struct cmd *cmd )
 	{
 		case EXEC:
 
-			ecmd = ( struct execcmd* )cmd;
+			ecmd = ( struct execcmd* ) cmd;
 
 			for ( i = 0; ecmd->argv[ i ]; i += 1 )
 			{
@@ -780,7 +780,7 @@ struct cmd* nulterminate ( struct cmd *cmd )
 
 		case REDIR:
 
-			rcmd = ( struct redircmd* )cmd;
+			rcmd = ( struct redircmd* ) cmd;
 
 			nulterminate( rcmd->cmd );
 
@@ -790,7 +790,7 @@ struct cmd* nulterminate ( struct cmd *cmd )
 
 		case PIPE:
 
-			pcmd = ( struct pipecmd* )cmd;
+			pcmd = ( struct pipecmd* ) cmd;
 
 			nulterminate( pcmd->left );
 			nulterminate( pcmd->right );
@@ -799,7 +799,7 @@ struct cmd* nulterminate ( struct cmd *cmd )
 
 		case LIST:
 
-			lcmd = ( struct listcmd* )cmd;
+			lcmd = ( struct listcmd* ) cmd;
 
 			nulterminate( lcmd->left );
 			nulterminate( lcmd->right );
@@ -808,7 +808,7 @@ struct cmd* nulterminate ( struct cmd *cmd )
 
 		case BACK:
 
-			bcmd = ( struct backcmd* )cmd;
+			bcmd = ( struct backcmd* ) cmd;
 
 			nulterminate( bcmd->cmd );
 
@@ -826,8 +826,8 @@ int exists ( char* filename, char* dirpath )
 	int   fd,
 	      i,
 	      equal;
-	char *p,
-	      dename [ DIRNAMESZ + 1 ];
+	char* p;
+	char  dename [ DIRNAMESZ + 1 ];
 
 	struct dirent  de;
 	struct stat    st;
@@ -869,7 +869,7 @@ int exists ( char* filename, char* dirpath )
 	{
 		while ( read( fd, &de, sizeof( de ) ) == sizeof( de ) )
 		{
-			if ( de.inum == 0 )  // ??
+			if ( de.inum == 0 )  // empty directory entry
 			{
 				continue;
 			}

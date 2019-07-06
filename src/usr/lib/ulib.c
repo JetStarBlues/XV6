@@ -4,9 +4,9 @@
 #include "user.h"
 #include "x86.h"
 
-char* strcpy ( char *s, const char *t )
+char* strcpy ( char* s, const char* t )
 {
-	char *os;
+	char* os;
 
 	os = s;
 
@@ -18,7 +18,7 @@ char* strcpy ( char *s, const char *t )
 	return os;
 }
 
-int strcmp ( const char *p, const char *q )
+int strcmp ( const char* p, const char* q )
 {
 	while ( *p && *p == *q )
 	{
@@ -26,10 +26,10 @@ int strcmp ( const char *p, const char *q )
 		q += 1;
 	}
 
-	return ( uchar )*p - ( uchar )*q;
+	return ( uchar ) *p - ( uchar ) *q;
 }
 
-uint strlen ( const char *s )
+uint strlen ( const char* s )
 {
 	int n;
 
@@ -41,7 +41,7 @@ uint strlen ( const char *s )
 	return n;
 }
 
-char* strchr ( const char *s, char c )
+char* strchr ( const char* s, char c )
 {
 	for ( ; *s; s += 1 )
 	{
@@ -54,7 +54,7 @@ char* strchr ( const char *s, char c )
 	return 0;
 }
 
-char* gets ( char *buf, int max )
+char* gets ( char* buf, int max )
 {
 	int  i,
 	     cc;
@@ -84,7 +84,7 @@ char* gets ( char *buf, int max )
 	return buf;
 }
 
-int stat ( const char *path, struct stat *st )
+int stat ( const char* path, struct stat* st )
 {
 	int fd;
 	int r;
@@ -103,7 +103,7 @@ int stat ( const char *path, struct stat *st )
 	return r;
 }
 
-int atoi ( const char *s )
+int atoi ( const char* s )
 {
 	int n;
 
@@ -117,10 +117,10 @@ int atoi ( const char *s )
 	return n;
 }
 
-void* memmove ( void *vdst, const void *vsrc, int n )
+void* memmove ( void* vdst, const void* vsrc, int n )
 {
-	const char *src;
-	char       *dst;
+	const char* src;
+	char*       dst;
 
 	dst = vdst;
 	src = vsrc;
@@ -135,7 +135,7 @@ void* memmove ( void *vdst, const void *vsrc, int n )
 	return vdst;
 }
 
-void* memset ( void *dst, int c, uint n )
+void* memset ( void* dst, int c, uint n )
 {
 	stosb( dst, c, n );
 

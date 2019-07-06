@@ -5,7 +5,7 @@
 
 char buf [ 512 ];
 
-void wc ( int fd, char *name )
+void wc ( int fd, char* name )
 {
 	int i, n;
 	int l, w, c, inword;
@@ -52,7 +52,7 @@ void wc ( int fd, char *name )
 	printf( 1, "bytes : %d\n", c );
 }
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
 	int fd, i;
 

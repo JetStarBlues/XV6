@@ -7,7 +7,7 @@
 
 #define N 1000
 
-void printf ( int fd, const char *s, ... )
+void printf ( int fd, const char* s, ... )
 {
 	write( fd, s, strlen( s ) );
 }

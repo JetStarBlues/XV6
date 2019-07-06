@@ -3,9 +3,9 @@
 #include "types.h"
 #include "user.h"
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
-	int *x;
+	int* x;
 
 	x = 0;  // should raise fault when pointing to 0 ??
 

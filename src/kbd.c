@@ -9,7 +9,7 @@ int kbdgetc ( void )
 	              data,
 	              c;
 	static uint   shift;
-	static uchar *charcode [ 4 ] = {
+	static uchar* charcode [ 4 ] = {
 
 		normalmap,
 		shiftmap,

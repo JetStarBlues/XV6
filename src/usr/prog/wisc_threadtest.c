@@ -7,7 +7,7 @@
 int stack [ 4096 ] __attribute__ ( ( aligned ( 4096 ) ) );
 int x;
 
-int main ( int argc, char *argv [] )
+int main ( int argc, char* argv [] )
 {
 	x = 0;
 

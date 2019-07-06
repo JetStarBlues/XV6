@@ -54,17 +54,17 @@ static void printint ( int fd, int xx, int base, int sign )
 // Print to the given fd
 // Only understands %d, %x, %p, %c, %s
 // Can only print va_arg > 1 of bytes
-void printf ( int fd, const char *fmt, ... )
+void printf ( int fd, const char* fmt, ... )
 {
-	char *s;
+	char* s;
 	int   c,
 	      i,
 	      state;
-	uint *argp;
+	uint* argp;
 
 	state = 0;
 
-	argp = ( uint* )( void* )&fmt + 1;
+	argp = ( uint* ) ( void* ) &fmt + 1;
 
 	for ( i = 0; fmt[ i ]; i += 1 )
 	{
@@ -103,7 +103,7 @@ void printf ( int fd, const char *fmt, ... )
 			}
 			else if ( c == 's' )
 			{
-				s = ( char* )*argp;
+				s = ( char* ) *argp;
 
 				argp += 1;
 

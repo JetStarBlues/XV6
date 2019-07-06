@@ -4,10 +4,10 @@
 #include "fs.h"
 #include "fcntl.h"
 
-char* fmtname ( char *path )
+char* fmtname ( char* path )
 {
 	static char  buf [ DIRNAMESZ + 1 ];
-	char        *p;
+	char*        p;
 
 	// Find first character after last slash.
 	for ( p = path + strlen( path ); p >= path && *p != '/'; p -= 1 )
@@ -30,10 +30,10 @@ char* fmtname ( char *path )
 	return buf;
 }
 
-void ls ( char *path )
+void ls ( char* path )
 {
-	char           buf [ 512 ],
-	              *p;
+	char           buf [ 512 ];
+	char*          p;
 	int            fd;
 	struct dirent  de;
 	struct stat    st;
@@ -114,7 +114,7 @@ void ls ( char *path )
 	close( fd );
 }
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
 	int i;
 

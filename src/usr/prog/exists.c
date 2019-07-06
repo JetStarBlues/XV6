@@ -9,8 +9,8 @@ void exists ( char* filename, char* dirpath )
 	int   fd,
 	      i,
 	      equal;
-	char *p,
-	      dename [ DIRNAMESZ + 1 ];
+	char* p;
+	char  dename [ DIRNAMESZ + 1 ];
 
 	struct dirent  de;
 	struct stat    st;
@@ -52,7 +52,7 @@ void exists ( char* filename, char* dirpath )
 	{
 		while ( read( fd, &de, sizeof( de ) ) == sizeof( de ) )
 		{
-			if ( de.inum == 0 )  // ??
+			if ( de.inum == 0 )  // empty directory entry
 			{
 				continue;
 			}
@@ -122,7 +122,7 @@ void exists ( char* filename, char* dirpath )
 	close( fd );
 }
 
-int main ( int argc, char *argv [] )
+int main ( int argc, char* argv [] )
 {
 	if ( ( argc < 2 ) || ( argc > 3 ) )
 	{

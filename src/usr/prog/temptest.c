@@ -12,7 +12,7 @@ struct test
 	char  ch1;
 };
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
 	struct test s;
 

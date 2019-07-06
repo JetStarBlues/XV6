@@ -9,12 +9,12 @@ char buf [ 1024 ];
 
 int match ( char*, char* );
 
-void grep ( char *pattern, int fd )
+void grep ( char* pattern, int fd )
 {
 	int   n,
 	      m;
-	char *p,
-	     *q;
+	char* p;
+	char* q;
 
 	m = 0;
 
@@ -54,11 +54,11 @@ void grep ( char *pattern, int fd )
 	}
 }
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
 	int   fd,
 	      i;
-	char *pattern;
+	char* pattern;
 
 	if ( argc <= 1 )
 	{
@@ -99,7 +99,7 @@ int main ( int argc, char *argv[] )
 int matchhere ( char*, char* );
 int matchstar ( int, char*, char* );
 
-int match ( char *re, char *text )
+int match ( char* re, char* text )
 {
 	if ( re[ 0 ] == '^' )
 	{
@@ -118,7 +118,7 @@ int match ( char *re, char *text )
 }
 
 // matchhere: search for re at beginning of text
-int matchhere( char *re, char *text )
+int matchhere( char* re, char* text )
 {
 	if ( re[ 0 ] == '\0' )
 	{
@@ -144,7 +144,7 @@ int matchhere( char *re, char *text )
 }
 
 // matchstar: search for c*re at beginning of text
-int matchstar( int c, char *re, char *text )
+int matchstar( int c, char* re, char* text )
 {
 	do  // a * matches zero or more instances
 	{

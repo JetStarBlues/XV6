@@ -4,11 +4,11 @@
 #include "user.h"
 #include "fcntl.h"
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
 	int   fd;
 	int   pid;
-	char *argv2 [ 2 ];
+	char* argv2 [ 2 ];
 
 	printf( 1, "Hello 1\n" );
 

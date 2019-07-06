@@ -3,7 +3,7 @@
 #include "types.h"
 #include "user.h"
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
 	// TODO - fork without wait and zombie
 

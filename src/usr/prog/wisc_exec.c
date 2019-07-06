@@ -3,9 +3,9 @@
 #include "types.h"
 #include "user.h"
 
-int main ( int argc, char *argv[] )
+int main ( int argc, char* argv [] )
 {
-	char *argv2 [ 2 ];
+	char* argv2 [ 2 ];
 
 	printf( 1, "Hello 1\n" );
 
