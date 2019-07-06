@@ -15,7 +15,7 @@ struct cpu cpus [ NCPU ];
 int        ncpu;
 uchar      ioapicid;
 
-static uchar sum ( uchar *addr, int len )
+static uchar sum ( uchar* addr, int len )
 {
 	int i, sum;
 
@@ -32,7 +32,9 @@ static uchar sum ( uchar *addr, int len )
 // Look for an MP structure in the len bytes at addr.
 static struct mp* mpsearch1 ( uint a, int len )
 {
-	uchar *e, *p, *addr;
+	uchar* e;
+	uchar* p;
+	uchar* addr;
 
 	addr = P2V( a );
 
@@ -43,7 +45,7 @@ static struct mp* mpsearch1 ( uint a, int len )
 		if ( memcmp( p, "_MP_", 4 ) == 0 &&
 		     sum( p, sizeof( struct mp ) ) == 0 )
 		{
-			return ( struct mp* )p;
+			return ( struct mp* ) p;
 		}
 	}
 
@@ -57,9 +59,9 @@ static struct mp* mpsearch1 ( uint a, int len )
 // 3 ) in the BIOS ROM between 0xE0000 and 0xFFFFF.
 static struct mp* mpsearch ( void )
 {
-	uchar     *bda;
+	uchar*     bda;
 	uint       p;
-	struct mp *mp;
+	struct mp* mp;
 
 	bda = ( uchar * ) P2V( 0x400 );
 
@@ -90,10 +92,10 @@ static struct mp* mpsearch ( void )
 // Check for correct signature, calculate the checksum and,
 // if correct, check the version.
 // To do: check extended table checksum.
-static struct mpconf* mpconfig ( struct mp **pmp )
+static struct mpconf* mpconfig ( struct mp** pmp )
 {
-	struct mpconf *conf;
-	struct mp     *mp;
+	struct mpconf* conf;
+	struct mp*     mp;
 
 	if ( ( mp = mpsearch() ) == 0 || mp->physaddr == 0 )
 	{
@@ -112,7 +114,7 @@ static struct mpconf* mpconfig ( struct mp **pmp )
 		return 0;
 	}
 
-	if ( sum( ( uchar* )conf, conf->length ) != 0 )
+	if ( sum( ( uchar* ) conf, conf->length ) != 0 )
 	{
 		return 0;
 	}
@@ -124,13 +126,13 @@ static struct mpconf* mpconfig ( struct mp **pmp )
 
 void mpinit ( void )
 {
-	uchar           *p,
-	                *e;
+	uchar*           p;
+	uchar*           e;
 	int              ismp;
-	struct mp       *mp;
-	struct mpconf   *conf;
-	struct mpproc   *proc;
-	struct mpioapic *ioapic;
+	struct mp*       mp;
+	struct mpconf*   conf;
+	struct mpproc*   proc;
+	struct mpioapic* ioapic;
 
 	if ( ( conf = mpconfig( &mp ) ) == 0 )
 	{
@@ -139,15 +141,15 @@ void mpinit ( void )
 
 	ismp = 1;
 
-	lapic = ( uint* )conf->lapicaddr;
+	lapic = ( uint* ) conf->lapicaddr;
 
-	for ( p = ( uchar* )( conf + 1 ), e = ( uchar* )conf + conf->length; p < e;  )
+	for ( p = ( uchar* ) ( conf + 1 ), e = ( uchar* ) conf + conf->length; p < e;  )
 	{
 		switch ( *p )
 		{
 			case MPPROC:
 
-				proc = ( struct mpproc* )p;
+				proc = ( struct mpproc* ) p;
 
 				if ( ncpu < NCPU )
 				{
@@ -162,7 +164,7 @@ void mpinit ( void )
 
 			case MPIOAPIC:
 
-				ioapic = ( struct mpioapic* )p;
+				ioapic = ( struct mpioapic* ) p;
 
 				ioapicid = ioapic->apicno;
 

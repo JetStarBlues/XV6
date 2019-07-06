@@ -58,6 +58,7 @@ struct dinode
 // Directory entry
 struct dirent
 {
-	ushort inum;  // inode number
-	char   name [ DIRNAMESZ ];
+	ushort inum;                // inode number
+	char   name [ DIRNAMESZ ];  /* If the name is shorter than DIRNAMESZ,
+	                               it is terminated by a null byte */
 };

@@ -1,3 +1,4 @@
+// An open file
 struct file
 {
 	enum {
@@ -8,16 +9,16 @@ struct file
 
 	} type;
 
-	int           ref;       // reference count
-	char          readable;
-	char          writable;
+	int           ref;       // Reference count - number of references to the file
+	char          readable;  // File opened for reading
+	char          writable;  // File opened for writing
 	struct pipe  *pipe;
 	struct inode *ip;
-	uint          off;
+	uint          off;       // IO offset...
 };
 
 
-// in-memory copy of an inode
+// In-memory copy of an inode
 struct inode
 {
 	uint             dev;    // Device number
@@ -42,8 +43,7 @@ struct inode
 	uint             addrs [ NDIRECT + 1 ];  // Data block addresses
 };
 
-// table mapping major device number to
-// device functions
+// Table mapping major device number to device functions
 struct devsw
 {
 	int ( *read  )( struct inode*, char*, int );
@@ -52,4 +52,5 @@ struct devsw
 
 extern struct devsw devsw [];
 
-#define CONSOLE 1
+// Major device numbers
+#define CONSOLE 1  // why is this the same as ROOTDEV ??

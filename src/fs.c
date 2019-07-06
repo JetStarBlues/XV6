@@ -902,7 +902,7 @@ int readi ( struct inode* ip, char* dst, uint off, uint n )
 	uint        nRead,
 	            nReadTotal,
 	            nYetToRead,
-	            nMaxCanRead;
+	            maxCanRead;
 	struct buf* buffer;
 
 	// The data for devices does not reside in the file system
@@ -943,9 +943,9 @@ int readi ( struct inode* ip, char* dst, uint off, uint n )
 		*/
 		nYetToRead = n - nReadTotal;  // bytes yet to read
 
-		nMaxCanRead = BLOCKSIZE - ( off % BLOCKSIZE );  // max number of bytes can read from current data block
+		maxCanRead = BLOCKSIZE - ( off % BLOCKSIZE );  // max number of bytes can read from current data block
 
-		nRead = min( nMaxCanRead, nYetToRead );
+		nRead = min( maxCanRead, nYetToRead );
 
 		memmove( dst, buffer->data + ( off % BLOCKSIZE ), nRead );
 
@@ -978,7 +978,7 @@ int writei ( struct inode* ip, char* src, uint off, uint n )
 	uint        nWritten,
 	            nWrittenTotal,
 	            nYetToWrite,
-	            nMaxCanWrite;
+	            maxCanWrite;
 	struct buf* buffer;
 
 	// The data for devices does not reside in the file system
@@ -1018,9 +1018,9 @@ int writei ( struct inode* ip, char* src, uint off, uint n )
 		*/
 		nYetToWrite = n - nWrittenTotal;  // bytes yet to be written
 
-		nMaxCanWrite = BLOCKSIZE - ( off % BLOCKSIZE );  // max number of bytes can write to current data block
+		maxCanWrite = BLOCKSIZE - ( off % BLOCKSIZE );  // max number of bytes can write to current data block
 
-		nWritten = min( nMaxCanWrite, nYetToWrite );
+		nWritten = min( maxCanWrite, nYetToWrite );
 
 		memmove( buffer->data + ( off % BLOCKSIZE ), src, nWritten );
 
@@ -1070,6 +1070,14 @@ void stati ( struct inode* ip, struct stat* st )
 
 // Directories
 
+/* A directory is implemented internally much like a file.
+   It's inode has type T_DIR and its data is a sequence of
+   directory entries.
+   Each directory entry is a "struct dirent" which contains a
+   name and inode number.
+   Dirents with an inum of zero are free.
+*/
+
 int namecmp ( const char* s, const char* t )
 {
 	return strncmp( s, t, DIRNAMESZ );
@@ -1077,81 +1085,110 @@ int namecmp ( const char* s, const char* t )
 
 // Look for a directory entry in a directory.
 // If found, set *poff to byte offset of entry.
-struct inode* dirlookup ( struct inode* dp, char* name, uint* poff )
+/* Searches a directory for an entry with the given name.
+   If it finds one, returns a pointer to the corresponding
+   inode unlocked.
+   It also sets poff to the byte offset of the entry within
+   the directory, in case the caller wishes to edit it ??
+*/
+struct inode* dirlookup ( struct inode* dir, char* name, uint* poff )
 {
 	uint          off,
 	              inum;
-	struct dirent de;
+	int           nbytes;
+	struct dirent direntry;
 
-	if ( dp->type != T_DIR )
+	if ( dir->type != T_DIR )
 	{
 		panic( "dirlookup: not DIR" );
 	}
 
-	for ( off = 0; off < dp->size; off += sizeof( de ) )
+	for ( off = 0; off < dir->size; off += sizeof( direntry ) )
 	{
-		if ( readi( dp, ( char* ) &de, off, sizeof( de ) ) != sizeof( de ) )
+		// Read a dirent into memory
+		nbytes = readi( dir, ( char* ) &direntry, off, sizeof( direntry ) );
+
+		if ( nbytes != sizeof( direntry ) )
 		{
 			panic( "dirlookup: read" );
 		}
 
-		if ( de.inum == 0 )  // unallocated dirent
+		// Skip unallocated dirent
+		if ( direntry.inum == 0 )
 		{
 			continue;
 		}
 
-		// entry matches path element
-		if ( namecmp( name, de.name ) == 0 )
+		// Found an entry whose name matches
+		if ( namecmp( name, direntry.name ) == 0 )
 		{
 			if ( poff )
 			{
 				*poff = off;
 			}
 
-			inum = de.inum;
+			inum = direntry.inum;
 
-			return iget( dp->dev, inum );
+			// Get a pointer to the unlocked inode
+			return iget( dir->dev, inum );
 		}
 	}
 
 	return 0;
 }
 
-// Write a new directory entry ( name, inum ) into the directory dp.
-int dirlink ( struct inode* dp, char* name, uint inum )
+// Write a new directory entry (name, inum) into the directory.
+int dirlink ( struct inode* dir, char* name, uint inum )
 {
 	int           off;
-	struct dirent de;
+	int           nbytes;
+	struct dirent direntry;
 	struct inode* ip;
 
-	// Check that name is not present.
-	if ( ( ip = dirlookup( dp, name, 0 ) ) != 0 )
+	// Check that name is not already present
+	if ( ( ip = dirlookup( dir, name, 0 ) ) != 0 )
 	{
 		iput( ip );
 
 		return - 1;
 	}
 
-	// Look for an empty dirent.
-	for ( off = 0; off < dp->size; off += sizeof( de ) )
+
+	// Look for an empty dirent
+	for ( off = 0; off < dir->size; off += sizeof( direntry ) )
 	{
-		if ( readi( dp, ( char* ) &de, off, sizeof( de ) ) != sizeof( de ) )
+		// Read a dirent into memory
+		nbytes = readi( dir, ( char* ) &direntry, off, sizeof( direntry ) );
+
+		if ( nbytes != sizeof( direntry ) )
 		{
 			panic( "dirlink: read" );
 		}
 
-		if ( de.inum == 0 )
+		// Found an unallocated dirent
+		/* Stop loop early with off set to the offset of the available entry.
+
+		   Otherwise, if we fail to find a free entry, the loop will end
+		   with off set to dir->size.
+		   If the dir is less than MAXFILESZ, the call to 'writei' will cause
+		   it to grow to accomadate the new entry.
+		*/
+		if ( direntry.inum == 0 )
 		{
 			break;
 		}
 	}
 
-	// Write the new dirent
-	strncpy( de.name, name, DIRNAMESZ );
 
-	de.inum = inum;
+	// Create the new dirent
+	strncpy( direntry.name, name, DIRNAMESZ );
 
-	if ( writei( dp, ( char* ) &de, off, sizeof( de ) ) != sizeof( de ) )
+	direntry.inum = inum;
+
+	// Write the dirent to the on-disk fs
+	nbytes = writei( dir, ( char* ) &direntry, off, sizeof( direntry ) );
+
+	if ( nbytes != sizeof( direntry ) )
 	{
 		panic( "dirlink" );
 	}
@@ -1164,6 +1201,10 @@ int dirlink ( struct inode* dp, char* name, uint inum )
 
 // Paths
 
+/* A path name lookup involves a succession of calls to dirlookup,
+   one for each path component.
+*/
+
 // Copy the next path element from path into name.
 // Return a pointer to the element following the copied one.
 // The returned path has no leading slashes,
@@ -1171,37 +1212,50 @@ int dirlink ( struct inode* dp, char* name, uint inum )
 // If no name to remove, return 0.
 //
 // Examples:
-//   skipelem( "a/bb/c", name ) = "bb/c", setting name = "a"
-//   skipelem( "///a//bb", name ) = "bb", setting name = "a"
-//   skipelem( "a", name ) = "", setting name = "a"
-//   skipelem( "", name ) = skipelem( "////", name ) = 0
+//   skipelem( "a/bb/c",   name ) = "bb/c", setting name = "a"
+//   skipelem( "///a//bb", name ) = "bb",   setting name = "a"
+//   skipelem( "a",        name ) = "",     setting name = "a"
+//   skipelem( "",         name ) = 0
+//   skipelem( "////",     name ) = 0
 //
-// JK:
-//                        name | returned path
-//                       ------|--------------
-//   skipelem( "a/b/c" )  a    | "b/c" | 900
-//   skipelem( "b/c" )    b    | "c"   | 901
-//   skipelem( "c" )      c    | ""    | 902
-//   skipelem( "" )       NA   | 0     | 0
+/* JK:
+   Suppose memory looks like:
+     900 : "a"
+     901 : "/"
+     902 : "x"
+     903 : "y"
+     904 : "z"
+     905 : "/"
+     906 : "c"
+     907 : "\0"
+                                name | returned path
+                               ------|------------------
+     skipelem( "a/xyz/c\0" ) :    a  | "xyz/c\0"  | 902
+     skipelem( "xyz/c\0" )   :  xyz  | "c\0"      | 906
+     skipelem( "c\0" )       :    c  | "\0"       | 907
+     skipelem( "\0" )        :   NA  | NA         | 0
+*/
 static char* skipelem ( char* path, char* name )
 {
 	char* s;
 	int   len;
 
+	// Skip until find a character that is not a forward slash
 	while ( *path == '/' )
 	{
 		path += 1;
 	}
 
+	// Return 0 (null pointer) if reached end of string
 	if ( *path == '\0' )  // EOS...
 	{
 		return 0;
 	}
 
-	// Get element
+	// Get element's name
 	s = path;
 
-	while ( *path != '/' && *path != 0 )
+	while ( *path != '/' && *path != '\0' )  // consume until '/' or EOS
 	{
 		path += 1;
 	}
@@ -1216,15 +1270,16 @@ static char* skipelem ( char* path, char* name )
 	{
 		memmove( name, s, len );
 
-		name[ len ] = 0;
+		name[ len ] = 0;  // add null terminal
 	}
 
-	// Get remaining path
+	// Get pointer to next element in path
 	while ( *path == '/' )
 	{
 		path += 1;
 	}
 
+	// Return pointer to next element in path
 	return path;
 }
 
@@ -1232,6 +1287,15 @@ static char* skipelem ( char* path, char* name )
 // If parent != 0, return the inode for the parent and copy the final
 // path element into name, which must have room for DIRNAMESZ bytes.
 // Must be called inside a transaction since it calls iput().
+//
+/* namex might take a long time to complete because it can
+   involve several operations to read inodes and directory blocks
+   traversed in the pathname (if they are not in the buffer cache).
+   As such, namex locks each directory in the path separately, so
+   that lookups in different directories (by different processes)
+   can proceed in parallel.
+   More about concurrency challenges raised p.88/89
+*/
 static struct inode* namex ( char* path, int nameiparent, char* name )
 {
 	struct inode *ip,
@@ -1240,15 +1304,15 @@ static struct inode* namex ( char* path, int nameiparent, char* name )
 	// Choose starting point
 	if ( *path == '/' )
 	{
-		ip = iget( ROOTDEV, ROOTINUM );
+		ip = iget( ROOTDEV, ROOTINUM );  // root directory
 	}
 	else
 	{
-		ip = idup( myproc()->cwd );
+		ip = idup( myproc()->cwd );  // current working directory
 	}
 
-	//
-	while ( ( path = skipelem( path, name ) ) != 0 )  // If this is not the last path element
+	// For each element in the path
+	while ( ( path = skipelem( path, name ) ) != 0 )
 	{
 		ilock( ip );
 
@@ -1296,6 +1360,9 @@ static struct inode* namex ( char* path, int nameiparent, char* name )
 	return ip;
 }
 
+/* Evaluates the path and returns the corresponding inode.
+   All elements must be directories (T_DIR).
+*/
 struct inode* namei ( char* path )
 {
 	char name [ DIRNAMESZ ];
@@ -1303,7 +1370,11 @@ struct inode* namei ( char* path )
 	return namex( path, 0, name );
 }
 
-struct inode* nameiparent( char* path, char* name )
+/* A variant of namei.
+   It stops before the last element, returning the inode of
+   the parent directory, and copying the final element into 'name'.
+*/
+struct inode* nameiparent ( char* path, char* name )
 {
 	return namex( path, 1, name );
 }
