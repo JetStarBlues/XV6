@@ -1,4 +1,6 @@
 . lseek
+	. 'filewrite' would need to be modified to fill holes in
+	  the file with zero if lseek sets off beyond f->ip->size? p.92
 
 . dynamic stack size
 

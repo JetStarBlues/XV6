@@ -1,6 +1,14 @@
 // File-system system calls.
-// Mostly argument checking (since we don't trust
-// user code) and calls into file.c and fs.c.
+// Mostly argument checking (since we don't trust user code)
+// and calls into file.c and fs.c.
+
+/* With the functions that the lower layers of the file system
+   provide, the implementation of most system calls is trivial.
+   However a few require attention...
+     . sys_link
+     . sys_unlink
+     . sys_open
+*/
 
 #include "types.h"
 #include "defs.h"
@@ -156,27 +164,28 @@ int sys_fstat ( void )
 
 // ___________________________________________________________________________
 
-// Create the path new as a link to the same inode as old.
+// Create the path 'newpath' as a link to the same inode as path 'oldpath'
 int sys_link ( void )
 {
-	struct inode* dp;
+	struct inode* dir;
 	struct inode* ip;
 	char          name [ DIRNAMESZ ];
-	char*         new;
-	char*         old;
+	char*         newpath;
+	char*         oldpath;
 
-	if ( argstr( 0, &old ) < 0 || argstr( 1, &new ) < 0 )
+	// Fetch arguments
+	if ( argstr( 0, &oldpath ) < 0 || argstr( 1, &newpath ) < 0 )
 	{
 		return - 1;
 	}
 
 	begin_op();
 
-	if ( ( ip = namei( old ) ) == 0 )
+	if ( ( ip = namei( oldpath ) ) == 0 )
 	{
 		end_op();
 
-		return - 1;
+		return - 1;  // oldpath does not exist
 	}
 
 	ilock( ip );
@@ -187,30 +196,37 @@ int sys_link ( void )
 
 		end_op();
 
-		return - 1;
+		return - 1;  // oldpath is a directory
 	}
 
+	// Increment the inode's link count
 	ip->nlink += 1;
 
-	iupdate( ip );
+	iupdate( ip );  // write changes to disk
 
 	iunlock( ip );
 
-	if ( ( dp = nameiparent( new, name ) ) == 0 )
+
+	// Create a new directory entry for it in directory newpath
+	if ( ( dir = nameiparent( newpath, name ) ) == 0 )
 	{
+		goto bad;  // newpath does not exist
+	}
+
+	ilock( dir );
+
+	if ( dir->dev != ip->dev || dirlink( dir, name, ip->inum ) < 0 )
+	{
+		/* a) newpath is not on the same device (an error since
+		      inode numbers only have a unique meaning on a single disk)
+		   b) dirlink failed
+		*/
+		iunlockput( dir );
+
 		goto bad;
 	}
 
-	ilock( dp );
-
-	if ( dp->dev != ip->dev || dirlink( dp, name, ip->inum ) < 0 )
-	{
-		iunlockput( dp );
-
-		goto bad;
-	}
-
-	iunlockput( dp );
+	iunlockput( dir );
 
 	iput( ip );
 
@@ -222,7 +238,7 @@ bad:
 
 	ilock( ip );
 
-	ip->nlink -= 1;
+	ip->nlink -= 1;  // decrement (undo increment)
 
 	iupdate( ip );
 
@@ -233,20 +249,23 @@ bad:
 	return - 1;
 }
 
-// Is the directory dp empty except for "." and ".." ?
-static int isdirempty ( struct inode* dp )
+// Is the directory empty except for "." and ".." ?
+static int isdirempty ( struct inode* dir )
 {
-	struct dirent de;
+	struct dirent direntry;
 	int           off;
+	int           nread;
 
-	for ( off = 2 * sizeof( de ); off < dp->size; off += sizeof( de ) )
+	for ( off = 2 * sizeof( direntry ); off < dir->size; off += sizeof( direntry ) )
 	{
-		if ( readi( dp, ( char* ) &de, off, sizeof( de ) ) != sizeof( de ) )
+		nread = readi( dir, ( char* ) &direntry, off, sizeof( direntry ) );
+
+		if ( nread != sizeof( direntry ) )
 		{
 			panic( "isdirempty: readi" );
 		}
 
-		if ( de.inum != 0 )
+		if ( direntry.inum != 0 )
 		{
 			return 0;
 		}
@@ -255,14 +274,16 @@ static int isdirempty ( struct inode* dp )
 	return 1;
 }
 
+// ...
 int sys_unlink ( void )
 {
 	struct inode*  ip;
-	struct inode*  dp;
-	struct dirent  de;
+	struct inode*  parentdir;
+	struct dirent  direntry;
 	char           name [ DIRNAMESZ ];
 	char*          path;
 	uint           off;
+	int            nbytes;
 
 	if ( argstr( 0, &path ) < 0 )
 	{
@@ -271,14 +292,14 @@ int sys_unlink ( void )
 
 	begin_op();
 
-	if ( ( dp = nameiparent( path, name ) ) == 0 )
+	if ( ( parentdir = nameiparent( path, name ) ) == 0 )
 	{
 		end_op();
 
 		return - 1;
 	}
 
-	ilock( dp );
+	ilock( parentdir );
 
 	// Cannot unlink "." or "..".
 	if ( namecmp( name, "." ) == 0 || namecmp( name, ".." ) == 0 )
@@ -286,7 +307,9 @@ int sys_unlink ( void )
 		goto bad;
 	}
 
-	if ( ( ip = dirlookup( dp, name, &off ) ) == 0 )
+
+	// Get inode associated with 'name'
+	if ( ( ip = dirlookup( parentdir, name, &off ) ) == 0 )
 	{
 		goto bad;
 	}
@@ -305,27 +328,34 @@ int sys_unlink ( void )
 		goto bad;
 	}
 
-	memset( &de, 0, sizeof( de ) );
 
-	if ( writei( dp, ( char* ) &de, off, sizeof( de ) ) != sizeof( de ) )
+	// Clear the directory entry
+	memset( &direntry, 0, sizeof( direntry ) );
+
+	nbytes = writei( parentdir, ( char* ) &direntry, off, sizeof( direntry ) );
+
+	if ( nbytes != sizeof( direntry ) )
 	{
 		panic( "unlink: writei" );
 	}
 
 	if ( ip->type == T_DIR )
 	{
-		dp->nlink -= 1;
+		parentdir->nlink -= 1;
 
-		iupdate( dp );
+		iupdate( parentdir );
 	}
 
-	iunlockput( dp );  // iput frees inode (and data) if this was last reference
+	iunlockput( parentdir );
 
+
+	// Update the inode's link count
 	ip->nlink -= 1;
 
 	iupdate( ip );
 
-	iunlockput( ip );  // iput frees inode (and data) if this was last reference
+	iunlockput( ip );
+
 
 	end_op();
 
@@ -333,7 +363,7 @@ int sys_unlink ( void )
 
 bad:
 
-	iunlockput( dp );
+	iunlockput( parentdir );
 
 	end_op();
 
@@ -343,25 +373,39 @@ bad:
 
 // ___________________________________________________________________________
 
+/* Whereas sys_link creates a new name for an existing inode,
+   'create' creates a new name for a new inode...
+
+   create is a generalization of three file creating syscalls:
+ 
+     . open with the O_CREATE flag
+       . makes an ordinary file
+
+     . mkdir
+       . makes a new directory
+
+     . mkdev
+       . makes a new device file
+*/
 static struct inode* create ( char* path, short type, short major, short minor )
 {
 	struct inode* ip;
-	struct inode* dp;
+	struct inode* parentdir;
 	uint          off;
 	char          name [ DIRNAMESZ ];
 
-	// If parent directory does not exist, fail
-	if ( ( dp = nameiparent( path, name ) ) == 0 )
+	// Get parent directory
+	if ( ( parentdir = nameiparent( path, name ) ) == 0 )
 	{
 		return 0;
 	}
 
-	ilock( dp );
+	ilock( parentdir );
 
-	// If already exists,
-	if ( ( ip = dirlookup( dp, name, &off ) ) != 0 )
+	// Check if name is already present in parent directory
+	if ( ( ip = dirlookup( parentdir, name, &off ) ) != 0 )
 	{
-		iunlockput( dp );
+		iunlockput( parentdir );
 
 		ilock( ip );
 
@@ -377,8 +421,11 @@ static struct inode* create ( char* path, short type, short major, short minor )
 		return 0;
 	}
 
+
 	// Does not exist, so let's create it
-	if ( ( ip = ialloc( dp->dev, type ) ) == 0 )
+
+	// Allocate an inode
+	if ( ( ip = ialloc( parentdir->dev, type ) ) == 0 )
 	{
 		panic( "create: ialloc" );
 	}
@@ -391,28 +438,32 @@ static struct inode* create ( char* path, short type, short major, short minor )
 
 	iupdate( ip );
 
-	if ( type == T_DIR )  // Create . and .. entries.
-	{
-		dp->nlink += 1;   // for ".."
 
-		iupdate( dp );
+	// If we are creating a directory, add the . and .. entries
+	if ( type == T_DIR )
+	{
+		parentdir->nlink += 1;   // for ".."
+
+		iupdate( parentdir );
+
 
 		// No ip->nlink += 1 for ".": avoid cyclic ref count.
 
-		if ( dirlink( ip, ".",  ip->inum ) < 0 ||  // current directory
-			 dirlink( ip, "..", dp->inum ) < 0 )   // parent directory
+		if ( dirlink( ip,  ".", ip->inum         ) < 0  ||  // current directory
+			 dirlink( ip, "..", parentdir->inum ) < 0 )     // parent directory
 		{
 			panic( "create: dots" );
 		}
 	}
 
-	// And add it to the parent directory
-	if ( dirlink( dp, name, ip->inum ) < 0 )
+
+	// Add the new file to the parent directory
+	if ( dirlink( parentdir, name, ip->inum ) < 0 )
 	{
 		panic( "create: dirlink" );
 	}
 
-	iunlockput( dp );
+	iunlockput( parentdir );
 
 	return ip;
 }
@@ -420,6 +471,8 @@ static struct inode* create ( char* path, short type, short major, short minor )
 
 // ___________________________________________________________________________
 
+/*
+*/
 int sys_open ( void )
 {
 	struct inode* ip;
@@ -461,7 +514,7 @@ int sys_open ( void )
 			return - 1;
 		}
 
-		ilock( ip );
+		ilock( ip );  // unlike 'create', 'namei' does not return a locked inode
 
 		// Make sure only reading directories
 		if ( ip->type == T_DIR && omode != O_RDONLY )
@@ -514,6 +567,7 @@ int sys_open ( void )
 
 	end_op();
 
+	//
 	f->type     = FD_INODE;
 	f->ip       = ip;
 	f->off      = foffset;
@@ -559,7 +613,8 @@ int sys_mkdir ( void )
 
 	begin_op();
 
-	if ( argstr( 0, &path ) < 0 || ( ip = create( path, T_DIR, 0, 0 ) ) == 0 )
+	if ( argstr( 0, &path ) < 0                      ||
+		 ( ip = create( path, T_DIR, 0, 0 ) ) == 0 )
 	{
 		end_op();
 
@@ -581,7 +636,8 @@ int sys_chdir ( void )
 	
 	begin_op();
 
-	if ( argstr( 0, &path ) < 0 || ( ip = namei( path ) ) == 0 )
+	if ( argstr( 0, &path ) < 0        ||
+		 ( ip = namei( path ) ) == 0 )
 	{
 		end_op();
 
@@ -635,7 +691,7 @@ int sys_exec ( void )
 			return - 1;
 		}
 
-		if ( fetchint( uargv + 4 * i, ( int* ) &uarg ) < 0 )
+		if ( fetchint( uargv + 4 * i, ( int* ) &uarg ) < 0 )  // ??
 		{
 			return - 1;
 		}
@@ -659,10 +715,16 @@ int sys_exec ( void )
 
 // ___________________________________________________________________________
 
+/* Connects pipe to file system by providing a way to
+   create a pipe pair...
+   Its argument is a pointer to space for two integers, where
+   it will record the two new file descriptors...
+   It allocates the pupe and installs the file descriptors...
+*/
 int sys_pipe ( void )
 {
-	struct file *rf;
-	struct file *wf;
+	struct file* rf;
+	struct file* wf;
 	int*         fd;
 	int          fd0,
 	             fd1;
@@ -681,7 +743,7 @@ int sys_pipe ( void )
 
 	if ( ( fd0 = fdalloc( rf ) ) < 0 || ( fd1 = fdalloc( wf ) ) < 0 )
 	{
-		if ( fd0 >= 0 )
+		if ( fd0 >= 0 )  // ??
 		{
 			myproc()->ofile[ fd0 ] = 0;
 		}

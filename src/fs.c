@@ -1334,7 +1334,7 @@ static struct inode* namex ( char* path, int nameiparent, char* name )
 			return ip;
 		}
 
-		// Get inode of next directory (child) in path
+		// Get inode of next element (child) in path
 		next = dirlookup( ip, name, 0 );
 
 		if ( next == 0 )
@@ -1361,7 +1361,6 @@ static struct inode* namex ( char* path, int nameiparent, char* name )
 }
 
 /* Evaluates the path and returns the corresponding inode.
-   All elements must be directories (T_DIR).
 */
 struct inode* namei ( char* path )
 {

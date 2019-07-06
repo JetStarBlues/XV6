@@ -104,6 +104,12 @@
    (when handling large files...).
    To address this, the 'write' syscall breaks up large writes into
    multiple smaller writes.
+
+
+   xv6's logging system is inefficient:
+     . a commit cannot occur concurrently with fs syscalls
+     . an entire block is logged even if only a few bytes are changed
+     . log writes are synchronous
 */
 
 #include "types.h"

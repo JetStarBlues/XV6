@@ -43,7 +43,8 @@ struct inode
 	uint             addrs [ NDIRECT + 1 ];  // Data block addresses
 };
 
-// Table mapping major device number to device functions
+// Table mapping major device numberd to their respective
+// read and write functions
 struct devsw
 {
 	int ( *read  )( struct inode*, char*, int );
