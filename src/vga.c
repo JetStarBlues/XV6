@@ -6,62 +6,160 @@
 // #include "sleeplock.h"
 // #include "fs.h"
 // #include "file.h"
-// #include "memlayout.h"
+#include "memlayout.h"
 // #include "mmu.h"
 // #include "proc.h"
 #include "x86.h"
 
-#define CRTPORT 0x3d4
+/*
+Based on:
+	http://www.jamesmolloy.co.uk/tutorial_html/3.-The%20Screen.html
+*/
 
-static ushort* crt = ( ushort* ) P2V( 0xb8000 );  // CGA memory
+/*
+Text mode
+	. http://www.jamesmolloy.co.uk/tutorial_html/3.-The%20Screen.html
 
-static void cgaputc ( int c )
+	. The framebuffer is an array of 16-bit words, with each value
+	  representing the display of one character.
+
+	. The offset from the start of the buffer specifying a character
+	  at position (x, y) or (col, row) is:
+
+		  x + (   y * NCOLS )
+		col + ( row * NCOLS )
+
+	. The 16 bits are used as follows:
+		15..12 - background color
+		11..8  - foreground color
+		 7..0  - ascii code
+	
+	. 16 possible colors, see below.
+
+	. Registers - control (0x3d4), data (0x3d5)
+*/
+
+// Text mode ____________________________________
+
+#define TXTBUFFER 0xb8000  // physical address
+
+#define NCOLS       80
+#define NROWS       25
+#define NCOLSxNROWS 2000  // NCOLS x NROWS
+
+#define CTRL 0x3d4
+#define DATA 0x3d5
+
+#define TBLACK         0
+#define TBLUE          1
+#define TGREEN         2
+#define TCYAN          3
+#define TRED           4
+#define TMAGENTA       5
+#define TBROWN         6
+#define TLIGHT_GREY    7
+#define TDARK_GREY     8
+#define TLIGHT_BLUE    9
+#define TLIGHT_GREEN   10
+#define TLIGHT_CYAN    11
+#define TLIGHT_RED     12
+#define TLIGHT_MAGNETA 13
+#define TYELLOW        14
+#define TWHITE         15
+
+#define BACKSPACE 0x100
+
+// txtcolor( bg, fg ) = ( ( bg << 4 ) | fg ) << 8
+#define TXTCOLOR( BG, FG ) ( ( ( ( BG ) << 4 ) | ( FG ) ) << 8 )
+
+
+void vgaputc ( int c )
 {
+	static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
+
 	int pos;
 
-	// Cursor position: col + ( 80 * row )
-	outb( CRTPORT, 14 );
+	// Get current cursor position
+	outb( CTRL, 14 );
+	pos = inb( DATA ) << 8;  // get hi byte
 
-	pos = inb( CRTPORT + 1 ) << 8;
+	outb( CTRL, 15 );
+	pos |= inb( DATA );      // get lo byte
 
-	outb( CRTPORT, 15 );
 
-	pos |= inb( CRTPORT + 1 );
-
-	if ( c == '\n' )  // newline
+	/* Calculate new cursor position and if applicable,
+	   draw the character.
+	*/
+	// Newline
+	if ( c == '\n' )
 	{
-		pos += 80 - ( pos % 80 );
+		pos += NCOLS - ( pos % NCOLS );
 	}
+	// Backspace
 	else if ( c == BACKSPACE )
 	{
-		if ( pos > 0 ) --pos;
+		if ( pos > 0 )
+		{
+			pos -= 1;
+		}
 	}
+	// Everything else
 	else
 	{
-		crt[ pos ] = ( c & 0xff ) | 0x0700;  // black on white
+		// Draw the character by placing it in the buffer
+		textbuffer[ pos ] = ( c & 0xff ) | TXTCOLOR( TYELLOW, TRED );
 
 		pos += 1;
 	}
 
-	if ( pos < 0 || pos > 25 * 80 )
+	if ( pos < 0 || pos > NCOLSxNROWS )
 	{
-		panic( "cgaputc: pos under/overflow" );
+		panic( "vgaputc: invalid pos" );
 	}
 
-	// Scroll up
-	if ( ( pos / 80 ) >= 24 )
+
+	// If moved past last row, scroll up
+	if ( ( pos / NCOLS ) >= NROWS )
 	{
-		memmove( crt, crt + 80, sizeof( crt[ 0 ] ) * 23 * 80 );
+		// Move the current contents up a row
+		memmove(
 
-		pos -= 80;
+			textbuffer,
+			textbuffer + NCOLS,
+			sizeof( textbuffer[ 0 ] ) * ( NROWS - 1 ) * NCOLS
+		);
 
-		memset( crt + pos, 0, sizeof( crt[ 0 ] ) * ( 24 * 80 - pos ) );
+		// Move cursor to last row
+		pos -= NCOLS;
+
+		// Clear the last row
+		memset(
+
+			textbuffer + pos,
+			0,
+			sizeof( textbuffer[ 0 ] ) * ( NCOLSxNROWS - pos )
+		);
 	}
 
-	outb( CRTPORT, 14 );
-	outb( CRTPORT + 1, pos >> 8 );
-	outb( CRTPORT, 15 );
-	outb( CRTPORT + 1, pos );
 
-	crt[ pos ] = ' ' | 0x0700;
+	// Move the cursor
+	outb( CTRL, 14 );
+	outb( DATA, pos >> 8 );  // send hi byte
+	outb( CTRL, 15 );
+	outb( DATA, pos );       // send lo byte
+
+
+	// Blank area where cursor will appear (cursor is drawn by terminal)
+	textbuffer[ pos ] = ' ' | TXTCOLOR( TYELLOW, TRED );
 }
+
+
+/*
+Graphics mode
+	. 
+*/
+
+// Graphics mode _________________________________
+
+#define GFXBUFFER 0xa0000  // physical address
+

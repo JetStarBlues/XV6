@@ -171,7 +171,7 @@ void            uartintr ( void );
 void            uartputc ( int );
 
 // vga.c
-// void            cgaputc ( int );
+void            vgaputc ( int );
 
 // vm.c
 void            seginit    ( void );
