@@ -14,10 +14,11 @@
 /*
 Based on:
 	http://www.jamesmolloy.co.uk/tutorial_html/3.-The%20Screen.html
+	https://wiki.osdev.org/Drawing_In_Protected_Mode
 */
 
 /*
-Text mode
+Text mode (VGA mode 3)
 	. http://www.jamesmolloy.co.uk/tutorial_html/3.-The%20Screen.html
 
 	. The framebuffer is an array of 16-bit words, with each value
@@ -155,11 +156,16 @@ void vgaputc ( int c )
 
 
 /*
-Graphics mode
-	. 
+Graphics mode (VGA mode 13)
+
+	. 320x200, 256 color
+	. 24bit - 8 bits red, 8 bits green, 8 bits blue
 */
 
 // Graphics mode _________________________________
 
 #define GFXBUFFER 0xa0000  // physical address
+
+
+
 

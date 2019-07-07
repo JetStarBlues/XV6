@@ -4,6 +4,14 @@
 #include "stat.h"
 #include "user.h"
 #include "fcntl.h"
+/* JK, following includes are needed to get
+   the device number constants defined in file.h
+   =(
+*/
+#include "spinlock.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 
 char* argv [] = { "sh", 0 };
 
@@ -13,15 +21,19 @@ int main ( void )
 
 	// Create a new console device if needed, and open it
 	// as stdin/out/error (fds 0, 1, 2)
-	if ( open( "console", O_RDWR ) < 0 )
+	if ( open( "/dev/console", O_RDWR ) < 0 )
 	{
-		mknod( "console", 1, 1 );  // create a device file...
+		mknod( "/dev/console", CONSOLE, 1 );  // create a device file...
 
-		open( "console", O_RDWR );  // stdin
+		open( "/dev/console", O_RDWR );  // stdin
 	}
 
 	dup( 0 );  // stdout
 	dup( 0 );  // stderr
+
+	/* For an example of multiple devices, see
+	    https://github.com/DoctorWkt/xv6-freebsd/blob/master/cmd/old/init.c
+	*/
 
 
 	/* Loops:

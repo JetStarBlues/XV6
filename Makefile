@@ -45,7 +45,7 @@ OBJS =          \
 	trap.o      \
 	uart.o      \
 	vectors.o   \
-	vga.o   \
+	vga.o       \
 	vm.o
 
 # User code
