@@ -201,7 +201,7 @@ Graphics mode (VGA mode 0x13)
 #define	VGA_NUM_GC_REGS   9
 #define	VGA_NUM_AC_REGS   21
 
-static ushort* gfxbuffer = ( ushort* ) P2V( GFXBUFFER );
+static uchar* gfxbuffer = ( uchar* ) P2V( GFXBUFFER );
 
 
 unsigned char g_320x200x256 [] =
@@ -670,14 +670,14 @@ void vgaSetDefaultPalette ()
 
 
 
-#define g_wd 320
-#define g_ht 200
+#define GWIDTH  320
+#define GHEIGHT 200
 
 static void write_pixel8 ( unsigned x, unsigned y, unsigned c )
 {
 	unsigned off;
 
-	off = g_wd * y + x;
+	off = GWIDTH * y + x;
 
 	gfxbuffer[ off ] = c;
 }
@@ -692,23 +692,32 @@ static void draw_x ( void )
 	const int green  = 2;
 	// const int cyan   = 3;
 	const int red    = 4;
-	// const int yellow = 14;
+	const int yellow = 14;
 
 	/* clear screen */
-	for ( y = 0; y < g_ht; y += 1 )
+	for ( y = 0; y < GHEIGHT; y += 1 )
 	{
-		for ( x = 0; x < g_wd; x += 1 )
+		for ( x = 0; x < GWIDTH; x += 1 )
 		{
-			// write_pixel8( x, y, yellow );
-			write_pixel8( x, y, y % 16 );
+			write_pixel8( x, y, yellow );
 		}
 	}
 
 	/* draw 2-color X */
-	for ( y = 0; y < g_ht; y += 1 )
+	/*for ( y = 0; y < GHEIGHT; y += 1 )
 	{
-		write_pixel8( ( g_wd - g_ht ) / 2 + y, y, red );
-		write_pixel8( ( g_ht + g_wd ) / 2 - y, y, green );
+		write_pixel8( ( GWIDTH - GHEIGHT ) / 2 + y, y, red );
+		write_pixel8( ( GHEIGHT + GWIDTH ) / 2 - y, y, green );
+	}*/
+
+	/* draw 2-color + */
+	for ( x = 0; x < GWIDTH; x += 1 )
+	{
+		write_pixel8( x, GHEIGHT / 2, red );
+	}
+	for ( y = 0; y < GHEIGHT; y += 1 )
+	{
+		write_pixel8( GWIDTH / 2, y, green );
 	}
 
 	// getch();
