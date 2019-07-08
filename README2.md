@@ -42,15 +42,14 @@ Your directory should now look like this:
         ├── lib
         └── prog
             └── core
-
 ```
 
 Ideally, instead of manually adding the folders, they would be present when you clone or download this repository. Unfortunately, I have yet to figure out how to make Git track empty folders.
 
-
+<br/>
 ### Make - Permission Denied
 
-When you first run `make`, you may get a `permission denied` error when `make` tries to execute the perl files `sign.pl` and `vectors.s`. To resolve this problem, you need to give the files execute permission. This can be done as follows:
+When you first run `make`, you may get a `permission denied` error when `make` tries to execute the perl files `sign.pl` and `vectors.pl`. To resolve this problem, you need to give the files execute permission. This can be done as follows:
 
 ```
 chmod a+x src/sign.pl
