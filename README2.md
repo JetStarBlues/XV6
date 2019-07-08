@@ -1,6 +1,6 @@
 ## Make - Nonexistent folders
 
-When you first run `make` it **will fail** because the following subdirectories need to be added:
+When you first run `make`, **it will fail** because the following subdirectories need to be added:
 
 ```
 bin/
