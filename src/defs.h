@@ -172,8 +172,9 @@ void            uartputc ( int );
 
 // vga.c
 void            vgaputc ( int );
-void            vgaSetPalette ( int, int, int, int );
+void            vgaSetPalette ( int, char, char, char );
 void            vgaSetDefaultPalette ( void );
+void            convert24to18bit ( int, int*, int*, int* );
 void            demo_graphics ( void );
 
 // vm.c
