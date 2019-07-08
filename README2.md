@@ -44,7 +44,7 @@ Your directory should now look like this:
             └── core
 ```
 
-Ideally, instead of manually adding the folders, they would be present when you clone or download this repository. Unfortunately, I have yet to figure out how to make Git track empty folders.
+Ideally, instead of manually adding the folders, they would be present when you clone or download this repository. Unfortunately, I have yet to figure out how one can make Git track empty folders.
 
 
 ## Make - Permission Denied
