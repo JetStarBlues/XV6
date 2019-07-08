@@ -282,8 +282,9 @@ void consputc ( int c )
 
 void consoleintr ( int ( *getc ) ( void ) )
 {
-	int c,
-	    doprocdump = 0;
+	int c;
+	int doprocdump = 0;
+	int dotestthing = 0;
 
 	acquire( &cons.lock );
 
@@ -291,6 +292,13 @@ void consoleintr ( int ( *getc ) ( void ) )
 	{
 		switch ( c )
 		{
+			// DELETE ME! Temporary for testing
+			case C( 'T' ):
+
+				dotestthing = 1;
+
+				break;
+
 			// Process listing
 			case C( 'P' ):
 
@@ -358,6 +366,13 @@ void consoleintr ( int ( *getc ) ( void ) )
 	if ( doprocdump )
 	{
 		procdump();  // now call procdump() wo. cons.lock held
+	}
+
+	if ( dotestthing )
+	{
+		cprintf( "Hacker thingies!\n" );
+
+		demo_graphics();
 	}
 }
 

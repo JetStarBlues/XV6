@@ -368,8 +368,8 @@ endif
 QEMUOPTS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
 qemu: fs.img xv6.img
-	# $(QEMU) -serial mon:stdio $(QEMUOPTS)
-	$(QEMU) -display curses $(QEMUOPTS)
+	$(QEMU) -serial mon:stdio $(QEMUOPTS)
+	# $(QEMU) -display curses $(QEMUOPTS)
 
 qemu-nox: fs.img xv6.img
 	$(QEMU) -nographic $(QEMUOPTS)

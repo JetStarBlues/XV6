@@ -54,7 +54,8 @@ struct devsw
 extern struct devsw devsw [];
 
 // Major device numbers
-#define CONSOLE 1  // why is this the same as ROOTDEV ??
+#define CONSOLE 1
+#define DISPLAY 2  // hmm...
 
 /* Major vs minor device number
      . https://www.oreilly.com/library/view/linux-device-drivers/0596000081/ch03s02.html

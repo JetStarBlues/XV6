@@ -172,6 +172,9 @@ void            uartputc ( int );
 
 // vga.c
 void            vgaputc ( int );
+void            vgaSetPalette ( int, int, int, int );
+void            vgaSetDefaultPalette ( void );
+void            demo_graphics ( void );
 
 // vm.c
 void            seginit    ( void );
