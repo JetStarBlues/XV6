@@ -373,6 +373,10 @@ void consoleintr ( int ( *getc ) ( void ) )
 		cprintf( "Hacker thingies!\n" );
 
 		demo_graphics();
+
+		set_text_mode();
+
+		cprintf( "Did we switch back to text mode successfully?\n" );
 	}
 }
 

@@ -171,11 +171,14 @@ void            uartintr ( void );
 void            uartputc ( int );
 
 // vga.c
+void            vgainit ();
 void            vgaputc ( int );
 void            vgaSetPalette ( int, char, char, char );
 void            vgaSetDefaultPalette ( void );
 void            convert24to18bit ( int, int*, int*, int* );
+
 void            demo_graphics ( void );
+void            set_text_mode ( void );
 
 // vm.c
 void            seginit    ( void );
@@ -191,7 +194,7 @@ pde_t*          copyuvm    ( pde_t*, uint );
 void            switchuvm  ( struct proc* );
 void            switchkvm  ( void );
 int             copyout    ( pde_t*, uint, void*, uint );
-void            clearpteu  ( pde_t *pgdir, char *uva );
+void            clearpteu  ( pde_t* pgdir, char* uva );
 
 // number of elements in fixed-size array
 #define NELEM( x ) ( sizeof( x ) / sizeof( ( x )[ 0 ] ) )

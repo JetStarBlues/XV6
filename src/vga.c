@@ -74,9 +74,34 @@ Text mode (VGA mode 0x03)
 #define TXTCOLOR( BG, FG ) ( ( ( ( BG ) << 4 ) | ( FG ) ) << 8 )
 
 
+static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
+
+static int textcolor_txtmode =       TXTCOLOR( TYELLOW, TRED );
+static int clearchar_txtmode = TXTCOLOR( TCYAN, TCYAN );  // Y U NO WORK ?!
+
+
+static void clearscreen_textmode ()
+{
+	memset(
+
+		textbuffer,
+		// 0,
+		clearchar_txtmode,
+		sizeof( textbuffer[ 0 ] ) * NCOLSxNROWS
+	);
+}
+
+
+void vgainit ()
+{
+	// Assumes we start in Mode 0x03
+
+	clearscreen_textmode();
+}
+
 void vgaputc ( int c )
 {
-	static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
+	// static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
 
 	int pos;
 
@@ -108,7 +133,7 @@ void vgaputc ( int c )
 	else
 	{
 		// Draw the character by placing it in the buffer
-		textbuffer[ pos ] = ( c & 0xff ) | TXTCOLOR( TYELLOW, TRED );
+		textbuffer[ pos ] = ( c & 0xff ) | textcolor_txtmode;
 
 		pos += 1;
 	}
@@ -137,7 +162,8 @@ void vgaputc ( int c )
 		memset(
 
 			textbuffer + pos,
-			0,
+			// 0,
+			clearchar_txtmode,
 			sizeof( textbuffer[ 0 ] ) * ( NCOLSxNROWS - pos )
 		);
 	}
@@ -151,7 +177,7 @@ void vgaputc ( int c )
 
 
 	// Blank area where cursor will appear (cursor is drawn by terminal)
-	textbuffer[ pos ] = ' ' | TXTCOLOR( TYELLOW, TRED );
+	textbuffer[ pos ] = ' ' | textcolor_txtmode;
 }
 
 
@@ -259,8 +285,13 @@ unsigned char g_320x200x256 [] =
 };
 
 
-/*
-static unsigned char g_8x16_font[ 4096 ] =
+/* Custom default font
+
+   For some reason the font is erased when we switch modes,
+   so we need to write it back.
+   https://www.cs.uic.edu/bin/view/CS385fall14/Homework3
+*/
+static unsigned char g_8x16_font [ 4096 ] =
 {
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x7E, 0x81, 0xA5, 0x81, 0x81, 0xBD, 0x99, 0x81, 0x81, 0x7E, 0x00, 0x00, 0x00, 0x00, 
@@ -519,7 +550,7 @@ static unsigned char g_8x16_font[ 4096 ] =
 	0x00, 0x00, 0x00, 0x00, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x7C, 0x00, 0x00, 0x00, 0x00, 0x00,
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
 };
-*/
+
 
 
 /* An approximation of the standard 256-color VGA palette.
@@ -688,59 +719,114 @@ void vgaSetDefaultPalette ()
 	}
 }
 
+/* Turn byte channels (0xRRGGBB) into 6 bit channels
+   by dropping the lowest 2 bits.
+   https://en.wikipedia.org/wiki/List_of_monochrome_and_RGB_palettes#18-bit_RGB
+*/
 void convert24to18bit ( int color24, int* r, int* g, int* b )
 {
-	/* Turn byte channels (0xRRGGBB) into 6 bit channels
-	   by dropping the lowest 2 bits.
-	   https://en.wikipedia.org/wiki/List_of_monochrome_and_RGB_palettes#18-bit_RGB
-	*/
 	*r = ( ( color24 & 0xff0000 ) >> 16 ) >> 2;
 	*g = ( ( color24 & 0x00ff00 ) >> 8  ) >> 2;
 	*b = ( ( color24 & 0x0000ff )       ) >> 2;
 }
 
 
-
-
-
-/*static unsigned get_fb_seg(void)
+static void set_plane ( unsigned p )
 {
-	return TXTBUFFER;  // ??
-}*/
+	unsigned char pmask;
 
-// #define	_vmemwr(DS,DO,S,N)	memcpy((char *)((DS) * 16 + (DO)), S, N)
+	p     &= 3;
+	pmask  = 1 << p;
 
-// static void vmemwr(unsigned dst_off, unsigned char *src, unsigned count)
-// {
-// 	_vmemwr(get_fb_seg(), dst_off, src, count);
-// }
+	/* Set read plane */
+	outb( VGA_GC_INDEX, 4 );
+	outb( VGA_GC_DATA, p );
+
+	/* Set write plane */
+	outb( VGA_SEQ_INDEX, 2 );
+	outb( VGA_SEQ_DATA, pmask );
+}
+
+static void write_font ( unsigned char* font, unsigned fontheight )
+{
+	unsigned char seq2, seq4, gc4, gc5, gc6;
+	int           i;
+	int           offset;
+
+	/* Save registers
+	   set_plane() modifies GC 4 and SEQ 2, so save them as well
+	*/
+	outb( VGA_SEQ_INDEX, 2 );
+	seq2 = inb( VGA_SEQ_DATA );
+
+	outb( VGA_SEQ_INDEX, 4 );
+	seq4 = inb( VGA_SEQ_DATA );
+
+	/* Turn off even-odd addressing (set flat addressing)
+	   assume: chain-4 addressing already off
+	*/
+	outb( VGA_SEQ_DATA, seq4 | 0x04 );
+
+	outb( VGA_GC_INDEX, 4 );
+	gc4 = inb( VGA_GC_DATA );
+
+	outb( VGA_GC_INDEX, 5 );
+	gc5 = inb( VGA_GC_DATA );
+
+	/* Turn off even-odd addressing */
+	outb( VGA_GC_DATA, gc5 & ( ~ 0x10 ) );
+
+	outb( VGA_GC_INDEX, 6 );
+	gc6 = inb( VGA_GC_DATA );
+
+	/* Turn off even-odd addressing */
+	outb( VGA_GC_DATA, gc6 & ( ~ 0x02 ) );
+
+	/* Write font to plane P4 */
+	set_plane( 2 );
+
+	/* Write font */
+	for ( i = 0; i < 256; i += 1 )
+	{
+		offset = i * 32;  // ?? Maybe maximum height a VGA font can be is 32
+
+		memmove(
+
+			( uchar* ) ( P2V( TXTBUFFER + offset ) ),  // dst
+			font,                                      // src
+			fontheight
+		);
+
+		font += fontheight;
+	}
+
+	/* Restore registers */
+	outb( VGA_SEQ_INDEX, 2 );
+	outb( VGA_SEQ_DATA,  seq2 );
+	outb( VGA_SEQ_INDEX, 4 );
+	outb( VGA_SEQ_DATA,  seq4 );
+	outb( VGA_GC_INDEX,  4 );
+	outb( VGA_GC_DATA,   gc4 );
+	outb( VGA_GC_INDEX,  5 );
+	outb( VGA_GC_DATA,   gc5 );
+	outb( VGA_GC_INDEX,  6 );
+	outb( VGA_GC_DATA,   gc6 );
+}
+
+void set_text_mode ( void )
+{
+	write_regs( g_80x25_text );
+
+	/* For some reason the font is erased when we switch modes,
+	   so we need to write it back.
+	   https://www.cs.uic.edu/bin/view/CS385fall14/Homework3
+	*/
+	write_font( g_8x16_font, 16 );
 
 
-// void set_text_mode(void)
-// {
-// 	unsigned rows, cols, ht, i;
-
-// 	write_regs(g_80x25_text);
-
-// 	// cols = 80;
-// 	// rows = 25;
-// 	// ht = 16;
-
-// 	write_font(g_8x16_font, 16);
-
-// 	// /* tell the BIOS what we've done, so BIOS text output works OK */
-// 	// pokew(0x40, 0x4A, cols);             /* columns on screen */
-// 	// pokew(0x40, 0x4C, cols * rows * 2);  /* framebuffer size */
-// 	// pokew(0x40, 0x50, 0);                /* cursor pos'n */
-// 	// pokeb(0x40, 0x60, ht - 1);           /* cursor shape */
-// 	// pokeb(0x40, 0x61, ht - 2);
-// 	// pokeb(0x40, 0x84, rows - 1);         /* rows on screen - 1 */
-// 	// pokeb(0x40, 0x85, ht);               /* char height */
-
-// 	// /* set white-on-black attributes for all text */
-// 	// for(i = 0; i < cols * rows; i++)
-// 	// 	pokeb(0xB800, i * 2 + 1, 7);
-// }
+	// Clear screen
+	clearscreen_textmode();
+}
 
 
 
@@ -806,7 +892,7 @@ void demo_graphics ( void )
 	draw_x();
 
 	/* Go back to 80x25 text mode */
-	// set_text_mode();
+	set_text_mode();
 }
 
 
