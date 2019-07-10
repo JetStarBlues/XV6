@@ -365,16 +365,16 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 	if ( doprocdump )
 	{
-		procdump();  // now call procdump() wo. cons.lock held
+		procdump();  // now call procdump() without cons.lock held
 	}
 
 	if ( dotestthing )
 	{
 		cprintf( "Hacker thingies!\n" );
 
-		demo_graphics();
+		demoGraphics();
 
-		set_text_mode();
+		setTextMode();
 
 		cprintf( "Did we switch back to text mode successfully?\n" );
 	}

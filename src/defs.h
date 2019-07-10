@@ -171,14 +171,17 @@ void            uartintr ( void );
 void            uartputc ( int );
 
 // vga.c
-void            vgainit ();
-void            vgaputc ( int );
-void            vgaSetPalette ( int, char, char, char );
+void            vgainit              ();
+void            vgaputc              ( int );
+void            writePixel           ( int, int, int );
+void            vgaSetPalette        ( int, char, char, char );
 void            vgaSetDefaultPalette ( void );
-void            convert24to18bit ( int, int*, int*, int* );
+void            convert24To18bit     ( int, int*, int*, int* );
 
-void            demo_graphics ( void );
-void            set_text_mode ( void );
+void            setTextMode ( void );
+void            setGraphicsMode ( void );
+
+void            demoGraphics ( void );
 
 // vm.c
 void            seginit    ( void );
