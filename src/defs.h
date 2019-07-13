@@ -88,6 +88,10 @@ void            log_write ( struct buf* );
 void            begin_op  ();
 void            end_op    ();
 
+// mouse.c
+void            mouseinit ( void );
+void            mouseintr ( void );
+
 // mp.c
 extern int      ismp;
 void            mpinit ( void );
@@ -178,7 +182,7 @@ void            vgaSetPalette        ( int, char, char, char );
 void            vgaSetDefaultPalette ( void );
 void            convert24To18bit     ( int, int*, int*, int* );
 
-void            setTextMode ( void );
+void            setTextMode     ( void );
 void            setGraphicsMode ( void );
 
 void            demoGraphics ( void );

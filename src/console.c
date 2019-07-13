@@ -274,7 +274,7 @@ void consputc ( int c )
 		uartputc( c );
 	}
 
-	vgaputc( c );
+	vgaputc( c );  // code in vgaputc handles BACKSPACE
 }
 
 

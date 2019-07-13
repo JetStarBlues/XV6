@@ -142,6 +142,16 @@ void trap ( struct trapframe *tf )
 			break;
 
 
+		// Mouse interrupt
+		case T_IRQ0 + IRQ_MOUSE:
+
+			mouseintr();
+
+			lapiceoi();
+
+			break;
+
+
 		// Spurious
 		case T_IRQ0 + 7:
 		case T_IRQ0 + IRQ_SPURIOUS:

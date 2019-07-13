@@ -5,7 +5,7 @@
 
 int kbdgetc ( void )
 {
-	uint          st,
+	uint          status,
 	              data,
 	              c;
 	static uint   shift;
@@ -17,21 +17,25 @@ int kbdgetc ( void )
 		ctlmap
 	};
 
-	st = inb( KBSTATP );
+	status = inb( PS2CTRL );
 
-	if ( ( st & KBS_DIB ) == 0 )
+	// No data available...
+	if ( ( status & PS2DINFULL ) == 0 )
 	{
 		return - 1;
 	}
 
-	data = inb( KBDATAP );
+	// Read data
+	data = inb( PS2DATA );
 
+	// ?
 	if ( data == 0xE0 )
 	{
 		shift |= E0ESC;
 
 		return 0;
 	}
+	// ?
 	else if ( data & 0x80 )
 	{
 		// Key released
@@ -41,6 +45,7 @@ int kbdgetc ( void )
 
 		return 0;
 	}
+	// ?
 	else if ( shift & E0ESC )
 	{
 		// Last character was an E0 escape; or with 0x80
@@ -69,6 +74,8 @@ int kbdgetc ( void )
 	return c;
 }
 
+/* Keyboard interrupt is sent when ??
+*/
 void kbdintr ( void )
 {
 	consoleintr( kbdgetc );

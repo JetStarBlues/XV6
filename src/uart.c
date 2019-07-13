@@ -86,6 +86,8 @@ static int uartgetc ( void )
 	return inb( COM1 + 0 );
 }
 
+/* UART interrupt is sent when ??
+*/
 void uartintr ( void )
 {
 	consoleintr( uartgetc );
