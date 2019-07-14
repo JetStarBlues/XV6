@@ -374,9 +374,9 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 		demoGraphics();
 
-		setTextMode();
+		// setTextMode();
 
-		cprintf( "Did we switch back to text mode successfully?\n" );
+		// cprintf( "Did we switch back to text mode successfully?\n" );
 	}
 }
 

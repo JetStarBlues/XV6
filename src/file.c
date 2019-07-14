@@ -39,7 +39,6 @@
 #include "sleeplock.h"
 #include "file.h"
 
-#define min( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
 // ??
 struct devsw devsw [ NDEV ];
@@ -251,7 +250,7 @@ int filewrite ( struct file* f, char* addr, int n )
 		{
 			nYetToWrite = n - nWrittenTotal;
 
-			nToWrite = min( maxCanWrite, nYetToWrite );
+			nToWrite = MIN( maxCanWrite, nYetToWrite );
 
 
 			begin_op();

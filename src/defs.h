@@ -185,6 +185,8 @@ void            convert24To18bit     ( int, int*, int*, int* );
 void            setTextMode     ( void );
 void            setGraphicsMode ( void );
 
+void            updateMouseCursor ( int, int );
+
 void            demoGraphics ( void );
 
 // vm.c
@@ -205,3 +207,9 @@ void            clearpteu  ( pde_t* pgdir, char* uva );
 
 // number of elements in fixed-size array
 #define NELEM( x ) ( sizeof( x ) / sizeof( ( x )[ 0 ] ) )
+
+// minimum of two numbers
+#define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
+
+// maximum of two numbers
+#define MAX( a, b ) ( ( a ) > ( b ) ? ( a ) : ( b ) )

@@ -68,7 +68,6 @@
 #include "buf.h"
 #include "file.h"
 
-#define min( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
 // There should be one superblock per disk device, but we run with
 // only one device
@@ -945,7 +944,7 @@ int readi ( struct inode* ip, char* dst, uint off, uint n )
 
 		maxCanRead = BLOCKSIZE - ( off % BLOCKSIZE );  // max number of bytes can read from current data block
 
-		nRead = min( maxCanRead, nYetToRead );
+		nRead = MIN( maxCanRead, nYetToRead );
 
 		memmove( dst, buffer->data + ( off % BLOCKSIZE ), nRead );
 
@@ -1020,7 +1019,7 @@ int writei ( struct inode* ip, char* src, uint off, uint n )
 
 		maxCanWrite = BLOCKSIZE - ( off % BLOCKSIZE );  // max number of bytes can write to current data block
 
-		nWritten = min( maxCanWrite, nYetToWrite );
+		nWritten = MIN( maxCanWrite, nYetToWrite );
 
 		memmove( buffer->data + ( off % BLOCKSIZE ), src, nWritten );
 

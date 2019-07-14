@@ -28,11 +28,7 @@ Based on:
 		. byte2 - y delta
 */
 
-// Constants used for talking to the PS/2 controller
-
-#define MOUSE_ENABLEIRQ 0x02  // The enable IRQ 12 bit in the Compaq status byte
-
-//
+// Status bits
 #define MOUSE_LEFT      0x01  // Bit indicating the left mouse button
 #define MOUSE_RIGHT     0x02  // Bit indicating the right mouse button
 #define MOUSE_MIDDLE    0x04  // Bit indicating the middle mouse button
@@ -41,11 +37,30 @@ Based on:
 #define MOUSE_XOVERFLOW 0x40  // Delta x is greater than 255 units
 #define MOUSE_YOVERFLOW 0x80  // Delta y is greater than 255 units
 
+//
+#define MOUSECMD_ENABLE  0xF4  // Enable data reporting ?
+#define MOUSECMD_DEFAULT 0xF6  // Use default settings
+#define MOUSE_ACK        0xFA
 
-#define MOUSE_ALWAYS_SET   0xC0      // This bit is always set to 1
+//
+#define MOUSE_PACKETSZ 3
 
 
-#define MOUSE_ACK 0xFA
+static uchar mousePacket [ MOUSE_PACKETSZ ];
+static int   bytesReceived;
+static uchar leftBtn_prev;
+// static uchar middleBtn_prev;
+// static uchar rightBtn_prev;
+
+/*struct MousePacket {
+
+	int   dx;
+	int   dy;
+	uchar leftBtn;
+	uchar middleBtn;
+	uchar rightBtn;
+}*/
+
 
 static void mousewait ( int is_read )
 {
@@ -91,10 +106,11 @@ void mousecmd ( uchar cmd )
 {
 	uchar data;
 
-	// ??
+	// Tell controller to address the mouse
 	mousewait_send();
-	outb( PS2CTRL, 0xD4 );
+	outb( PS2CTRL, PS2CMD_DEV2SEL );
 
+	// Send the command
 	mousewait_send();
 	outb( PS2DATA, cmd );
 
@@ -111,65 +127,63 @@ void mousecmd ( uchar cmd )
 
 void mouseinit ( void )
 {
-	// Enable ...
+	uchar data;
+
+	//
+	bytesReceived = 0;
+
+
+	// Enable the PS/2 controller's secondary device
 	mousewait_send();
-	outb( PS2CTRL, 0xA8 );
+	outb( PS2CTRL, PS2CMD_DEV2EN );
 
 
-	// Receive an interrupt when the mouse state changes
-
-	// Get current contents of .. status byte
+	/* Receive an interrupt when the mouse state changes
+	*/
+	// Get current contents of the PS/2's configuration byte
 	mousewait_send();
-	outb( PS2CTRL, 0x20 );
+	outb( PS2CTRL, PS2CMD_RDCONFG );
 
 	mousewait_recv();
 	data = inb( PS2DATA );
 
 	// Mark mouse interrupts as enabled
 	mousewait_send();
-	outb( PS2CTRL, 0x60 );
+	outb( PS2CTRL, PS2CMD_WRCONFG );
 
 	mousewait_send();
-	outb( PS2DATA, data |= 0x02 );
+	outb( PS2DATA, data |= PS2CONFG_DEV2EI );
 
 
 	// Use default mouse settings
 	mousewait_send();
-	outb( ?, 0xF6 );
+	mousecmd( MOUSECMD_DEFAULT );
 
-	// Activate mouse ...
+	// Activate mouse...
 	mousewait_send();
-	outb( ?, 0xF4 );
+	mousecmd( MOUSECMD_ENABLE );
 
 
-	// Enable x86 interrupt
+	// Enable corresponding x86 interrupt
 	ioapicenable( IRQ_MOUSE, 0 );
 }
 
-/* Mouse interrupt is sent when ??
-*/
-/* The mouse sends only one byte with each interrupt.
+/* Mouse interrupt is sent when mouse moved or
+   a mouse button changes state (press or release).
+
+   The mouse sends only one byte with each interrupt.
    However, each mouse action is described with three bytes.
 */
-
-#define MOUSE_PACKETSZ 3
-static uchar mousePacket [ MOUSE_PACKETSZ ];
-static char bytesReceived = 0;
-
-/*struct MousePacket {
-
-	int dx;
-	int dy;
-	char leftBtn;
-	char middleBtn;
-	char rightBtn;
-}*/
-
 void mouseintr ( void )
 {
-	int dx, dy;
+	uchar status;
+	int   dx;
+	int   dy;
+	uchar leftBtn;
+	// uchar middleBtn;
+	// uchar rightBtn;
 
-	cprintf( "Received mouse interrupt!\n" );
+	// cprintf( "!\n" );
 
 	// No data available...
 	if ( ( inb( PS2CTRL ) & PS2DINFULL ) == 0 )
@@ -178,55 +192,91 @@ void mouseintr ( void )
 	}
 
 	// Read data
+	mousePacket[ bytesReceived ] = inb( PS2DATA );
+
+	bytesReceived += 1;
+
+	// Keep gathering packet
 	if ( bytesReceived < MOUSE_PACKETSZ )
 	{
-		mousePacket[ bytesReceived ] = inb( PS2DATA );
-
-		bytesReceived += 1;
-
 		return;
 	}
+
+
 	// Process packet
+
+	bytesReceived = 0;
+
+	status = mousePacket[ 0 ];
+
+	// Get dx, dy
+	if ( ( status & MOUSE_XOVERFLOW ) || ( status & MOUSE_YOVERFLOW ) )
+	{
+		// Ignore...
+		dx = 0;
+		dy = 0;
+	}
 	else
 	{
-		bytesReceived = 0;
+		dx = ( int ) mousePacket[ 1 ];
+		dy = ( int ) mousePacket[ 2 ];
 
-		status = mousePacket[ 0 ];
+		/* If negative, convert "9-bit signed" value into equivalent
+		   "sizeof( int ) signed" value
 
-		// Get dx, dy
-		if ( ( status & MOUSE_XOVERFLOW ) || ( status & MOUSE_YOVERFLOW ) )
+		   Sign is 9th bit.
+		   0x100 is largest negative number in "9-bit signed".
+
+		   https://github.com/SerenityOS/serenity/blob/master/Kernel/Devices/PS2MouseDevice.cpp
+		*/
+		if ( status & MOUSE_XSIGN )
 		{
-			// Ignore...
-			dx = 0;
-			dy = 0;
+			dx -= 0x100;
+		}
+		if ( status & MOUSE_YSIGN )
+		{
+			dy -= 0x100;
+		}
+	}
+
+	// Get button status
+	leftBtn = ( status & MOUSE_LEFT )   ? 1 : 0;
+	// rightBtn  = ( status & MOUSE_RIGHT )  ? 1 : 0;
+	// middleBtn = ( status & MOUSE_MIDDLE ) ? 1 : 0;
+
+	/*cprintf(
+
+		"dx: %d, dy: %d, l: %d, r: %d, m: %d\n",
+		dx, dy,
+		leftBtn, rightBtn, middleBtn
+	);*/
+
+
+	// Save button status
+	leftBtn_prev = leftBtn;
+	// rightBtn_prev  = rightBtn;
+	// middleBtn_prev = middleBtn;
+
+
+	// Call handler for onmousemove
+	if ( dx || dy )
+	{
+		updateMouseCursor( dx, - dy );
+	}
+
+	// Call handler for onmousepress or onmouserelease
+	/*
+	if ( leftBtn != leftBtn_prev )
+	{
+		if ( leftBtn )
+		{
+			onMousePress();
 		}
 		else
 		{
-			dx = mousePacket[ 1 ];
-			dy = mousePacket[ 2 ];
-
-			if ( status & MOUSE_XSIGN )
-			{
-				dx = - dx;
-			}
-			if ( status & MOUSE_YSIGN )
-			{
-				dy = - dy;
-			}
+			onMouseRelease();
 		}
-
-		// Get button status
-		leftBtn = ( status & MOUSE_LEFT )   ? 1 : 0;
-		rightBtn = ( status & MOUSE_RIGHT )  ? 1 : 0;
-		middleBtn = ( status & MOUSE_MIDDLE ) ? 1 : 0;
-
-		// Debug
-		cprintf(
-
-			"dx: %d, dy: %d, left: %s, right: %s, middle: %s\n",
-			dx, dy,
-			leftBtn, rightBtn, middleBtn
-		);
 	}
+	*/
 }
 

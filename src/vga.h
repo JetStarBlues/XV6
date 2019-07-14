@@ -6,6 +6,9 @@
 #define NROWS          25
 #define NCOLSxNROWS    2000  // NCOLS x NROWS
 
+#define WIDTH_TXTMODE  720  // In mode 0x3, the screen resolution appears to be 720x400
+#define HEIGHT_TXTMODE 400  //  https://en.wikipedia.org/wiki/Text_mode
+
 #define CTRL           0x3D4
 #define DATA           0x3D5
 
@@ -33,8 +36,8 @@
 
 #define GFXBUFFER           0xA0000  // physical address
 
-#define GWIDTH              320  // Mode 0x13
-#define GHEIGHT             200  // Mode 0x13
+#define WIDTH_GFXMODE       320  // Mode 0x13
+#define HEIGHT_GFXMODE      200  // Mode 0x13
 
 #define	VGA_AC_INDEX        0x3C0
 #define	VGA_AC_WRITE        0x3C0

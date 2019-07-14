@@ -24,9 +24,15 @@ Code to integrate graphics mode with xv6 userspace is based on:
 
 // General ___________________________________________________________________________
 
+#define TXTMODE 1
+#define GFXMODE 3
+
+static int currentMode;
+
 static void clearScreen_textMode ();
 void        setTextMode          ( void );
-
+static void updateMouseCursor_textMode ( int, int );
+static void updateMouseCursor_graphicsMode ( int, int );
 
 void vgainit ()
 {
@@ -185,14 +191,30 @@ void setTextMode ( void )
 	*/
 	writeFont( g_8x16_font, 16 );
 
-
 	// Clear screen
 	clearScreen_textMode();
+
+	//
+	currentMode = TXTMODE;
 }
 
 void setGraphicsMode ( void )
 {
 	writeRegs( g_320x200x256 );
+
+	currentMode = GFXMODE;
+}
+
+void updateMouseCursor ( int dx, int dy )
+{
+	if ( currentMode == TXTMODE )
+	{
+		updateMouseCursor_textMode( dx, dy );
+	}
+	else if ( currentMode == GFXMODE )
+	{
+		updateMouseCursor_graphicsMode( dx, dy );
+	}
 }
 
 
@@ -230,7 +252,13 @@ Text mode (VGA mode 0x03)
 
 static ushort* textbuffer     = ( ushort* ) P2V( TXTBUFFER );
 static int textcolor_textMode =       TXTCOLOR( TYELLOW, TRED );
-static int clearchar_textMode = ' ' | TXTCOLOR( TYELLOW, TYELLOW );
+static int clearchar_textMode = ' ' | TXTCOLOR( TYELLOW, TRED );
+
+static int mouseX_textMode = WIDTH_TXTMODE  / 2;  // middle of screen
+static int mouseY_textMode = HEIGHT_TXTMODE / 2;
+
+static int mouseHasPreviouslyMoved_textMode = 0;
+static int mousePosPrev_textMode;
 
 
 static void clearScreen_textMode ()
@@ -291,6 +319,7 @@ void vgaputc ( int c )
 		pos += 1;
 	}
 
+	// Constrain position
 	if ( pos < 0 || pos > NCOLSxNROWS )
 	{
 		panic( "vgaputc: invalid pos" );
@@ -337,6 +366,83 @@ void vgaputc ( int c )
 }
 
 
+static void updateMouseCursor_textMode ( int dx, int dy )
+{
+	int    x;
+	int    y;
+	int    pos;
+	ushort curBgColor;
+	ushort curFgColor;
+	ushort curChar;
+
+
+	// Update position
+	mouseX_textMode += dx;
+	mouseY_textMode += dy;
+
+	// Constrain position
+	if ( mouseX_textMode > WIDTH_TXTMODE )
+	{
+		mouseX_textMode = WIDTH_TXTMODE - 1;
+	}
+	else if ( mouseX_textMode < 0 )
+	{
+		mouseX_textMode = 0;
+	}
+	if ( mouseY_textMode > HEIGHT_TXTMODE )
+	{
+		mouseY_textMode = HEIGHT_TXTMODE - 1;
+	}
+	else if ( mouseY_textMode < 0 )
+	{
+		mouseY_textMode = 0;
+	}
+
+	// Convert to text mode coordinates (floor division)
+	x = mouseX_textMode / ( WIDTH_TXTMODE  / NCOLS );
+	y = mouseY_textMode / ( HEIGHT_TXTMODE / NROWS );
+
+	pos = y * NCOLS + x;
+
+
+	// Draw by inverting colors ---
+
+	// Restore previous position's colors
+	if ( mouseHasPreviouslyMoved_textMode )
+	{
+		curBgColor = textbuffer[ mousePosPrev_textMode ] & 0xF000;
+		curFgColor = textbuffer[ mousePosPrev_textMode ] & 0x0F00;
+		curChar    = textbuffer[ mousePosPrev_textMode ] & 0x00FF;
+
+		textbuffer[ mousePosPrev_textMode ] = (
+
+			( curFgColor << 4 ) |
+			( curBgColor >> 4 ) |
+			  curChar
+		);
+	}
+	else
+	{
+		mouseHasPreviouslyMoved_textMode = 1;
+	}
+
+	// Invert new position's colors
+	curBgColor = textbuffer[ pos ] & 0xF000;
+	curFgColor = textbuffer[ pos ] & 0x0F00;
+	curChar    = textbuffer[ pos ] & 0x00FF;
+
+	textbuffer[ pos ] = (
+
+		( curFgColor << 4 ) |
+		( curBgColor >> 4 ) |
+		  curChar
+	);
+
+	//
+	mousePosPrev_textMode = pos;
+}
+
+
 // Graphics mode _____________________________________________________________________
 
 /*
@@ -359,12 +465,15 @@ Graphics mode (VGA mode 0x13)
 
 static uchar* gfxbuffer = ( uchar* ) P2V( GFXBUFFER );
 
+static int mouseX_gfxMode = WIDTH_GFXMODE  / 2;
+static int mouseY_gfxMode = HEIGHT_GFXMODE / 2;
+
 
 void vgaWritePixel ( int x, int y, int c )
 {
 	int off;
 
-	off = GWIDTH * y + x;
+	off = WIDTH_GFXMODE * y + x;
 
 	gfxbuffer[ off ] = c;
 }
@@ -410,12 +519,60 @@ void convert24To18bit ( int color24, int* r, int* g, int* b )
 }
 
 
+static void updateMouseCursor_graphicsMode ( int dx, int dy )
+{
+	// Color indices in standard VGA 256 palette
+	const int black = 0;
+	const int white = 15;
+
+	// Update position
+	mouseX_gfxMode += dx;
+	mouseY_gfxMode += dy;
+
+	// Constrain position
+	if ( mouseX_gfxMode > WIDTH_GFXMODE )
+	{
+		mouseX_gfxMode = WIDTH_GFXMODE - 1;
+	}
+	else if ( mouseX_gfxMode < 0 )
+	{
+		mouseX_gfxMode = 0;
+	}
+	if ( mouseY_gfxMode > HEIGHT_GFXMODE )
+	{
+		mouseY_gfxMode = HEIGHT_GFXMODE - 1;
+	}
+	else if ( mouseY_gfxMode < 0 )
+	{
+		mouseY_gfxMode = 0;
+	}
+
+	// Draw a '+'
+	vgaWritePixel( mouseX_gfxMode, mouseY_gfxMode, white );
+
+	if ( mouseX_gfxMode < WIDTH_GFXMODE - 1 )
+	{
+		vgaWritePixel( mouseX_gfxMode + 1, mouseY_gfxMode,     black );
+	}
+	if ( mouseX_gfxMode > 1 )
+	{
+		vgaWritePixel( mouseX_gfxMode - 1, mouseY_gfxMode,     black );
+	}
+	if ( mouseY_gfxMode < HEIGHT_GFXMODE - 1 )
+	{
+		vgaWritePixel( mouseX_gfxMode,     mouseY_gfxMode + 1, black );
+	}
+	if ( mouseY_gfxMode > 1 )
+	{
+		vgaWritePixel( mouseX_gfxMode,     mouseY_gfxMode - 1, black );
+	}
+}
+
+
 // Tests _____________________________________________________________________________
 
 static void drawX ( void )
 {
-	int x, y;
-
 	// Color indices in standard VGA 256 palette
 	// const int black  = 0;
 	// const int blue    = 1;
@@ -425,39 +582,41 @@ static void drawX ( void )
 	const int magenta = 13;
 	const int yellow  = 14;
 
+	int x, y;
+
 	// Can I get a brighter yellow?
 	vgaSetPalette( yellow, 63, 63, 0 );  // yes
 
 	/* Clear screen */
-	for ( y = 0; y < GHEIGHT; y += 1 )
+	for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
 	{
-		for ( x = 0; x < GWIDTH; x += 1 )
+		for ( x = 0; x < WIDTH_GFXMODE; x += 1 )
 		{
 			vgaWritePixel( x, y, yellow );
 		}
 	}
 
 	/* Draw 2-color X */
-	for ( y = 0; y < GHEIGHT; y += 1 )
+	for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
 	{
-		vgaWritePixel( ( GWIDTH - GHEIGHT ) / 2 + y, y, magenta );
-		vgaWritePixel( ( GHEIGHT + GWIDTH ) / 2 - y, y, cyan );
+		vgaWritePixel( ( WIDTH_GFXMODE - HEIGHT_GFXMODE ) / 2 + y, y, magenta );
+		vgaWritePixel( ( HEIGHT_GFXMODE + WIDTH_GFXMODE ) / 2 - y, y, cyan );
 	}
 
 	/* Draw 2-color + */
-	for ( x = 0; x < GWIDTH; x += 1 )
+	for ( x = 0; x < WIDTH_GFXMODE; x += 1 )
 	{
-		vgaWritePixel( x, GHEIGHT / 2, red );
+		vgaWritePixel( x, HEIGHT_GFXMODE / 2, red );
 	}
-	for ( y = 0; y < GHEIGHT; y += 1 )
+	for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
 	{
-		vgaWritePixel( GWIDTH / 2, y, green );
+		vgaWritePixel( WIDTH_GFXMODE / 2, y, green );
 	}
 }
 
 void demoGraphics ( void )
 {
-	writeRegs( g_320x200x256 );
+	setGraphicsMode();
 
 	drawX();
 }

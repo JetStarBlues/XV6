@@ -25,6 +25,7 @@ start:
 # Compatability hack:
 # Physical address line A20 is tied to zero so that the first PCs 
 # with 2 MB would run software that assumed 1 MB. Undo that.
+# https://www.win.tue.nl/~aeb/linux/kbd/A20.html
 seta20.1:
 
 	inb    $0x64, %al    # Wait for not busy
