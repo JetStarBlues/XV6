@@ -8,7 +8,7 @@
 Based on:
 	. cs3224 (fall 2016) Bonus Assignment
 		. http://panda.moyix.net/~moyix/cs3224/fall16/bonus_hw/bonus_hw.html
-		. https://github.com/moyix/xv6-public/blob/24cfc9d083d9fd332802f6ac7728d41b649e65a8/mouse.c
+		. https://github.com/moyix/xv6-public/blob/bonus_hw/mouse.c
 
 	. https://wiki.osdev.org/PS/2_Mouse
 */

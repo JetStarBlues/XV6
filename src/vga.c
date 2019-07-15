@@ -29,8 +29,8 @@ Code to integrate graphics mode with xv6 userspace is based on:
 
 static int currentMode;
 
-static void clearScreen_textMode           ();
 void        setTextMode                    ( void );
+static void clearScreen_textMode           ();
 static void updateMouseCursor_textMode     ( int, int );
 static void updateMouseCursor_graphicsMode ( int, int );
 
@@ -409,8 +409,8 @@ static void updateMouseCursor_textMode ( int dx, int dy )
 	}
 
 	// Convert to text mode coordinates (floor division)
-	x = mouseX_textMode / ( WIDTH_TXTMODE  / NCOLS );
-	y = mouseY_textMode / ( HEIGHT_TXTMODE / NROWS );
+	x = mouseX_textMode / COLWIDTH;
+	y = mouseY_textMode / ROWHEIGHT;
 
 	pos = y * NCOLS + x;
 
