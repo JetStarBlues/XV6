@@ -29,9 +29,9 @@ Code to integrate graphics mode with xv6 userspace is based on:
 
 static int currentMode;
 
-static void clearScreen_textMode ();
-void        setTextMode          ( void );
-static void updateMouseCursor_textMode ( int, int );
+static void clearScreen_textMode           ();
+void        setTextMode                    ( void );
+static void updateMouseCursor_textMode     ( int, int );
 static void updateMouseCursor_graphicsMode ( int, int );
 
 void vgainit ()
@@ -366,6 +366,16 @@ void vgaputc ( int c )
 }
 
 
+/* There is a minor glitch:
+     When the mouse is in a region that vgaputc overwrites
+     (text cursor or text cursor + 1 ), vgaputc erases the mouse visually...
+     When this update function is later called, its attempt
+     to restore the mouse's previous location ends up drawing
+     the mouse again...
+     One solution is for vgaputc to write the character at that
+     location using inverted colors (and thus preserve the visual mouse)
+   For now, we ignore the glitch (to keep the two functions isolated).
+*/
 static void updateMouseCursor_textMode ( int dx, int dy )
 {
 	int    x;
@@ -619,4 +629,82 @@ void demoGraphics ( void )
 	setGraphicsMode();
 
 	drawX();
+}
+
+
+// http://panda.moyix.net/~moyix/cs3224/fall16/bonus_hw/bonus_hw.html
+#define COPYBUFSZ 100
+static uchar copypastebuffer [ COPYBUFSZ ];
+static int   copypastebuffer_idx = 0;
+
+void copyLine ()
+{
+	int   i;
+	int   n;
+	int   pos;
+
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+	// Clear buffer
+	memset(
+
+		copypastebuffer,
+		0,
+		sizeof( uchar ) * COPYBUFSZ
+	);
+
+	// Update buffer
+	n = NCOLS - ( mousePosPrev_textMode % NCOLS );
+
+	pos = mousePosPrev_textMode;
+
+	for ( i = 0; i < n; i += 1 )
+	{
+		copypastebuffer[ i ] = ( uchar ) ( textbuffer[ pos ] & 0x00FF );
+
+		pos += 1;
+	}
+}
+
+static int copypastebuffer_getc ( void )
+{
+	uchar c;
+
+	// Reached end of buffer
+	if ( copypastebuffer_idx > COPYBUFSZ - 1 )
+	{
+		copypastebuffer_idx = 0;
+
+		return - 1;
+	}
+
+	c = copypastebuffer[ copypastebuffer_idx ];
+
+	// Reached end of valid contents...
+	// if ( c == 0 )
+	if ( c < 0x20 || c > 0x7E )  // printable characters
+	{
+		copypastebuffer_idx = 0;
+
+		return - 1;
+	}
+	else
+	{
+		copypastebuffer_idx += 1;
+
+		return c;
+	}
+}
+
+void pasteLine ()
+{
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+	consoleintr( copypastebuffer_getc );
 }

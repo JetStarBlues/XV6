@@ -19,7 +19,7 @@ void            bwrite ( struct buf* );
 // console.c
 void            consoleinit ( void );
 void            cprintf     ( char*, ... );
-void            consoleintr ( int( * )( void ) );
+void            consoleintr ( int( * ) ( void ) );
 void            panic       ( char* ) __attribute__( ( noreturn ) );
 
 // exec.c
@@ -188,6 +188,8 @@ void            setGraphicsMode ( void );
 void            updateMouseCursor ( int, int );
 
 void            demoGraphics ( void );
+void            copyLine     ( void );
+void            pasteLine    ( void );
 
 // vm.c
 void            seginit    ( void );
@@ -212,4 +214,4 @@ void            clearpteu  ( pde_t* pgdir, char* uva );
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
 
 // maximum of two numbers
-#define MAX( a, b ) ( ( a ) > ( b ) ? ( a ) : ( b ) )
+// #define MAX( a, b ) ( ( a ) > ( b ) ? ( a ) : ( b ) )

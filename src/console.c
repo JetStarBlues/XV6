@@ -335,7 +335,7 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 			default:
 
-				if ( c != 0 && input.e - input.r < INPUT_BUF )
+				if ( ( c != 0 ) && ( input.e - input.r < INPUT_BUF ) )
 				{
 					c = ( c == '\r' ) ? '\n' : c;
 

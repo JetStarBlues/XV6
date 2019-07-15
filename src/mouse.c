@@ -48,9 +48,9 @@ Based on:
 
 static uchar mousePacket [ MOUSE_PACKETSZ ];
 static int   bytesReceived;
-static uchar leftBtn_prev;
-// static uchar middleBtn_prev;
-// static uchar rightBtn_prev;
+static uchar leftBtn_prev  = 0;
+static uchar rightBtn_prev = 0;
+// static uchar middleBtn_prev = 0;
 
 /*struct MousePacket {
 
@@ -180,8 +180,8 @@ void mouseintr ( void )
 	int   dx;
 	int   dy;
 	uchar leftBtn;
+	uchar rightBtn;
 	// uchar middleBtn;
-	// uchar rightBtn;
 
 	// cprintf( "!\n" );
 
@@ -240,8 +240,8 @@ void mouseintr ( void )
 	}
 
 	// Get button status
-	leftBtn = ( status & MOUSE_LEFT )   ? 1 : 0;
-	// rightBtn  = ( status & MOUSE_RIGHT )  ? 1 : 0;
+	leftBtn  = ( status & MOUSE_LEFT )   ? 1 : 0;
+	rightBtn = ( status & MOUSE_RIGHT )  ? 1 : 0;
 	// middleBtn = ( status & MOUSE_MIDDLE ) ? 1 : 0;
 
 	/*cprintf(
@@ -250,12 +250,6 @@ void mouseintr ( void )
 		dx, dy,
 		leftBtn, rightBtn, middleBtn
 	);*/
-
-
-	// Save button status
-	leftBtn_prev = leftBtn;
-	// rightBtn_prev  = rightBtn;
-	// middleBtn_prev = middleBtn;
 
 
 	// Call handler for onmousemove
@@ -278,5 +272,27 @@ void mouseintr ( void )
 		}
 	}
 	*/
-}
 
+
+	// Temp test
+	if ( leftBtn != leftBtn_prev )
+	{
+		if ( leftBtn_prev )
+		{
+			copyLine();
+		}
+	}
+	if ( rightBtn != rightBtn_prev )
+	{
+		if ( rightBtn_prev )
+		{
+			pasteLine();
+		}
+	}
+
+
+	// Save button status
+	leftBtn_prev  = leftBtn;
+	rightBtn_prev = rightBtn;
+	// middleBtn_prev = middleBtn;
+}
