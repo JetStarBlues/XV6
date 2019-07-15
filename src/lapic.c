@@ -49,8 +49,8 @@
 */
 #define CMOS_PORT     0x70
 #define CMOS_RETURN   0x71
-#define CMOS_STATA    0x0a
-#define CMOS_STATB    0x0b
+#define CMOS_STATA    0x0A
+#define CMOS_STATB    0x0B
 #define CMOS_UIP    ( 1 << 7 )  // RTC update in progress
 
 #define SECS          0x00
@@ -205,7 +205,7 @@ void lapicstartap ( uchar apicid, uint addr )
 
 static uint cmos_read ( uint reg )
 {
-	outb( CMOS_PORT,  reg );
+	outb( CMOS_PORT, reg );
 
 	microdelay( 200 );
 
@@ -257,12 +257,12 @@ void cmostime ( struct rtcdate* r )
 	{
 		#define CONV( x ) ( t1.x = ( ( t1.x >> 4 ) * 10 ) + ( t1.x & 0xf ) )
 
-				CONV( second );
-				CONV( minute );
-				CONV( hour   );
-				CONV( day    );
-				CONV( month  );
-				CONV( year   );
+			CONV( second );
+			CONV( minute );
+			CONV( hour   );
+			CONV( day    );
+			CONV( month  );
+			CONV( year   );
 
 		#undef CONV
 	}

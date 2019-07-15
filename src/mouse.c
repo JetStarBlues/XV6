@@ -240,8 +240,8 @@ void mouseintr ( void )
 	}
 
 	// Get button status
-	leftBtn  = ( status & MOUSE_LEFT )   ? 1 : 0;
-	rightBtn = ( status & MOUSE_RIGHT )  ? 1 : 0;
+	leftBtn  = ( status & MOUSE_LEFT )  ? 1 : 0;
+	rightBtn = ( status & MOUSE_RIGHT ) ? 1 : 0;
 	// middleBtn = ( status & MOUSE_MIDDLE ) ? 1 : 0;
 
 	/*cprintf(
@@ -252,6 +252,15 @@ void mouseintr ( void )
 	);*/
 
 
+	/* Ideally, handler will run in separate process so that
+	   we can promptly RETI.
+
+	   Perharps we update a variable that:
+	     . the event handler is sleeping on?
+	     . the event handler polls
+	     . send a signal? to the event handler notifying it
+	       that the variable has been updated
+	*/
 	// Call handler for onmousemove
 	if ( dx || dy )
 	{

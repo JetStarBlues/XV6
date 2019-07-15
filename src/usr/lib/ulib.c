@@ -4,6 +4,51 @@
 #include "user.h"
 #include "x86.h"
 
+
+/* What are the implications of having same function twice
+   (this version, and kernel version in 'string.c').
+   What happens if user includes 'defs.h' and tries to
+   use kernel version ??
+*/
+void* memset ( void* dst, int c, uint n )
+{
+	stosb( dst, c, n );
+
+	return dst;
+}
+
+void* memmove ( void* vdst, const void* vsrc, int n )
+{
+	const char* src;
+	char*       dst;
+
+	dst = vdst;
+	src = vsrc;
+
+	while ( n > 0 )
+	{
+		*dst++ = *src++;
+
+		n -= 1;
+	}
+
+	return vdst;
+}
+
+
+// _________________________________________________________________
+
+int strcmp ( const char* p, const char* q )
+{
+	while ( *p && *p == *q )
+	{
+		p += 1;
+		q += 1;
+	}
+
+	return ( uchar ) *p - ( uchar ) *q;
+}
+
 char* strcpy ( char* s, const char* t )
 {
 	char* os;
@@ -16,17 +61,6 @@ char* strcpy ( char* s, const char* t )
 	}
 
 	return os;
-}
-
-int strcmp ( const char* p, const char* q )
-{
-	while ( *p && *p == *q )
-	{
-		p += 1;
-		q += 1;
-	}
-
-	return ( uchar ) *p - ( uchar ) *q;
 }
 
 uint strlen ( const char* s )
@@ -53,6 +87,9 @@ char* strchr ( const char* s, char c )
 
 	return 0;
 }
+
+
+// _________________________________________________________________
 
 char* gets ( char* buf, int max )
 {
@@ -84,6 +121,9 @@ char* gets ( char* buf, int max )
 	return buf;
 }
 
+
+// _________________________________________________________________
+
 int stat ( const char* path, struct stat* st )
 {
 	int fd;
@@ -103,6 +143,9 @@ int stat ( const char* path, struct stat* st )
 	return r;
 }
 
+
+// _________________________________________________________________
+
 int atoi ( const char* s )
 {
 	int n;
@@ -115,29 +158,4 @@ int atoi ( const char* s )
 	}
 
 	return n;
-}
-
-void* memmove ( void* vdst, const void* vsrc, int n )
-{
-	const char* src;
-	char*       dst;
-
-	dst = vdst;
-	src = vsrc;
-
-	while ( n > 0 )
-	{
-		*dst++ = *src++;
-
-		n -= 1;
-	}
-
-	return vdst;
-}
-
-void* memset ( void* dst, int c, uint n )
-{
-	stosb( dst, c, n );
-
-	return dst;
 }

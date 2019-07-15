@@ -73,6 +73,7 @@ UPROGS =            \
 	exists          \
 	forktest        \
 	stressfs        \
+	time            \
 	temptest        \
 	usertests       \
 	wisc_exec       \

@@ -22,30 +22,6 @@ void* memset (  void* dst, int c, uint n  )
 	return dst;
 }
 
-int memcmp ( const void* v1, const void* v2, uint n )
-{
-	const uchar* s1;
-	const uchar* s2;
-
-	s1 = v1;
-	s2 = v2;
-
-	while ( n > 0 )
-	{
-		if ( *s1 != *s2 )
-		{
-			return *s1 - *s2;
-		}
-
-		s1 += 1;
-		s2 += 1;
-
-		n -= 1;
-	}
-
-	return 0;
-}
-
 void* memmove ( void* dst, const void* src, uint n )
 {
 	const char* s;
@@ -79,6 +55,30 @@ void* memmove ( void* dst, const void* src, uint n )
 void* memcpy ( void* dst, const void* src, uint n )
 {
 	return memmove( dst, src, n );
+}
+
+int memcmp ( const void* v1, const void* v2, uint n )
+{
+	const uchar* s1;
+	const uchar* s2;
+
+	s1 = v1;
+	s2 = v2;
+
+	while ( n > 0 )
+	{
+		if ( *s1 != *s2 )
+		{
+			return *s1 - *s2;
+		}
+
+		s1 += 1;
+		s2 += 1;
+
+		n -= 1;
+	}
+
+	return 0;
 }
 
 
