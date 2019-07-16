@@ -393,6 +393,8 @@ static void drawMouseCursor_textMode ( int pos )
 	}
 	else
 	{
+		/* Don't restore a non-existent mouse cursor.
+		*/
 		mouseHasPreviouslyMoved_textMode = 1;
 	}
 
@@ -652,7 +654,7 @@ static int   copypastebuffer_idx = 0;
 
 static int  selectionStartPos;
 static int  selectionEndPos;
-static char selectingText = 0;
+static char selectingText     = 0;
 static int  selection_prevpos = 0;
 static int  selection_prevn   = 0;
 
@@ -677,19 +679,10 @@ void markSelectionStart ( void )
 
 void markSelectionEnd ( void )
 {
-	// int x;
-	// int y;
-
 	if ( currentMode != TXTMODE )
 	{
 		return;
 	}
-
-	// x = mouseX_textMode / COLWIDTH;
-	// y = mouseY_textMode / ROWHEIGHT;
-
-	// selectionEndPos = y * NCOLS + x;
-
 
 	// Calculate the selection's start and end positions
 	if ( mousePosPrev_textMode > selectionStartPos )
@@ -706,9 +699,11 @@ void markSelectionEnd ( void )
 
 	selectingText = 0;
 
-	/* Cursor currently selection so don't invert to restore...??
+	/* Mouse cursor is currently inside selection.
+	   We want to prevent it from being "restored" visually
+	   when the mouse is drawn.
 	*/
-	// mouseHasPreviouslyMoved_textMode = 0;
+	mouseHasPreviouslyMoved_textMode = 0;
 }
 
 void highlightSelection ( void )
