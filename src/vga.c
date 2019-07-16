@@ -250,9 +250,11 @@ Text mode (VGA mode 0x03)
 #define TXTCOLOR( BG, FG ) ( ( ( ( BG ) << 4 ) | ( FG ) ) << 8 )
 
 
-static ushort* textbuffer     = ( ushort* ) P2V( TXTBUFFER );
-static int textcolor_textMode =       TXTCOLOR( TYELLOW, TRED );
-static int clearchar_textMode = ' ' | TXTCOLOR( TYELLOW, TRED );
+static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
+
+static int mousecolor_textMode =       TXTCOLOR( TCYAN,   TMAGENTA );
+static int textcolor_textMode  =       TXTCOLOR( TYELLOW, TRED );
+static int clearchar_textMode  = ' ' | TXTCOLOR( TYELLOW, TRED );
 
 static int mouseX_textMode = WIDTH_TXTMODE  / 2;  // middle of screen
 static int mouseY_textMode = HEIGHT_TXTMODE / 2;
@@ -368,6 +370,45 @@ void vgaputc ( int c )
 }
 
 
+// Draws mouse by inverting colors
+static void drawMouseCursor_textMode ( int pos )
+{
+	ushort curBgColor;
+	ushort curFgColor;
+	ushort curChar;
+
+	// Restore previous position's colors
+	if ( mouseHasPreviouslyMoved_textMode )
+	{
+		curBgColor = textbuffer[ mousePosPrev_textMode ] & 0xF000;
+		curFgColor = textbuffer[ mousePosPrev_textMode ] & 0x0F00;
+		curChar    = textbuffer[ mousePosPrev_textMode ] & 0x00FF;
+
+		textbuffer[ mousePosPrev_textMode ] = (
+
+			( curFgColor << 4 ) |
+			( curBgColor >> 4 ) |
+			  curChar
+		);
+	}
+	else
+	{
+		mouseHasPreviouslyMoved_textMode = 1;
+	}
+
+	// Invert new position's colors
+	curBgColor = textbuffer[ pos ] & 0xF000;
+	curFgColor = textbuffer[ pos ] & 0x0F00;
+	curChar    = textbuffer[ pos ] & 0x00FF;
+
+	textbuffer[ pos ] = (
+
+		( curFgColor << 4 ) |
+		( curBgColor >> 4 ) |
+		  curChar
+	);	
+}
+
 /* There is a minor glitch:
      When the mouse is in a region that vgaputc overwrites
      (text cursor or text cursor + 1 ), vgaputc erases the mouse visually...
@@ -383,10 +424,6 @@ static void updateMouseCursor_textMode ( int dx, int dy )
 	int    x;
 	int    y;
 	int    pos;
-	ushort curBgColor;
-	ushort curFgColor;
-	ushort curChar;
-
 
 	// Update position
 	mouseX_textMode += dx;
@@ -417,43 +454,14 @@ static void updateMouseCursor_textMode ( int dx, int dy )
 	pos = y * NCOLS + x;
 
 
-	// Draw by inverting colors ---
-
-if ( ! selectingText )
-{
-	// Restore previous position's colors
-	if ( mouseHasPreviouslyMoved_textMode )
+	// Draw mouse cursor in new position
+	if ( ! selectingText )
 	{
-		curBgColor = textbuffer[ mousePosPrev_textMode ] & 0xF000;
-		curFgColor = textbuffer[ mousePosPrev_textMode ] & 0x0F00;
-		curChar    = textbuffer[ mousePosPrev_textMode ] & 0x00FF;
-
-		textbuffer[ mousePosPrev_textMode ] = (
-
-			( curFgColor << 4 ) |
-			( curBgColor >> 4 ) |
-			  curChar
-		);
-	}
-	else
-	{
-		mouseHasPreviouslyMoved_textMode = 1;
+		drawMouseCursor_textMode( pos );
 	}
 
-	// Invert new position's colors
-	curBgColor = textbuffer[ pos ] & 0xF000;
-	curFgColor = textbuffer[ pos ] & 0x0F00;
-	curChar    = textbuffer[ pos ] & 0x00FF;
 
-	textbuffer[ pos ] = (
-
-		( curFgColor << 4 ) |
-		( curBgColor >> 4 ) |
-		  curChar
-	);
-}
-
-	//
+	// Save present as past
 	mousePosPrev_textMode = pos;
 }
 
@@ -642,9 +650,12 @@ void demoGraphics ( void )
 static uchar copypastebuffer [ COPYBUFSZ ];
 static int   copypastebuffer_idx = 0;
 
-static int selectionStartPos;
-static int selectionEndPos;
+static int  selectionStartPos;
+static int  selectionEndPos;
 static char selectingText = 0;
+static int  selection_prevpos = 0;
+static int  selection_prevn   = 0;
+
 
 void markSelectionStart ( void )
 {
@@ -666,47 +677,70 @@ void markSelectionStart ( void )
 
 void markSelectionEnd ( void )
 {
-	int x;
-	int y;
+	// int x;
+	// int y;
 
 	if ( currentMode != TXTMODE )
 	{
 		return;
 	}
 
-	x = mouseX_textMode / COLWIDTH;
-	y = mouseY_textMode / ROWHEIGHT;
+	// x = mouseX_textMode / COLWIDTH;
+	// y = mouseY_textMode / ROWHEIGHT;
 
-	selectionEndPos = y * NCOLS + x;
-
-	selectingText = 0;
-
-}
+	// selectionEndPos = y * NCOLS + x;
 
 
-static int prevpos = 0;
-static int prevn = 0;
-
-void highlightSelection ( void )
-{
-	int pos;
-	int endpos;
-	int n;
-	int i;
-	// ushort curBgColor;
-	// ushort curFgColor;
-	ushort curChar;
-
-	int pos2;
-
-	if ( selectingText )
+	// Calculate the selection's start and end positions
+	if ( mousePosPrev_textMode > selectionStartPos )
 	{
-		endpos = mousePosPrev_textMode;
+		selectionEndPos = mousePosPrev_textMode;
 	}
 	else
 	{
-		endpos = selectionEndPos;
+		// If selected leftwards, swap start and end
+		selectionEndPos   = selectionStartPos;
+		selectionStartPos = mousePosPrev_textMode;
 	}
+
+
+	selectingText = 0;
+
+	/* Cursor currently selection so don't invert to restore...??
+	*/
+	mouseHasPreviouslyMoved_textMode = 0;
+}
+
+void highlightSelection ( void )
+{
+	int    pos;
+	int    endpos;
+	int    n;
+	int    i;
+	ushort curChar;
+
+
+	if ( ! selectingText )
+	{
+		return;
+	}
+
+
+	// Clear previous highlight
+	pos = selection_prevpos;
+
+	for ( i = 0; i < selection_prevn; i += 1 )
+	{
+		curChar = textbuffer[ pos ] & 0x00FF;
+
+		textbuffer[ pos ] = textcolor_textMode | curChar;
+
+		pos += 1;
+	}
+
+
+	// Calculate start and size of new highlight
+	endpos = mousePosPrev_textMode;
 
 	if ( endpos >= selectionStartPos )
 	{
@@ -722,36 +756,17 @@ void highlightSelection ( void )
 	}
 
 
-	if ( n == 0 )
-	{
-		return;
-	}
+	// Save present as past
+	selection_prevpos = pos;
+	selection_prevn   = n;
 
 
-	// Clear previous highlight
-	if ( prevpos != pos )
-	{
-		pos2 = prevpos;
-
-		for ( i = 0; i < prevn; i += 1 )
-		{
-			curChar = textbuffer[ pos2 ] & 0x00FF;
-
-			textbuffer[ pos2 ] = textcolor_textMode | curChar;
-
-			pos2 += 1;
-		}
-	}
-
-	prevpos = pos;
-	prevn = n;
-
-
+	// Create new highlight
 	for ( i = 0; i < n; i += 1 )
 	{
 		curChar = textbuffer[ pos ] & 0x00FF;
 
-		textbuffer[ pos ] = TXTCOLOR( TCYAN, TMAGENTA ) | curChar;
+		textbuffer[ pos ] = mousecolor_textMode | curChar;
 
 		pos += 1;
 	}
@@ -762,13 +777,12 @@ void copySelection ( void )
 	int   i;
 	int   n;
 	int   pos;
-	// int   pos;
-	// int   pos;
 
 	if ( currentMode != TXTMODE )
 	{
 		return;
 	}
+
 
 	// Clear buffer
 	memset(
@@ -778,10 +792,11 @@ void copySelection ( void )
 		sizeof( uchar ) * COPYBUFSZ
 	);
 
-	// Update buffer
-	n = NCOLS - ( mousePosPrev_textMode % NCOLS );
 
-	pos = mousePosPrev_textMode;
+	// Update buffer
+	pos = selectionStartPos;
+
+	n = selectionEndPos - selectionStartPos + 1;  // inclusive
 
 	for ( i = 0; i < n; i += 1 )
 	{
@@ -789,7 +804,6 @@ void copySelection ( void )
 
 		pos += 1;
 	}
-
 }
 
 static int copypastebuffer_getc ( void )

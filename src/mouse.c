@@ -297,7 +297,8 @@ void mouseintr ( void )
 		else
 		{
 			markSelectionEnd();
-			// copySelection();
+
+			copySelection();
 		}
 	}
 	if ( rightBtn != rightBtn_prev )
