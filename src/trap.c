@@ -184,10 +184,10 @@ void trap ( struct trapframe *tf )
 			if ( myproc() == 0 || ( tf->cs & 3 ) == DPL_KERN )
 			{
 				cprintf( "Unexpected kernel trap\n" );
-				cprintf( "    trap : %d\n",     tf->trapno );
-				cprintf( "    cpu  : %d\n",     cpuid()    );
-				cprintf( "    eip  : 0x%x\n",   tf->eip    );
-				cprintf( "    cr2  : 0x%x\n\n", rcr2()     );
+				cprintf( "    trapno : %d\n",     tf->trapno );
+				cprintf( "    cpu    : %d\n",     cpuid()    );
+				cprintf( "    eip    : 0x%x\n",   tf->eip    );
+				cprintf( "    cr2    : 0x%x\n\n", rcr2()     );
 
 				panic( "trap" );
 			}
@@ -196,14 +196,15 @@ void trap ( struct trapframe *tf )
 			else
 			{
 				cprintf( "Kill misbehaved user process:\n" );
-				cprintf( "    pid  : %d\n",     myproc()->pid  );
-				cprintf( "    name : %s\n",     myproc()->name );
-				cprintf( "    trap : %d\n",     tf->trapno     );
-				cprintf( "    err  : %d\n",     tf->err        );
-				cprintf( "    cpu  : %d\n",     cpuid()        );
-				cprintf( "    eip  : 0x%x\n",   tf->eip        );
-				cprintf( "    cr2  : 0x%x\n\n", rcr2()         );
+				cprintf( "    pid     : %d\n",     myproc()->pid  );
+				cprintf( "    name    : %s\n",     myproc()->name );
+				cprintf( "    trapno  : %d\n",     tf->trapno     );
+				cprintf( "    errno   : %d\n",     tf->err        );
+				cprintf( "    cpu     : %d\n",     cpuid()        );
+				cprintf( "    eip     : 0x%x\n",   tf->eip        );
+				cprintf( "    cr2     : 0x%x\n\n", rcr2()         );
 
+				// Kill the process
 				myproc()->killed = 1;
 			}
 	}

@@ -10,6 +10,7 @@ Context switching
 		. sched is called by
 			. yield
 			. sleep
+			. exit
 
 	scheduler calls:
 

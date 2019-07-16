@@ -30,11 +30,11 @@ Code to integrate graphics mode with xv6 userspace is based on:
 static int currentMode;
 
 void        setTextMode                    ( void );
-static void clearScreen_textMode           ();
+static void clearScreen_textMode           ( void );
 static void updateMouseCursor_textMode     ( int, int );
 static void updateMouseCursor_graphicsMode ( int, int );
 
-void vgainit ()
+void vgainit ( void )
 {
 	// Explicitly set to mode 0x03. Mainly so that we can use
 	// a custom font from the get-go
@@ -260,8 +260,10 @@ static int mouseY_textMode = HEIGHT_TXTMODE / 2;
 static int mouseHasPreviouslyMoved_textMode = 0;
 static int mousePosPrev_textMode;
 
+static char selectingText; // ...
 
-static void clearScreen_textMode ()
+
+static void clearScreen_textMode ( void )
 {
 	int i;
 
@@ -417,6 +419,8 @@ static void updateMouseCursor_textMode ( int dx, int dy )
 
 	// Draw by inverting colors ---
 
+if ( ! selectingText )
+{
 	// Restore previous position's colors
 	if ( mouseHasPreviouslyMoved_textMode )
 	{
@@ -447,6 +451,7 @@ static void updateMouseCursor_textMode ( int dx, int dy )
 		( curBgColor >> 4 ) |
 		  curChar
 	);
+}
 
 	//
 	mousePosPrev_textMode = pos;
@@ -497,7 +502,7 @@ void vgaSetPalette ( int index, char r, char g, char b )
 	outb( VGA_DAC_DATA,        b ); 
 }
 
-void vgaSetDefaultPalette ()
+void vgaSetDefaultPalette ( void )
 {
 	int index;
 	char r, g, b;
@@ -637,11 +642,128 @@ void demoGraphics ( void )
 static uchar copypastebuffer [ COPYBUFSZ ];
 static int   copypastebuffer_idx = 0;
 
-void copyLine ()
+static int selectionStartPos;
+static int selectionEndPos;
+static char selectingText = 0;
+
+void markSelectionStart ( void )
+{
+	int x;
+	int y;
+
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+	x = mouseX_textMode / COLWIDTH;
+	y = mouseY_textMode / ROWHEIGHT;
+
+	selectionStartPos = y * NCOLS + x;
+
+	selectingText = 1;
+}
+
+void markSelectionEnd ( void )
+{
+	int x;
+	int y;
+
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+	x = mouseX_textMode / COLWIDTH;
+	y = mouseY_textMode / ROWHEIGHT;
+
+	selectionEndPos = y * NCOLS + x;
+
+	selectingText = 0;
+
+}
+
+
+static int prevpos = 0;
+static int prevn = 0;
+
+void highlightSelection ( void )
+{
+	int pos;
+	int endpos;
+	int n;
+	int i;
+	// ushort curBgColor;
+	// ushort curFgColor;
+	ushort curChar;
+
+	int pos2;
+
+	if ( selectingText )
+	{
+		endpos = mousePosPrev_textMode;
+	}
+	else
+	{
+		endpos = selectionEndPos;
+	}
+
+	if ( endpos >= selectionStartPos )
+	{
+		pos = selectionStartPos;
+
+		n = endpos - selectionStartPos;
+	}
+	else
+	{
+		pos = endpos;
+
+		n = selectionStartPos - endpos;
+	}
+
+
+	if ( n == 0 )
+	{
+		return;
+	}
+
+
+	// Clear previous highlight
+	if ( prevpos != pos )
+	{
+		pos2 = prevpos;
+
+		for ( i = 0; i < prevn; i += 1 )
+		{
+			curChar = textbuffer[ pos2 ] & 0x00FF;
+
+			textbuffer[ pos2 ] = textcolor_textMode | curChar;
+
+			pos2 += 1;
+		}
+	}
+
+	prevpos = pos;
+	prevn = n;
+
+
+	for ( i = 0; i < n; i += 1 )
+	{
+		curChar = textbuffer[ pos ] & 0x00FF;
+
+		textbuffer[ pos ] = TXTCOLOR( TCYAN, TMAGENTA ) | curChar;
+
+		pos += 1;
+	}
+}
+
+void copySelection ( void )
 {
 	int   i;
 	int   n;
 	int   pos;
+	// int   pos;
+	// int   pos;
 
 	if ( currentMode != TXTMODE )
 	{
@@ -667,6 +789,7 @@ void copyLine ()
 
 		pos += 1;
 	}
+
 }
 
 static int copypastebuffer_getc ( void )
@@ -699,7 +822,7 @@ static int copypastebuffer_getc ( void )
 	}
 }
 
-void pasteLine ()
+void pasteSelection ()
 {
 	if ( currentMode != TXTMODE )
 	{

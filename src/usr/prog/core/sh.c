@@ -96,7 +96,7 @@ int         exists   ( char*, char* );  // JK
 // Execute cmd. Never returns.
 void runcmd ( struct cmd* cmd )
 {
-	int              p[ 2 ];
+	int              p [ 2 ];
 	struct backcmd*  bcmd;
 	struct execcmd*  ecmd;
 	struct listcmd*  lcmd;

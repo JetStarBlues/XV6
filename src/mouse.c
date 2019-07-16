@@ -265,6 +265,8 @@ void mouseintr ( void )
 	if ( dx || dy )
 	{
 		updateMouseCursor( dx, - dy );
+
+		highlightSelection();
 	}
 
 	// Call handler for onmousepress or onmouserelease
@@ -286,16 +288,24 @@ void mouseintr ( void )
 	// Temp test
 	if ( leftBtn != leftBtn_prev )
 	{
-		if ( leftBtn_prev )
+		// onMousePress
+		if ( leftBtn )
 		{
-			copyLine();
+			markSelectionStart();
+		}
+		// onMouseRelease
+		else
+		{
+			markSelectionEnd();
+			// copySelection();
 		}
 	}
 	if ( rightBtn != rightBtn_prev )
 	{
+		// onMouseRelease
 		if ( rightBtn_prev )
 		{
-			pasteLine();
+			pasteSelection();
 		}
 	}
 

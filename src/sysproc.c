@@ -41,6 +41,9 @@ int sys_getpid ( void )
 	return myproc()->pid;
 }
 
+/* getppid could be implemented as myproc()->parent->pid
+*/
+
 int sys_sbrk ( void )
 {
 	int addr;
