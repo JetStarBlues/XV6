@@ -1,5 +1,15 @@
+I have made various additions and modifications to the original
+xv6 code. Please refer to the git logs of this repository.
+
+    https://github.com/JetStarBlues/XV6
+
+
+The original xv6 README is below.
+
+-------------------------------------------------------------------------
+
 xv6 is a re-implementation of Dennis Ritchie's and Ken Thompson's Unix
-Version 6 (v6).  xv6 loosely follows the structure and style of v6,
+Version 6 (v6). xv6 loosely follows the structure and style of v6,
 but is implemented for a modern x86-based multiprocessor using ANSI C.
 
 ACKNOWLEDGMENTS

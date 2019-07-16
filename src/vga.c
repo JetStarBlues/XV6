@@ -699,7 +699,7 @@ void markSelectionEnd ( void )
 	else
 	{
 		// If selected leftwards, swap start and end
-		selectionEndPos   = selectionStartPos;
+		selectionEndPos   = selectionStartPos + 1;  // inclusive range...
 		selectionStartPos = mousePosPrev_textMode;
 	}
 
@@ -708,7 +708,7 @@ void markSelectionEnd ( void )
 
 	/* Cursor currently selection so don't invert to restore...??
 	*/
-	mouseHasPreviouslyMoved_textMode = 0;
+	// mouseHasPreviouslyMoved_textMode = 0;
 }
 
 void highlightSelection ( void )
@@ -752,8 +752,10 @@ void highlightSelection ( void )
 	{
 		pos = endpos;
 
-		n = selectionStartPos - endpos;
+		n = selectionStartPos + 1 - endpos;  // inclusive range...
 	}
+
+	n = MIN( n, NCOLSxNROWS - pos );
 
 
 	// Save present as past
@@ -796,7 +798,9 @@ void copySelection ( void )
 	// Update buffer
 	pos = selectionStartPos;
 
-	n = selectionEndPos - selectionStartPos + 1;  // inclusive
+	n = selectionEndPos - selectionStartPos;
+
+	n = MIN( n, COPYBUFSZ );
 
 	for ( i = 0; i < n; i += 1 )
 	{

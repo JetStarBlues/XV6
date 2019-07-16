@@ -261,7 +261,8 @@ void mouseintr ( void )
 	     . send a signal? to the event handler notifying it
 	       that the variable has been updated
 	*/
-	// Call handler for onmousemove
+
+	// Call handler for onMouseMove
 	if ( dx || dy )
 	{
 		updateMouseCursor( dx, - dy );
@@ -269,7 +270,7 @@ void mouseintr ( void )
 		highlightSelection();
 	}
 
-	// Call handler for onmousepress or onmouserelease
+	// Call handler for onMousePress or onMouseRelease
 	/*
 	if ( leftBtn != leftBtn_prev )
 	{
