@@ -225,7 +225,11 @@ void runcmd ( struct cmd* cmd )
 			{
 				// Set stdout to write end of pipe
 				close( 1 );
-				dup( p[ 1 ] );
+				dup( p[ 1 ] );  /* First 'close' file descriptor 1 so that it becomes available.
+				                   Then use 'dup' to:
+				                     . duplicate the pipe's read end (struct file),
+				                     . and assign it to the first available
+				                       file descriptor, in this case 1 */
 
 				// Close unused file descriptors
 				close( p[ 0 ] );

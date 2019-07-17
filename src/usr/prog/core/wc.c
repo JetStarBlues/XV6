@@ -56,7 +56,8 @@ int main ( int argc, char* argv [] )
 {
 	int fd, i;
 
-	if ( argc <= 1 )  // input from pipe
+	// Use stdin as input
+	if ( argc <= 1 )
 	{
 		wc( 0, "" );
 

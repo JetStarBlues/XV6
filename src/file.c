@@ -88,7 +88,7 @@ struct file* filealloc ( void )
 	return 0;
 }
 
-// Increment ref count for file f.
+// Increment ref count of file f.
 struct file* filedup ( struct file* f )
 {
 	acquire( &ftable.lock );

@@ -69,6 +69,7 @@ int main ( int argc, char* argv [] )
 
 	pattern = argv[ 1 ];
 
+	// Use stdin as input
 	if ( argc <= 2 )
 	{
 		grep( pattern, 0 );

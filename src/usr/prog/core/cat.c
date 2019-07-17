@@ -30,7 +30,8 @@ int main ( int argc, char* argv [] )
 {
 	int fd, i;
 
-	if ( argc <= 1 )  // input from pipe
+	// Use stdin as input (ex. from pipe)
+	if ( argc <= 1 )
 	{
 		cat( 0 );
 

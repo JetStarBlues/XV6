@@ -12,8 +12,8 @@ struct file
 	int           ref;       // Reference count - number of references to the file
 	char          readable;  // File opened for reading
 	char          writable;  // File opened for writing
-	struct pipe  *pipe;
-	struct inode *ip;
+	struct pipe*  pipe;
+	struct inode* ip;
 	uint          off;       // IO offset...
 };
 
@@ -49,6 +49,7 @@ struct devsw
 {
 	int ( *read  )( struct inode*, char*, int );
 	int ( *write )( struct inode*, char*, int );
+	int ( *ioctl )( struct inode*, int );
 };
 
 extern struct devsw devsw [];
@@ -56,6 +57,7 @@ extern struct devsw devsw [];
 // Major device numbers
 #define CONSOLE 1
 #define DISPLAY 2  // hmm...
+// DEVNULL  // (minor0: null, minor1: zero)
 // MOUSE
 // KEYBOARD
 
