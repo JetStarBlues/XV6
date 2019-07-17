@@ -661,18 +661,12 @@ static int  selection_prevn   = 0;
 
 void markSelectionStart ( void )
 {
-	int x;
-	int y;
-
 	if ( currentMode != TXTMODE )
 	{
 		return;
 	}
 
-	x = mouseX_textMode / COLWIDTH;
-	y = mouseY_textMode / ROWHEIGHT;
-
-	selectionStartPos = y * NCOLS + x;
+	selectionStartPos = mousePosPrev_textMode;
 
 	selectingText = 1;
 }
