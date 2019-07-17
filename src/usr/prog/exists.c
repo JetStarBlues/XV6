@@ -18,7 +18,7 @@ void exists ( char* filename, char* dirpath )
 
 	if ( ( strlen( filename ) ) > DIRNAMESZ )
 	{
-		printf( 1, "invalid filename %s\n", filename );
+		printf( 2, "exists: invalid filename %s\n", filename );
 
 		return;
 	}
@@ -41,7 +41,7 @@ void exists ( char* filename, char* dirpath )
 
 	if ( st.type == T_FILE )
 	{
-		printf( 1, "expecting a directory\n" );
+		printf( 2, "exists: expecting a directory\n" );
 
 		close( fd );
 

@@ -188,11 +188,12 @@ void            setGraphicsMode ( void );
 void            updateMouseCursor ( int, int );
 
 void            demoGraphics   ( void );
+
 void            markSelectionStart ( void );
 void            markSelectionEnd   ( void );
 void            highlightSelection ( void );
-void            copySelection  ( void );
-void            pasteSelection ( void );
+void            copySelection      ( void );
+void            pasteSelection     ( void );
 
 // vm.c
 void            seginit    ( void );

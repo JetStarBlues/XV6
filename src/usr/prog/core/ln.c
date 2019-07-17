@@ -13,7 +13,7 @@ int main ( int argc, char* argv [] )
 
 	if ( link( argv[ 1 ], argv[ 2 ] ) < 0 )
 	{
-		printf( 2, "link %s %s: failed\n", argv[ 1 ], argv[ 2 ] );
+		printf( 2, "ln: link %s %s failed\n", argv[ 1 ], argv[ 2 ] );
 	}
 
 	exit();

@@ -62,7 +62,7 @@ int main ( int argc, char* argv [] )
 
 	if ( argc <= 1 )
 	{
-		printf( 2, "usage: grep pattern [file ...]\n" );
+		printf( 2, "Usage: grep pattern [file ...]\n" );
 
 		exit();
 	}

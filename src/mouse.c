@@ -261,17 +261,14 @@ void mouseintr ( void )
 	     . send a signal? to the event handler notifying it
 	       that the variable has been updated
 	*/
-
+	/*
 	// Call handler for onMouseMove
 	if ( dx || dy )
 	{
-		updateMouseCursor( dx, - dy );
-
-		highlightSelection();
+		onMouseMove();
 	}
 
 	// Call handler for onMousePress or onMouseRelease
-	/*
 	if ( leftBtn != leftBtn_prev )
 	{
 		if ( leftBtn )
@@ -286,7 +283,17 @@ void mouseintr ( void )
 	*/
 
 
-	// Temp test
+	// Temporary tests ---------------
+
+	// Call handler for onMouseMove
+	if ( dx || dy )
+	{
+		updateMouseCursor( dx, - dy );
+
+		highlightSelection();
+	}
+
+	// Call handler for onMousePress or onMouseRelease
 	if ( leftBtn != leftBtn_prev )
 	{
 		// onMousePress
@@ -310,6 +317,7 @@ void mouseintr ( void )
 			pasteSelection();
 		}
 	}
+
 
 
 	// Save button status

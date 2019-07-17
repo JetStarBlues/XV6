@@ -82,7 +82,7 @@ int main ( void )
 		*/
 		while ( ( wpid = wait() ) >= 0 && wpid != pid )
 		{
-			printf( 1, "zombie!\n" );
+			printf( 1, "init: zombie!\n" );
 
 			/* Why does init handle processes abandoned indirectly by child?
 			   For example, why does it handle grandchildren abandoned by

@@ -714,7 +714,6 @@ void highlightSelection ( void )
 	int    i;
 	ushort curChar;
 
-
 	if ( ! selectingText )
 	{
 		return;

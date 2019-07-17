@@ -114,7 +114,7 @@ void runcmd ( struct cmd* cmd )
 	{
 		default:
 
-			panic( "runcmd" );
+			panic( "sh: runcmd" );
 
 
 		case EXEC:
@@ -154,7 +154,7 @@ void runcmd ( struct cmd* cmd )
 			{
 				exec( ecmd->argv[ 0 ], ecmd->argv );
 
-				printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
+				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
 			// Binary in "/bin"
 			else if ( exists( ecmd->argv[ 0 ], "/bin" ) )
@@ -165,7 +165,7 @@ void runcmd ( struct cmd* cmd )
 
 				exec( binbuf, ecmd->argv );
 
-				printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
+				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
 			// Binary in "/usr/bin"
 			else if ( exists( ecmd->argv[ 0 ], "/usr/bin" ) )
@@ -176,7 +176,7 @@ void runcmd ( struct cmd* cmd )
 
 				exec( binbuf, ecmd->argv );
 
-				printf( 2, "exec %s failed\n", ecmd->argv[ 0 ] );
+				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
 			// Binary not found
 			else
@@ -199,7 +199,7 @@ void runcmd ( struct cmd* cmd )
 
 			if ( open( rcmd->file, rcmd->mode ) < 0 )
 			{
-				printf( 2, "open %s failed\n", rcmd->file );
+				printf( 2, "sh: open %s failed\n", rcmd->file );
 
 				exit();
 			}
@@ -217,7 +217,7 @@ void runcmd ( struct cmd* cmd )
 
 			if ( pipe( p ) < 0 )
 			{
-				panic( "pipe" );
+				panic( "sh: pipe" );
 			}
 
 			// Left cmd writes to pipe
@@ -342,7 +342,7 @@ int main ( void )
 
 			if ( chdir( buf + 3 ) < 0 )
 			{
-				printf( 2, "cannot cd %s\n", buf + 3 );
+				printf( 2, "sh: cannot cd %s\n", buf + 3 );
 			}
 
 			continue;
@@ -375,7 +375,7 @@ int fork1 ( void )
 
 	if ( pid == - 1 )
 	{
-		panic( "fork" );
+		panic( "sh: fork" );
 	}
 
 	return pid;
@@ -576,9 +576,13 @@ struct cmd* parsecmd ( char* s )
 
 	if ( s != es )
 	{
-		printf( 2, "leftovers: %s\n", s );
+		/*printf( 2, "sh: leftovers - %s\n", s );  // ??
 
-		panic( "syntax" );
+		panic( "sh: syntax" );*/
+
+		printf( 2, "sh: leftovers - %s", s );  // ??
+
+		panic( "" );
 	}
 
 	nulterminate( cmd );
@@ -643,7 +647,7 @@ struct cmd* parseredirs ( struct cmd* cmd, char** ps, char* es )
 
 		if ( gettoken( ps, es, &q, &eq ) != 'a' )
 		{
-			panic( "missing file for redirection" );
+			panic( "sh: missing file for redirection" );
 		}
 
 		switch ( tok )
@@ -676,7 +680,7 @@ struct cmd* parseblock ( char** ps, char* es )
 
 	if ( ! peek( ps, es, "(" ) )
 	{
-		panic( "parseblock" );
+		panic( "sh: parseblock" );
 	}
 
 	gettoken( ps, es, 0, 0 );
@@ -685,7 +689,7 @@ struct cmd* parseblock ( char** ps, char* es )
 
 	if ( ! peek( ps, es, ")" ) )
 	{
-		panic( "syntax - missing )" );
+		panic( "sh: syntax missing ')'" );
 	}
 
 	gettoken( ps, es, 0, 0 );
@@ -726,7 +730,7 @@ struct cmd* parseexec ( char** ps, char* es )
 
 		if ( tok != 'a' )
 		{
-			panic( "syntax" );
+			panic( "sh: syntax" );  // ??
 		}
 
 		cmd->argv[ argc ] = q;
@@ -737,7 +741,7 @@ struct cmd* parseexec ( char** ps, char* es )
 
 		if ( argc >= MAXARGS )
 		{
-			panic( "too many args" );
+			panic( "sh: too many args" );
 		}
 
 		ret = parseredirs( ret, ps, es );
@@ -835,7 +839,7 @@ int exists ( char* filename, char* dirpath )
 
 	if ( ( strlen( filename ) ) > DIRNAMESZ )
 	{
-		printf( 1, "invalid filename %s\n", filename );
+		printf( 2, "exists: invalid filename %s\n", filename );
 
 		return 0;
 	}
@@ -858,7 +862,7 @@ int exists ( char* filename, char* dirpath )
 
 	if ( st.type == T_FILE )
 	{
-		printf( 1, "expecting a directory\n" );
+		printf( 2, "exists: expecting a directory\n" );
 
 		close( fd );
 
