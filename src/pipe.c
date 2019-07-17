@@ -32,6 +32,9 @@ struct pipe {
 	int  writeopen;          // write fd is still open
 };
 
+/* Create a pipe.
+   Also allocate and set file structures for its read and write ends...
+*/
 int pipealloc ( struct file** f0, struct file** f1 )
 {
 	struct pipe* p;
@@ -40,16 +43,22 @@ int pipealloc ( struct file** f0, struct file** f1 )
 	*f0 = 0;
 	*f1 = 0;
 
+	// Allocate file structures f0, f1
 	if ( ( *f0 = filealloc() ) == 0 || ( *f1 = filealloc() ) == 0 )
 	{
 		goto bad;
 	}
 
+	// Allocate space to hold the pipe
+	/* Note: allocates one page regardless of
+	   sizeof( struct pipe ) including PIPESIZE
+	*/
 	if ( ( p = ( struct pipe* ) kalloc() ) == 0 )
 	{
 		goto bad;
 	}
 
+	// Set the pipe's attributes
 	p->readopen  = 1;
 	p->writeopen = 1;
 	p->nwrite    = 0;
@@ -57,11 +66,14 @@ int pipealloc ( struct file** f0, struct file** f1 )
 
 	initlock( &p->lock, "pipe" );
 
+
+	// Set f0 as read end of pipe
 	( *f0 )->type     = FD_PIPE;
 	( *f0 )->readable = 1;
 	( *f0 )->writable = 0;
 	( *f0 )->pipe     = p;
 
+	// Set f1 as write end of pipe
 	( *f1 )->type     = FD_PIPE;
 	( *f1 )->readable = 0;
 	( *f1 )->writable = 1;
@@ -89,34 +101,56 @@ bad:
 	return - 1;
 }
 
+/* Called twice, once for each end of the pipe.
+   See the loop in 'exit' that closes all the open
+   files of a process.
+*/
 void pipeclose ( struct pipe* p, int writable )
 {
 	acquire( &p->lock );
 
+	/* Notify anyone waiting to read from the pipe,
+	   that the write end of the pipe is now closed.
+	   I.e. that there are no more writers
+	*/
 	if ( writable )
 	{
 		p->writeopen = 0;
 
-		wakeup( &p->nread );
+		wakeup( &p->nread );  // notify readers
 	}
-	else
+	/* Notify anyone waiting to write from the pipe,
+	   that the read end of the pipe is now closed.
+	   I.e. that there are no more readers
+	*/
+	else  // readable
 	{
 		p->readopen = 0;
 
-		wakeup( &p->nwrite );
+		wakeup( &p->nwrite );  // notify writers
 	}
 
+
+	/* If have successfuly closed both ends of the pipe,
+       free the pipe structure
+    */
 	if ( p->readopen == 0 && p->writeopen == 0 )
 	{
 		release( &p->lock );
 
 		kfree( ( char* ) p );
 	}
+	/* If only one end of the pipe is closed so far,
+	   we are done for now
+	*/
 	else
 	{
 		release( &p->lock );
 	}
 }
+
+
+// ________________________________________________________________________________
 
 int pipewrite ( struct pipe* p, char* addr, int n )
 {
@@ -130,7 +164,9 @@ int pipewrite ( struct pipe* p, char* addr, int n )
 		// If buffer is full, wait for bytes to be read off it
 		while ( p->nwrite == p->nread + PIPESIZE )
 		{
-			// ...
+			/* If the pipe is closed (i.e. no readers) before we have
+			   successuly written all our bytes, return an error
+			*/
 			if ( p->readopen == 0 || myproc()->killed )
 			{
 				release( &p->lock );
@@ -170,11 +206,13 @@ int piperead ( struct pipe* p, char* addr, int n )
 
 	acquire( &p->lock );
 
-	// If buffer is empty, wait for bytes to be written to it
-	while ( p->nread == p->nwrite )
+	/* If buffer is empty (and the pipe is still open (i.e. writers exist)),
+	   wait for bytes to be written to it
+	*/
+	while ( ( p->nread == p->nwrite ) && p->writeopen )
 	{
 		// ...
-		if ( p->writeopen == 0 || myproc()->killed )
+		if ( myproc()->killed )
 		{
 			release( &p->lock );
 

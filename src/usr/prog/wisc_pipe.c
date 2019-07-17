@@ -2,6 +2,12 @@
 #include "user.h"
 #include "fcntl.h"
 
+/* By not explicitly closing files (including the pipe),
+   we assume that they will be closed by our call to 'exit'.
+   'exit' as part of its tasks, closes all the open
+   file descriptors of the process.
+*/
+
 int main ( int argc, char* argv [] )
 {
 	int fds [ 2 ];

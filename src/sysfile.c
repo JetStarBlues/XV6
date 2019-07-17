@@ -57,6 +57,10 @@ static int argfd ( int n, int* pfd, struct file** pf )
 
 // Allocate a file descriptor for the given file.
 // Takes over file reference from caller on success.
+/*
+   Allocates the first available file descriptor in the
+   current process's list of file descriptors...
+*/
 static int fdalloc ( struct file* f )
 {
 	struct proc* curproc = myproc();
@@ -729,24 +733,42 @@ int sys_pipe ( void )
 	int          fd0,
 	             fd1;
 
-	// Get fd arg: pipe( fd )
+	// Get fd arg... "pipe( fd )"
 	if ( argptr( 0, ( void* ) &fd, 2 * sizeof( fd[ 0 ] ) ) < 0 )
 	{
 		return - 1;
 	}
 
-	// ??
+	/* Create a pipe.
+	   Also allocate file structures (rf and wf) and set them as
+	   the pipe's read and write ends...
+	*/
 	if ( pipealloc( &rf, &wf ) < 0 )
 	{
 		return - 1;
 	}
 
-	// ??
-	fd0 = - 1;
 
-	if ( ( fd0 = fdalloc( rf ) ) < 0 || ( fd1 = fdalloc( wf ) ) < 0 )
+	/* Allocate file descriptors (in the current process) for the
+	   pipe's read and write ends
+	*/
+	fd0 = fdalloc( rf );
+
+	if ( fd0 < 0 )
 	{
-		if ( fd0 >= 0 )  // ??
+		fileclose( rf );
+
+		fileclose( wf );
+
+		return - 1;
+	}
+
+	fd1 = fdalloc( wf );
+
+	if ( fd1 < 0 )
+	{
+		// If fd0 was successfully allocated, deallocate it
+		if ( fd0 >= 0 )
 		{
 			myproc()->ofile[ fd0 ] = 0;
 		}
@@ -758,6 +780,10 @@ int sys_pipe ( void )
 		return - 1;
 	}
 
+
+	/* Return the pipe's file descriptors to the caller.
+	   Indirectly return by updating contents pointed to by arg 'fd'.
+	*/
 	fd[ 0 ] = fd0;
 	fd[ 1 ] = fd1;
 
