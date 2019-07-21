@@ -47,9 +47,9 @@ struct inode
 // read and write functions
 struct devsw
 {
-	int ( *read  )( struct inode*, char*, int );
-	int ( *write )( struct inode*, char*, int );
-	int ( *ioctl )( struct inode*, int );
+	int ( *read  )( struct inode*, char*, int );  // ( struct inode* ip, char* dst, int n )
+	int ( *write )( struct inode*, char*, int );  // ( struct inode* ip, char* src, int n )
+	int ( *ioctl )( struct inode*, int, uint* );  // ( struct inode* ip, int request, uint* argp )
 };
 
 extern struct devsw devsw [];
@@ -60,6 +60,7 @@ extern struct devsw devsw [];
 // DEVNULL  // (minor0: null, minor1: zero)
 // MOUSE
 // KEYBOARD
+// DEVRANDOM  // stackoverflow.com/a/19987142
 
 /* Major vs minor device number
      . https://www.oreilly.com/library/view/linux-device-drivers/0596000081/ch03s02.html

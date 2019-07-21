@@ -27,8 +27,9 @@ int main ( void )
 	ioapicinit();    // another interrupt controller
 	consoleinit();   // console hardware
 	uartinit();      // serial port
-	vgainit();       // display
 	mouseinit();     // mouse
+	vgainit();       // vga
+	displayinit();   // generic display
 	pinit();         // process table
 	tvinit();        // trap vectors
 	binit();         // buffer cache

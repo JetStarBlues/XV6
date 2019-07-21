@@ -22,6 +22,9 @@ void            cprintf     ( char*, ... );
 void            consoleintr ( int( * ) ( void ) );
 void            panic       ( char* ) __attribute__( ( noreturn ) );
 
+// display.c
+void            displayinit ( void );
+
 // exec.c
 int             exec ( char*, char** );
 
@@ -85,8 +88,8 @@ void            microdelay   ( int );
 // log.c
 void            initlog   ( int dev );
 void            log_write ( struct buf* );
-void            begin_op  ();
-void            end_op    ();
+void            begin_op  ( void );
+void            end_op    ( void );
 
 // mouse.c
 void            mouseinit ( void );
@@ -113,7 +116,7 @@ int             fork      ( void );
 int             growproc  ( int );
 int             kill      ( int );
 struct cpu*     mycpu     ( void );
-struct proc*    myproc    ();
+struct proc*    myproc    ( void );
 void            pinit     ( void );
 void            procdump  ( void );
 void            scheduler ( void ) __attribute__( ( noreturn ) );
@@ -175,15 +178,18 @@ void            uartintr ( void );
 void            uartputc ( int );
 
 // vga.c
-void            vgainit              ();
+void            vgainit              ( void );
 void            vgaputc              ( int );
-void            writePixel           ( int, int, int );
-void            vgaSetPalette        ( int, char, char, char );
+
+void            vgaWritePixel        ( int, int, int );
+void            vgaBlit              ( uchar* );
+void            vgaSetPaletteColor   ( int, char, char, char );
 void            vgaSetDefaultPalette ( void );
 void            convert24To18bit     ( int, int*, int*, int* );
 
-void            setTextMode     ( void );
-void            setGraphicsMode ( void );
+void            vgaSetMode      ( int );
+// void         setTextMode     ( void );
+// void         setGraphicsMode ( void );
 
 void            updateMouseCursor ( int, int );
 

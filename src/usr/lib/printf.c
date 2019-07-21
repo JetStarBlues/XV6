@@ -64,7 +64,8 @@ void printf ( int fd, const char* fmt, ... )
 
 	state = 0;
 
-	argp = ( uint* ) ( void* ) &fmt + 1;
+	// Create pointer to variable args...
+	argp = ( ( uint* ) ( void* ) &fmt ) + 1;
 
 	for ( i = 0; fmt[ i ]; i += 1 )
 	{
@@ -74,13 +75,17 @@ void printf ( int fd, const char* fmt, ... )
 		{
 			if ( c == '%' )
 			{
+				// Print formatted
 				state = '%';
 			}
 			else
 			{
+				// Print as is
 				putc( fd, c );
 			}
 		}
+
+		// Print formatted
 		else if ( state == '%' )
 		{
 			if ( c == 'd' )
@@ -125,7 +130,7 @@ void printf ( int fd, const char* fmt, ... )
 			}
 			else
 			{
-				// Unknown % sequence.  Print it to draw attention.
+				// Unknown % sequence. Print it to draw attention.
 				putc( fd, '%' );
 				putc( fd, c );
 			}

@@ -275,7 +275,7 @@ static void install_transaction ( void )
    It sets the count to zero after copying the logged blocks
    to the fs.
 */
-static void commit ()
+static void commit ( void )
 {
 	if ( log.header.n > 0 )
 	{

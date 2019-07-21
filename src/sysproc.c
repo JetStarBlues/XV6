@@ -118,7 +118,7 @@ int sys_gettime ( void )
 {
 	struct rtcdate* d;
 
-	if ( argptr( 0, ( char** ) &d, sizeof( struct rtcdate ) ) < 0 )
+	if ( argptr( 0, ( void* ) &d, sizeof( struct rtcdate ) ) < 0 )
 	{
 		return - 1;
 	}

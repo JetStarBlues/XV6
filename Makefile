@@ -20,6 +20,7 @@ FSUSRBINDIR = fs/usr/bin/
 OBJS =          \
 	bio.o       \
 	console.o   \
+	display.o   \
 	exec.o      \
 	file.o      \
 	fs.o        \
@@ -72,6 +73,7 @@ UPROGSCORE =        \
 UPROGS =            \
 	exists          \
 	forktest        \
+	graphics_test   \
 	stressfs        \
 	time            \
 	temptest        \
@@ -86,7 +88,6 @@ UPROGS =            \
 	wisc_pipe       \
 	wisc_spinner    \
 	zombie
-# 	wisc_threadtest \
 
 
 # JK... stackoverflow.com/a/4481931

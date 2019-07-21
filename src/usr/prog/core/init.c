@@ -23,7 +23,7 @@ int main ( void )
 	// as stdin/out/error (fds 0, 1, 2)
 	if ( open( "/dev/console", O_RDWR ) < 0 )
 	{
-		mknod( "/dev/console", CONSOLE, 1 );  // create a device file...
+		mknod( "/dev/console", CONSOLE, 0 );  // create a device file...
 
 		open( "/dev/console", O_RDWR );  // stdin
 	}
@@ -31,9 +31,15 @@ int main ( void )
 	dup( 0 );  // stdout
 	dup( 0 );  // stderr
 
+
 	/* For an example of multiple devices, see
 	    https://github.com/DoctorWkt/xv6-freebsd/blob/master/cmd/old/init.c
 	*/
+	// Create a new display device if needed
+	if ( open( "/dev/display", O_RDWR ) < 0 )
+	{
+		mknod( "/dev/display", DISPLAY, 0 );
+	}
 
 
 	/* Loops:

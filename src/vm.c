@@ -271,7 +271,7 @@ void switchkvm ( void )
 */
 /* When changing protection levels from user to kernel mode (i.e.
    when preparing to execute a system call), the kernel shouldn't
-   use the user stack. The user stack may bee malicious or contain
+   use the user stack. The user stack may be malicious or contain
    an error that causes the user %esp to hold an address that is
    not part of the process's user memory...
 

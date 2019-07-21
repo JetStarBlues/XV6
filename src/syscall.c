@@ -91,9 +91,9 @@ int argptr ( int n, char** pp, int size )
 	}
 
 	// Check that points to address within user address space
-	if ( size < 0                          ||
-	     ( uint ) i >= curproc->sz         ||
-	     ( uint ) i + size > curproc->sz )
+	if ( size < 0                           ||
+	     ( uint ) i        >= curproc->sz   ||
+	     ( uint ) i + size >  curproc->sz )
 	{
 		return - 1;
 	}
@@ -128,6 +128,7 @@ extern int sys_fork    ( void );
 extern int sys_fstat   ( void );
 extern int sys_getpid  ( void );
 extern int sys_gettime ( void );
+extern int sys_ioctl   ( void );
 extern int sys_kill    ( void );
 extern int sys_link    ( void );
 extern int sys_mkdir   ( void );
@@ -154,6 +155,7 @@ static int ( *syscalls[] )( void ) = {
 	[ SYS_fstat   ] sys_fstat,
 	[ SYS_getpid  ] sys_getpid,
 	[ SYS_gettime ] sys_gettime,
+	[ SYS_ioctl   ] sys_ioctl,
 	[ SYS_kill    ] sys_kill,
 	[ SYS_link    ] sys_link,
 	[ SYS_mkdir   ] sys_mkdir,

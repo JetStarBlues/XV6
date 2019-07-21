@@ -52,8 +52,9 @@ void consoleinit ( void )
 {
 	initlock( &cons.lock, "console" );
 
-	devsw[ CONSOLE ].write = consolewrite;
 	devsw[ CONSOLE ].read  = consoleread;
+	devsw[ CONSOLE ].write = consolewrite;
+	devsw[ CONSOLE ].ioctl = 0;
 
 	cons.locking = 1;  // Why distinguish ??
 
@@ -123,10 +124,14 @@ void cprintf ( char* fmt, ... )
 		panic( "cprintf: null fmt" );
 	}
 
-	argp = ( uint* ) ( void* ) ( &fmt + 1 );
+	// Create pointer to variable args...
+	argp = ( ( uint* ) ( void* ) &fmt ) + 1;
 
-	for ( i = 0; ( c = fmt[ i ] & 0xff ) != 0; i += 1 )
+	for ( i = 0; fmt[ i ]; i += 1 )
 	{
+		c = fmt[ i ] & 0xff;
+
+		// Print as is
 		if ( c != '%' )
 		{
 			consputc( c );
@@ -134,6 +139,8 @@ void cprintf ( char* fmt, ... )
 			continue;
 		}
 
+
+		// Print formatted
 		i += 1;
 
 		c = fmt[ i ] & 0xff;
@@ -181,9 +188,11 @@ void cprintf ( char* fmt, ... )
 					s = "(null)";
 				}
 
-				for ( ; *s; s += 1 )
+				while ( *s != 0 )
 				{
 					consputc( *s );
+
+					s += 1;
 				}
 
 				break;
@@ -196,7 +205,7 @@ void cprintf ( char* fmt, ... )
 
 			default:
 
-				// Print unknown % sequence to draw attention.
+				// Unknown % sequence. Print it to draw attention.
 				consputc( '%' );
 				consputc( c );
 
@@ -374,7 +383,7 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 		demoGraphics();
 
-		// setTextMode();
+		// vgaSetMode( 3 );  // text mode
 
 		// cprintf( "Did we switch back to text mode successfully?\n" );
 	}

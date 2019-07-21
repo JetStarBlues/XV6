@@ -8,3 +8,8 @@ other2/
 fs/
 
 tmp/
+
+# wip
+src/playground.c
+src/usr/prog/moyix_cat_dynamic.c
+src/usr/prog/moyix_memtest.c

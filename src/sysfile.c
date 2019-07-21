@@ -695,7 +695,8 @@ int sys_exec ( void )
 			return - 1;
 		}
 
-		if ( fetchint( uargv + 4 * i, ( int* ) &uarg ) < 0 )  // ??
+		// Get pointer to string argument
+		if ( fetchint( uargv + ( 4 * i ), ( int* ) &uarg ) < 0 )
 		{
 			return - 1;
 		}
@@ -707,6 +708,7 @@ int sys_exec ( void )
 			break;
 		}
 
+		// Get the string
 		if ( fetchstr( uarg, &argv[ i ] ) < 0 )
 		{
 			return - 1;
@@ -788,4 +790,43 @@ int sys_pipe ( void )
 	fd[ 1 ] = fd1;
 
 	return 0;
+}
+
+
+// ___________________________________________________________________________
+
+/* ...
+   https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
+
+   int ioctl ( int fd, int request, ... );
+   int ioctl ( int fd, int request, uint* argp );  // Make life simpler...
+*/
+int sys_ioctl ( void )
+{
+	int          fd;
+	int          request;
+	uint*        argp;
+	struct file* f;
+
+	if ( argfd( 0, &fd, &f ) < 0   ||
+		 argint( 1, &request ) < 0 ||
+		 argptr( 2, ( void* ) &argp, sizeof( uint ) ) < 0 )  /* size should be "nArgs * sizeof( uint )"
+		                                                        but nArgs is unknown. This introduces
+		                                                        opportunity for exploit since boundary
+		                                                        check in argptr is bypassed. */
+	{
+		return - 1;
+	}
+
+	if ( ( f->type != FD_INODE ) || ( f->ip->type != T_DEV ) )
+	{
+		return - 1;
+	}
+
+	if ( f->ip->major < 0 || f->ip->major >= NDEV || ! devsw[ f->ip->major ].ioctl )
+	{
+		return - 1;
+	}
+
+	return devsw[ f->ip->major ].ioctl( f->ip, request, argp );
 }

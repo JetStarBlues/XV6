@@ -2,7 +2,9 @@
 #include "defs.h"
 #include "memlayout.h"
 #include "x86.h"
+#include "spinlock.h"
 #include "vga.h"
+
 
 /*
 Text mode code is based on:
@@ -24,8 +26,16 @@ Code to integrate graphics mode with xv6 userspace is based on:
 
 // General ___________________________________________________________________________
 
-#define TXTMODE 1
-#define GFXMODE 3
+#define TXTMODE 3
+#define GFXMODE 13
+
+static struct
+{
+	/* This lock is used for ... ??
+	*/
+	struct spinlock lock;
+
+} vga;
 
 static int currentMode;
 
@@ -36,6 +46,8 @@ static void updateMouseCursor_graphicsMode ( int, int );
 
 void vgainit ( void )
 {
+	initlock( &vga.lock, "vga" );
+
 	// Explicitly set to mode 0x03. Mainly so that we can use
 	// a custom font from the get-go
 	setTextMode();
@@ -205,6 +217,18 @@ void setGraphicsMode ( void )
 	currentMode = GFXMODE;
 }
 
+void vgaSetMode ( int sel )
+{
+	if ( sel == TXTMODE )
+	{
+		setTextMode();
+	}
+	else if ( sel == GFXMODE )
+	{
+		setGraphicsMode();
+	}
+}
+
 void updateMouseCursor ( int dx, int dy )
 {
 	if ( currentMode == TXTMODE )
@@ -262,7 +286,7 @@ static int mouseY_textMode = HEIGHT_TXTMODE / 2;
 static int mouseHasPreviouslyMoved_textMode = 0;
 static int mousePosPrev_textMode;
 
-static char selectingText; // ...
+static char selectingText;  // ...
 
 
 static void clearScreen_textMode ( void )
@@ -494,17 +518,27 @@ static int mouseX_gfxMode = WIDTH_GFXMODE  / 2;
 static int mouseY_gfxMode = HEIGHT_GFXMODE / 2;
 
 
-void vgaWritePixel ( int x, int y, int c )
+void vgaWritePixel ( int x, int y, int colorIdx )
 {
 	int off;
 
 	off = WIDTH_GFXMODE * y + x;
 
-	gfxbuffer[ off ] = c;
+	gfxbuffer[ off ] = colorIdx;
+}
+
+void vgaBlit ( uchar* src )
+{
+	int i;
+
+	for ( i = 0; i < WIDTHxHEIGHT_GFXMODE; i += 1 )
+	{
+		gfxbuffer[ i ] = src[ i ];
+	}
 }
 
 
-void vgaSetPalette ( int index, char r, char g, char b )
+void vgaSetPaletteColor ( int index, char r, char g, char b )
 {
 	outb( VGA_DAC_WRITE_INDEX, index );
 	outb( VGA_DAC_DATA,        r ); 
@@ -528,7 +562,7 @@ void vgaSetDefaultPalette ( void )
 		g = vga256_18bit_default[ index + 1 ];
 		b = vga256_18bit_default[ index + 2 ];
 
-		vgaSetPalette( index, r, g, b );
+		vgaSetPaletteColor( index, r, g, b );
 	}
 }
 
@@ -610,7 +644,7 @@ static void drawX ( void )
 	int x, y;
 
 	// Can I get a brighter yellow?
-	vgaSetPalette( yellow, 63, 63, 0 );  // yes
+	vgaSetPaletteColor( yellow, 63, 63, 0 );  // yes
 
 	/* Clear screen */
 	for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
