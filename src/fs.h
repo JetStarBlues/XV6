@@ -22,7 +22,7 @@ struct superblock
 
 #define NDIRECT   12
 #define NINDIRECT ( BLOCKSIZE / sizeof( uint ) )  // 128
-#define MAXFILESZ ( NDIRECT + NINDIRECT )
+#define MAXFILESZ ( NDIRECT + NINDIRECT )         // 140 blocks ( 71680 bytes)
 
 // On-disk inode structure
 struct dinode

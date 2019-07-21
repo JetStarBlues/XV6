@@ -23,7 +23,6 @@
 	#define static_assert( a, b ) do { switch ( 0 ) case 0: case ( a ): ; } while ( 0 )
 #endif
 
-#define NINODES 200
 
 // Disk layout:
 // [ boot block | sb block | log | inode blocks | free bit map | data blocks ]
@@ -38,8 +37,8 @@ int nlogblocks,     // Number of log blocks
 int               fsfd;
 struct superblock sb;
 char              zeroes [ BLOCKSIZE ];
-uint              freeinode;
-uint              freeblock;
+uint              freeinode;  // max can be is ?? FSNINODE
+uint              freeblock;  // max can be is ?? FSSIZE
 
 
 void balloc  ( int );
@@ -123,7 +122,7 @@ int main ( int argc, char* argv [] )
 
 	// Prepare superblock
 	nbitmapblocks = FSSIZE / ( BLOCKSIZE * 8 ) + 1;
-	ninodeblocks  = ( NINODES / INODES_PER_BLOCK ) + 1;
+	ninodeblocks  = ( FSNINODE / INODES_PER_BLOCK ) + 1;
 	nlogblocks    = LOGSIZE;
 
 	nmeta = 2 + nlogblocks + ninodeblocks + nbitmapblocks;
@@ -132,7 +131,7 @@ int main ( int argc, char* argv [] )
 
 	sb.size        = xint( FSSIZE );
 	sb.ndatablocks = xint( ndatablocks );
-	sb.ninodes     = xint( NINODES );
+	sb.ninodes     = xint( FSNINODE );
 	sb.nlogblocks  = xint( nlogblocks );
 	sb.logstart    = xint( 2 );
 	sb.inodestart  = xint( 2 + nlogblocks );
@@ -208,6 +207,7 @@ int main ( int argc, char* argv [] )
 	// Create bitmap
 	balloc( freeblock );
 
+	//
 	exit( 0 );
 }
 
@@ -353,6 +353,13 @@ void addDirectory ( int dir_inum, char* localdirname )
 
 void wsect ( uint sec, void* buf )
 {
+	if ( ( sec < 0 ) || ( sec >= FSSIZE ) )
+	{
+		fprintf( stderr, "wsect: invalid sector number - %d\n", sec );
+
+		exit( 1 );
+	}
+
 	if ( lseek( fsfd, sec * BLOCKSIZE, 0 ) != sec * BLOCKSIZE )
 	{
 		perror( "lseek" );
@@ -370,12 +377,20 @@ void wsect ( uint sec, void* buf )
 
 void rsect ( uint sec, void* buf )
 {
+	if ( ( sec < 0 ) || ( sec >= FSSIZE ) )
+	{
+		fprintf( stderr, "rsect: invalid sector number - %d\n", sec );
+
+		exit( 1 );
+	}
+
 	if ( lseek( fsfd, sec * BLOCKSIZE, 0 ) != sec * BLOCKSIZE )
 	{
 		perror( "lseek" );
 
 		exit( 1 );
 	}
+
 	if ( read( fsfd, buf, BLOCKSIZE ) != BLOCKSIZE )
 	{
 		perror( "read" );
@@ -424,6 +439,15 @@ uint ialloc ( ushort type )
 	struct dinode din;
 	uint          inum;
 
+	if ( freeinode >= FSNINODE )
+	{
+		fprintf( stderr, "ialloc: no free inodes!\n" );
+
+		exit( 1 );
+	}
+
+	// printf( "freeinode %d\n", freeinode );
+
 	inum = freeinode;
 
 	freeinode += 1;
@@ -455,24 +479,47 @@ void balloc ( int used )
 		buf[ i / 8 ] = buf[ i / 8 ] | ( 1 << ( i % 8 ) );  // if used, set bit
 	}
 
-	printf( "balloc: write bitmap block at sector %d\n", sb.bmapstart );
-
 	wsect( sb.bmapstart, buf );
+
+	printf( "balloc: bitmap block at sector %d\n", sb.bmapstart );
 }
 
-#define min( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
+#define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
+
+uint getfreeblock ( void )
+{
+	uint fb;
+
+	if ( freeblock >= FSSIZE )
+	{
+		fprintf( stderr, "getfreeblock: no free blocks!\n" );
+
+		exit( 1 );
+	}
+
+	// printf( "freeblock %d\n", freeblock );
+
+	fb = freeblock;
+
+	freeblock += 1;
+
+	return fb;
+}
 
 void iappend ( uint inum, void* xp, int n )
 {
-	char* p = ( char* ) xp;
-	uint  fbn,
-	      off,
-	      n1;
+	char* p;
+	uint  fbn;
+	uint  off;
+	uint  n1;
+	uint  _freeblock;
 
 	struct dinode  din;
-	char           buf [ BLOCKSIZE ];
+	char           buf      [ BLOCKSIZE ];
 	uint           indirect [ NINDIRECT ];
 	uint           x;
+
+	p = ( char* ) xp;
 
 	rinode( inum, &din );
 
@@ -491,9 +538,9 @@ void iappend ( uint inum, void* xp, int n )
 		{
 			if ( xint( din.addrs[ fbn ] ) == 0 )
 			{
-				din.addrs[ fbn ] = xint( freeblock );
+				_freeblock = getfreeblock();
 
-				freeblock += 1;
+				din.addrs[ fbn ] = xint( _freeblock );
 			}
 
 			x = xint( din.addrs[ fbn ] );
@@ -504,9 +551,9 @@ void iappend ( uint inum, void* xp, int n )
 			// Indirect block
 			if ( xint( din.addrs[ NDIRECT ] ) == 0 )
 			{
-				din.addrs[ NDIRECT ] = xint( freeblock );
+				_freeblock = getfreeblock();
 
-				freeblock += 1;
+				din.addrs[ NDIRECT ] = xint( _freeblock );
 			}
 
 			// Block pointed to by indirect block
@@ -514,17 +561,17 @@ void iappend ( uint inum, void* xp, int n )
 
 			if ( indirect[ fbn - NDIRECT ] == 0 )
 			{
-				indirect[ fbn - NDIRECT ] = xint( freeblock );
+				_freeblock = getfreeblock();
 
-				freeblock += 1;
+				indirect[ fbn - NDIRECT ] = xint( _freeblock );
 
 				wsect( xint( din.addrs[ NDIRECT ] ), ( char* ) indirect );
 			}
 
-			x = xint( indirect[fbn - NDIRECT] );
+			x = xint( indirect[ fbn - NDIRECT ] );
 		}
 
-		n1 = min( n, ( fbn + 1 ) * BLOCKSIZE - off );
+		n1 = MIN( n, ( fbn + 1 ) * BLOCKSIZE - off );
 
 		rsect( x, buf );
 
