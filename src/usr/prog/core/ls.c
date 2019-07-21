@@ -66,7 +66,7 @@ void ls ( char* path )
 
 			if ( strlen( path ) + 1 + DIRNAMESZ + 1 > sizeof buf )
 			{
-				printf( 1, "ls: path too long\n" );
+				printf( 2, "ls: path too long\n" );
 
 				break;
 			}
@@ -100,7 +100,7 @@ void ls ( char* path )
 
 				if ( stat( buf, &st ) < 0 )
 				{
-					printf( 1, "ls: cannot stat %s\n", buf );
+					printf( 2, "ls: cannot stat %s\n", buf );
 
 					continue;
 				}

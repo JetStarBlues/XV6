@@ -1,14 +1,15 @@
 .gdbinit
 *~
+
 src/vectors.S
 img/
 debug/
 bin/
-other2/
 
 fs/bin
 fs/usr/bin
 
+other2/
 tmp/
 
 # wip

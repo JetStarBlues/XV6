@@ -40,7 +40,7 @@ void wc ( int fd, char* name )
 
 	if ( n < 0 )
 	{
-		printf( 1, "wc: read error\n" );
+		printf( 2, "wc: read error\n" );
 
 		exit();
 	}
@@ -68,7 +68,7 @@ int main ( int argc, char* argv [] )
 	{
 		if ( ( fd = open( argv[ i ], 0 ) ) < 0 )
 		{
-			printf( 1, "wc: cannot open %s\n", argv[ i ] );
+			printf( 2, "wc: cannot open %s\n", argv[ i ] );
 
 			exit();
 		}

@@ -12,7 +12,7 @@ void cat ( int fd )
 	{
 		if ( write( 1, buf, n ) != n )
 		{
-			printf( 1, "cat: write error\n" );
+			printf( 2, "cat: write error\n" );
 
 			exit();
 		}
@@ -20,7 +20,7 @@ void cat ( int fd )
 
 	if ( n < 0 )
 	{
-		printf( 1, "cat: read error\n" );
+		printf( 2, "cat: read error\n" );
 
 		exit();
 	}
@@ -42,7 +42,7 @@ int main ( int argc, char* argv [] )
 	{
 		if ( ( fd = open( argv[ i ], 0 ) ) < 0 )
 		{
-			printf( 1, "cat: cannot open %s\n", argv[ i ] );
+			printf( 2, "cat: cannot open %s\n", argv[ i ] );
 
 			exit();
 		}

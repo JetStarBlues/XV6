@@ -54,7 +54,7 @@ int main ( void )
 
 		if ( pid < 0 )
 		{
-			printf( 1, "init: fork failed\n\n" );
+			printf( 2, "init: fork failed\n\n" );
 
 			exit();
 		}
@@ -64,7 +64,7 @@ int main ( void )
 		{
 			exec( "/bin/sh", argv );
 
-			printf( 1, "init: exec /bin/sh failed\n\n" );
+			printf( 2, "init: exec /bin/sh failed\n\n" );
 
 			exit();
 		}
