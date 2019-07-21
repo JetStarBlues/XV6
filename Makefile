@@ -292,6 +292,9 @@ mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 #
 fs.img: mkfs $(ULIB) $(UPROGS) $(UPROGSCORE)
 
+	# Keep copy up to date
+	cp README fs
+
 	$(UTILBINDIR)mkfs $(IMGDIR)fs.img fs
 
 
