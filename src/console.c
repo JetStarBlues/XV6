@@ -383,7 +383,7 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 		demoGraphics();
 
-		// vgaSetMode( 3 );  // text mode
+		// vgaSetMode( 0x03 );  // text mode
 
 		// cprintf( "Did we switch back to text mode successfully?\n" );
 	}

@@ -6,25 +6,10 @@
 #include "file.h"
 
 /*
-Based on...
+Based on:
 	. https://github.com/sam46/xv6/blob/master/display.c
 	. https://github.com/DoctorWkt/xv6-freebsd/blob/master/include/xv6/file.h
 */
-
-
-// Generic
-#define DISP_SETPIXEL   2
-#define DISP_BLIT       3
-#define DISP_DRAWLINE   9
-#define DISP_DRAWRECT   9
-#define DISP_DRAWCIRCLE 9
-
-// VGA specific...
-#define DISP_SETMODE    1
-#define DISP_SETCOLOR   9
-#define DISP_DEFAULTPAL 9
-
-
 
 static int displayioctl ( struct inode*, int, uint* );
 

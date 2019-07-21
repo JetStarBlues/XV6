@@ -26,9 +26,6 @@ Code to integrate graphics mode with xv6 userspace is based on:
 
 // General ___________________________________________________________________________
 
-#define TXTMODE 3
-#define GFXMODE 13
-
 static struct
 {
 	/* This lock is used for ... ??

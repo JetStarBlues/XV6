@@ -1,3 +1,9 @@
+// General ________________________________________________________________________
+
+#define TXTMODE 0x03
+#define GFXMODE 0x13
+
+
 // Text mode (0x03) constants _____________________________________________________
 
 #define TXTBUFFER      0xB8000  // physical address
@@ -9,8 +15,8 @@
 #define WIDTH_TXTMODE  720   // In mode 0x3, the screen resolution appears to be 720x400
 #define HEIGHT_TXTMODE 400   //  https://en.wikipedia.org/wiki/Text_mode
 
-#define COLWIDTH      9      // width in pixels of a column: WIDTH_TXTMODE / NCOLS
-#define ROWHEIGHT     16     // height in pixels of a row:   HEIGHT_TXTMODE / NROWS
+#define COLWIDTH       9     // width in pixels of a column: WIDTH_TXTMODE / NCOLS
+#define ROWHEIGHT      16    // height in pixels of a row:   HEIGHT_TXTMODE / NROWS
 
 #define CTRL           0x3D4
 #define DATA           0x3D5

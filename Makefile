@@ -73,6 +73,7 @@ UPROGSCORE =        \
 UPROGS =            \
 	exists          \
 	forktest        \
+	graphics_test   \
 	stressfs        \
 	time            \
 	temptest        \
