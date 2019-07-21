@@ -5,7 +5,9 @@ img/
 debug/
 bin/
 other2/
-fs/
+
+fs/bin
+fs/usr/bin
 
 tmp/
 

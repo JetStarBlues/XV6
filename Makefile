@@ -73,7 +73,6 @@ UPROGSCORE =        \
 UPROGS =            \
 	exists          \
 	forktest        \
-	graphics_test   \
 	stressfs        \
 	time            \
 	temptest        \
@@ -291,11 +290,7 @@ mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
 #
-fs.img: mkfs README $(ULIB) $(UPROGS) $(UPROGSCORE)
-	# The other directories (FSBINDIR, FSUSRBINDIR) have to already exist
-	mkdir -p $(FSDEVDIR)
-
-	cp README fs
+fs.img: mkfs $(ULIB) $(UPROGS) $(UPROGSCORE)
 
 	$(UTILBINDIR)mkfs $(IMGDIR)fs.img fs
 
@@ -325,9 +320,7 @@ clean:
 	$(IMGDIR)*         \
 	$(DEBUGDIR)*       \
 	$(SRCDIR)vectors.S \
-	$(FSDIR)README     \
 	$(FSBINDIR)*       \
-	$(FSDEVDIR)*       \
 	$(FSUSRBINDIR)*    \
 	.gdbinit
 
