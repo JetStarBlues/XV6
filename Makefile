@@ -18,7 +18,7 @@ FSUSRBINDIR = fs/usr/bin/
 
 # Kernel code
 OBJS =          \
-	bio.o       \
+	buf.o       \
 	console.o   \
 	display.o   \
 	exec.o      \

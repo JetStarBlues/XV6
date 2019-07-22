@@ -28,9 +28,7 @@ int   write   ( int, const void*, int );
 
 // ulib.c
 int   atoi    ( const char* );
-void  free    ( void* );
 char* gets    ( char*, int );
-void* malloc  ( uint );
 void* memmove ( void*, const void*, int );
 void* memset  ( void*, int, uint );
 void  printf  ( int, const char*, ... );
@@ -39,3 +37,8 @@ char* strchr  ( const char*, char );
 int   strcmp  ( const char*, const char* );
 char* strcpy  ( char*, const char* );
 uint  strlen  ( const char* );
+
+// umalloc.c
+void  free    ( void* );
+void* malloc  ( uint );
+

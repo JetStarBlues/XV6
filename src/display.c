@@ -4,6 +4,7 @@
 #include "sleeplock.h"
 #include "fs.h"
 #include "file.h"
+#include "display.h"
 
 /*
 Based on:
@@ -28,7 +29,7 @@ void displayinit ( void )
 
 static int displayioctl ( struct inode* ip, int request, uint* argp )
 {
-	if ( request == DISP_SETMODE )
+	if ( request == DISP_IOCTL_SETMODE )
 	{
 		int sel;
 
@@ -36,7 +37,11 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 
 		vgaSetMode( sel );
 	}
-	else if ( request == DISP_SETPIXEL )
+	else if ( request == DISP_IOCTL_DEFAULTPAL )
+	{
+		vgaSetDefaultPalette();
+	}
+	else if ( request == DISP_IOCTL_SETPIXEL )
 	{
 		int x;
 		int y;
@@ -53,7 +58,7 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 
 		vgaWritePixel( x, y, colorIdx );
 	}
-	else if ( request == DISP_BLIT )
+	else if ( request == DISP_IOCTL_BLIT )
 	{
 		uchar* src;
 

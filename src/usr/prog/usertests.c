@@ -1906,6 +1906,7 @@ void bigfile_test2 ( void )
 	printf( stdout, "big file test 2: OK\n" );
 }
 
+// TODO: make this more generic
 void fourteen_test ( void )
 {
 	int fd;
@@ -2780,7 +2781,7 @@ int main ( int argc, char* argv[] )
 	preempt_test();
 	exitwait_test();
 	rmdot_test();
-	fourteen_test();
+	fourteen_test();  // TODO: make this more generic
 	bigfile_test2();
 	subdir_test();
 	link_test();

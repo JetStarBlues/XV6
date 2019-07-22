@@ -1,0 +1,12 @@
+The following pictures are derived from artwork by Michael B. Myers Jr.
+
+	https://dribbble.com/shots/2757627-Steve-Rogers-Captain-America-idle-animation
+
+	. cam.bin
+	. cam2.bin
+
+
+The following image renders the palette as a 16x16 grid.
+See tools/genPalTestImage.py for details.
+
+	. paltest.bin

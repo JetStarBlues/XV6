@@ -33,7 +33,7 @@ struct inode
 	int              valid;  // inode has been read from disk?
 
 	// Copy of disk inode
-	short            type;                   // File type
+	short            type;                   // Inode type (T_DIR, T_FILE, T_DEV)
 	short            major;                  // Major device number (T_DEV only)
 	short            minor;                  // Minor device number (T_DEV only)
 	short            nlink;                  // Number of links to inode in file system.

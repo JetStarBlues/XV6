@@ -270,6 +270,7 @@ Text mode (VGA mode 0x03)
 */
 #define TXTCOLOR( BG, FG ) ( ( ( ( BG ) << 4 ) | ( FG ) ) << 8 )
 
+#define NTABSPACES 3
 
 static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
 
@@ -306,8 +307,6 @@ static void clearScreen_textMode ( void )
 
 void vgaputc ( int c )
 {
-	// static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
-
 	int pos;
 	int i;
 
@@ -333,6 +332,15 @@ void vgaputc ( int c )
 		if ( pos > 0 )
 		{
 			pos -= 1;
+		}
+	}
+	else if ( c == '\t' )
+	{
+		for ( i = 0; i < NTABSPACES; i += 1 )
+		{
+			textbuffer[ pos ] = clearchar_textMode;
+
+			pos += 1;
 		}
 	}
 	// Everything else
@@ -543,23 +551,28 @@ void vgaSetPaletteColor ( int index, char r, char g, char b )
 	outb( VGA_DAC_DATA,        b ); 
 }
 
+// http://www.brackeen.com/vga/bitmaps.html
 void vgaSetDefaultPalette ( void )
 {
-	int index;
+	int  i;
 	char r, g, b;
 
-	for ( index = 0; index < 256; index += 1 )
+	outb( VGA_DAC_WRITE_INDEX, 0 );
+
+	for ( i = 0; i < 768; i += 3 )
 	{
 		/*
-		r = vga256_18bit_custom[ index     ];
-		g = vga256_18bit_custom[ index + 1 ];
-		b = vga256_18bit_custom[ index + 2 ];*/
+		r = vga256_18bit_custom[ i     ];
+		g = vga256_18bit_custom[ i + 1 ];
+		b = vga256_18bit_custom[ i + 2 ];*/
 
-		r = vga256_18bit_default[ index     ];
-		g = vga256_18bit_default[ index + 1 ];
-		b = vga256_18bit_default[ index + 2 ];
+		r = vga256_18bit_default[ i     ];
+		g = vga256_18bit_default[ i + 1 ];
+		b = vga256_18bit_default[ i + 2 ];
 
-		vgaSetPaletteColor( index, r, g, b );
+		outb( VGA_DAC_DATA, r ); 
+		outb( VGA_DAC_DATA, g ); 
+		outb( VGA_DAC_DATA, b ); 
 	}
 }
 
