@@ -24,6 +24,9 @@ Code to integrate graphics mode with xv6 userspace is based on:
 */
 
 
+// TODO - should we be using locks ??
+
+
 // General ___________________________________________________________________________
 
 static struct
@@ -580,12 +583,12 @@ void vgaSetDefaultPalette ( void )
    by dropping the lowest 2 bits.
    https://en.wikipedia.org/wiki/List_of_monochrome_and_RGB_palettes#18-bit_RGB
 */
-void convert24To18bit ( int color24, int* r, int* g, int* b )
+/*void convert24To18bit ( int color24, int* r, int* g, int* b )
 {
 	*r = ( ( color24 & 0xff0000 ) >> 16 ) >> 2;
 	*g = ( ( color24 & 0x00ff00 ) >> 8  ) >> 2;
 	*b = ( ( color24 & 0x0000ff )       ) >> 2;
-}
+}*/
 
 
 static void updateMouseCursor_graphicsMode ( int dx, int dy )

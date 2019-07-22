@@ -37,6 +37,29 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 
 		vgaSetMode( sel );
 	}
+	else if ( request == DISP_IOCTL_SETCOLOR )
+	{
+		int  index;
+		char r;
+		char g;
+		char b;
+
+		index = *argp;
+		argp += 1;
+
+		// We assume r,g,b passed as ints
+		r = ( char ) *argp;
+		argp += 1;
+
+		g = ( char ) *argp;
+		argp += 1;
+
+		b = ( char ) *argp;
+		argp += 1;
+
+
+		vgaSetPaletteColor ( index, r, g, b );
+	}
 	else if ( request == DISP_IOCTL_DEFAULTPAL )
 	{
 		vgaSetDefaultPalette();

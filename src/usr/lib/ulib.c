@@ -97,10 +97,12 @@ char* gets ( char* buf, int max )
 	     cc;
 	char c;
 
-	for ( i = 0; i + 1 < max;  )
+	for ( i = 0; ( i + 1 ) < max;  )
 	{
+		// Read one byte from stdin
 		cc = read( 0, &c, 1 );
 
+		// Read error...
 		if ( cc < 1 )
 		{
 			break;

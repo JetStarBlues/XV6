@@ -56,7 +56,7 @@ extern struct devsw devsw [];
 
 // Major device numbers
 #define CONSOLE 1
-#define DISPLAY 2  // hmm...
+#define DISPLAY 2
 // DEVNULL  // (minor0: null, minor1: zero)
 // MOUSE
 // KEYBOARD

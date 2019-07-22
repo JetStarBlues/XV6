@@ -9,18 +9,21 @@ Based on:
 	. https://github.com/sam46/xv6/blob/master/imshow.c
 */
 
+#define TXTMODE              0x03
 #define GFXMODE              0x13
 #define WIDTHxHEIGHT_GFXMODE 64000
 
+#define UINPUTBUFSZ 3
+
+
 int main ( int argc, char* argv [] )
 {
-	int displayfd;
-	int imagefd;
-
-	uint argp [ 3 ];
-
+	int   displayfd;
+	int   imagefd;
 	int   bytesRead;
 	char* imgbuf;
+	uint  argp [ 3 ];
+	char  uinputbuf [ UINPUTBUFSZ ];
 
 
 	displayfd = open( "/dev/display", O_RDWR );
@@ -78,6 +81,30 @@ int main ( int argc, char* argv [] )
 
 
 
+	/* When user enters "q", switch back to text mode.
+	   Ideally this would be an "onkeypress" event handler;
+	   for now we sleep on stdin
+	*/
+	while ( 1 )
+	{
+		memset( uinputbuf, 0, UINPUTBUFSZ );
+
+		gets( uinputbuf, UINPUTBUFSZ );
+
+		uinputbuf[ strlen( uinputbuf ) - 1 ] = 0;  // remove newline char '\n'
+
+		if ( strcmp( uinputbuf, "q" ) == 0 )
+		{
+			break;
+		}
+	}
+
+
+	// Switch to text mode
+	argp[ 0 ] = TXTMODE;
+	ioctl( displayfd, DISP_IOCTL_SETMODE, argp );
+
+	printf( 1, "Hasta luego!\n" );
 
 
 	exit();

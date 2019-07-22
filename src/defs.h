@@ -18,8 +18,8 @@ void            bwrite ( struct buf* );
 
 // console.c
 void            consoleinit ( void );
-void            cprintf     ( char*, ... );
 void            consoleintr ( int( * ) ( void ) );
+void            cprintf     ( char*, ... );
 void            panic       ( char* ) __attribute__( ( noreturn ) );
 
 // display.c
@@ -63,9 +63,9 @@ void            ideintr ( void );
 void            iderw   ( struct buf* );
 
 // ioapic.c
-void            ioapicenable ( int irq, int cpu );
 extern uchar    ioapicid;
-void            ioapicinit ( void );
+void            ioapicenable ( int irq, int cpu );
+void            ioapicinit   ( void );
 
 // kalloc.c
 char*           kalloc ( void );
@@ -86,10 +86,10 @@ void            lapicstartap ( uchar, uint );
 void            microdelay   ( int );
 
 // log.c
-void            initlog   ( int dev );
-void            log_write ( struct buf* );
 void            begin_op  ( void );
 void            end_op    ( void );
+void            initlog   ( int dev );
+void            log_write ( struct buf* );
 
 // mouse.c
 void            mouseinit ( void );
@@ -136,15 +136,15 @@ void            acquire      ( struct spinlock* );
 void            getcallerpcs ( void*, uint* );
 int             holding      ( struct spinlock* );
 void            initlock     ( struct spinlock*, char* );
-void            release      ( struct spinlock* );
-void            pushcli      ( void );
 void            popcli       ( void );
+void            pushcli      ( void );
+void            release      ( struct spinlock* );
 
 // sleeplock.c
 void            acquiresleep  ( struct sleeplock* );
-void            releasesleep  ( struct sleeplock* );
 int             holdingsleep  ( struct sleeplock* );
 void            initsleeplock ( struct sleeplock*, char* );
+void            releasesleep  ( struct sleeplock* );
 
 // string.c
 int             memcmp     ( const void*, const void*, uint );
@@ -181,19 +181,15 @@ void            uartputc ( int );
 void            vgainit              ( void );
 void            vgaputc              ( int );
 
+void            vgaSetMode           ( int );
 void            vgaWritePixel        ( int, int, int );
 void            vgaBlit              ( uchar* );
 void            vgaSetPaletteColor   ( int, char, char, char );
 void            vgaSetDefaultPalette ( void );
-void            convert24To18bit     ( int, int*, int*, int* );
 
-void            vgaSetMode      ( int );
-// void         setTextMode     ( void );
-// void         setGraphicsMode ( void );
+void            demoGraphics ( void );
 
 void            updateMouseCursor ( int, int );
-
-void            demoGraphics   ( void );
 
 void            markSelectionStart ( void );
 void            markSelectionEnd   ( void );
@@ -202,20 +198,20 @@ void            copySelection      ( void );
 void            pasteSelection     ( void );
 
 // vm.c
-void            seginit    ( void );
-void            kvmalloc   ( void );
-pde_t*          setupkvm   ( void );
-char*           uva2ka     ( pde_t*, char* );
 int             allocuvm   ( pde_t*, uint, uint );
+void            clearpteu  ( pde_t* pgdir, char* uva );
+int             copyout    ( pde_t*, uint, void*, uint );
+pde_t*          copyuvm    ( pde_t*, uint );
 int             deallocuvm ( pde_t*, uint, uint );
 void            freevm     ( pde_t* );
 void            inituvm    ( pde_t*, char*, uint );
+void            kvmalloc   ( void );
 int             loaduvm    ( pde_t*, char*, struct inode*, uint, uint );
-pde_t*          copyuvm    ( pde_t*, uint );
-void            switchuvm  ( struct proc* );
+void            seginit    ( void );
+pde_t*          setupkvm   ( void );
 void            switchkvm  ( void );
-int             copyout    ( pde_t*, uint, void*, uint );
-void            clearpteu  ( pde_t* pgdir, char* uva );
+void            switchuvm  ( struct proc* );
+char*           uva2ka     ( pde_t*, char* );
 
 // number of elements in fixed-size array
 #define NELEM( x ) ( sizeof( x ) / sizeof( ( x )[ 0 ] ) )

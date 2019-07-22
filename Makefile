@@ -74,6 +74,8 @@ UPROGS =            \
 	exists          \
 	forktest        \
 	graphics_test   \
+	gets_test       \
+	gets_test2      \
 	stressfs        \
 	time            \
 	temptest        \
