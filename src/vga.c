@@ -43,6 +43,7 @@ void        setTextMode                    ( void );
 static void clearScreen_textMode           ( void );
 static void updateMouseCursor_textMode     ( int, int );
 static void updateMouseCursor_graphicsMode ( int, int );
+static void vgaSetDefaultPalette_textMode  ( void );
 
 void vgainit ( void )
 {
@@ -203,8 +204,17 @@ void setTextMode ( void )
 	*/
 	writeFont( g_8x16_font, 16 );
 
-	// Clear screen
+	// Use default palette
+	vgaSetDefaultPalette_textMode();
+
+	// Clear the screen
 	clearScreen_textMode();
+
+	// Move the text cursor to (0,0)
+	outb( CTRL, 14 );
+	outb( DATA, 0  );  // send hi byte
+	outb( CTRL, 15 );
+	outb( DATA, 0  );  // send lo byte
 
 	//
 	currentMode = TXTMODE;
@@ -277,9 +287,9 @@ Text mode (VGA mode 0x03)
 
 static ushort* textbuffer = ( ushort* ) P2V( TXTBUFFER );
 
-static int mousecolor_textMode =       TXTCOLOR( TCYAN,   TMAGENTA );
-static int textcolor_textMode  =       TXTCOLOR( TYELLOW, TRED );
-static int clearchar_textMode  = ' ' | TXTCOLOR( TYELLOW, TRED );
+static int selectioncolor_textMode =       TXTCOLOR( TCYAN,   TMAGENTA );
+static int textcolor_textMode      =       TXTCOLOR( TYELLOW, TRED );
+static int clearchar_textMode      = ' ' | TXTCOLOR( TYELLOW, TRED );
 
 static int mouseX_textMode = WIDTH_TXTMODE  / 2;  // middle of screen
 static int mouseY_textMode = HEIGHT_TXTMODE / 2;
@@ -305,13 +315,65 @@ static void clearScreen_textMode ( void )
 	for ( i = 0; i < NCOLSxNROWS; i += 1 )
 	{
 		textbuffer[ i ] = clearchar_textMode;
+		// textbuffer[ i ] = ' ' | TXTCOLOR( 6, TRED );  // 6, 8, ?, ?, ?, 12, 13?, 14, 15
 	}
 }
 
+/*static void setTextCursorPos ( ushort pos )
+{
+	outb( CTRL, 14 );
+	outb( DATA, pos >> 8 );  // send hi byte
+	outb( CTRL, 15 );
+	outb( DATA, pos );       // send lo byte
+}*/
+
+
+/*static void vgaSetPaletteColor_textMode ( int index, char r, char g, char b )
+{
+	outb( VGA_DAC_WRITE_INDEX, EGAtoVGA[ index ] );
+	outb( VGA_DAC_DATA,        r );
+	outb( VGA_DAC_DATA,        g );
+	outb( VGA_DAC_DATA,        b );
+}*/
+
+/* Restore default palette of text mode
+   https://forum.osdev.org/viewtopic.php?f=1&t=23753&p=192800#p192800
+*/
+static void vgaSetDefaultPalette_textMode ( void )
+{
+	int  egaIdx;
+	int  vgaIdx;
+	int  palIdx;
+	char r, g, b;
+
+	for ( egaIdx = 0; egaIdx < 16; egaIdx += 1 )
+	{
+		// Get expected EGA color
+		palIdx = egaIdx * 3;
+
+		r = vga256_18bit_default[ palIdx     ];
+		g = vga256_18bit_default[ palIdx + 1 ];
+		b = vga256_18bit_default[ palIdx + 2 ];
+
+
+		// Place it in expected VGA slot
+		vgaIdx = EGAtoVGA[ egaIdx ];
+
+		vgaSetPaletteColor( vgaIdx, r, g, b );
+	}
+}
+
+
+//
 void vgaputc ( int c )
 {
-	int pos;
-	int i;
+	ushort pos;
+	int    i;
+
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
 
 	// Get current cursor position
 	outb( CTRL, 14 );
@@ -803,7 +865,7 @@ void highlightSelection ( void )
 	{
 		curChar = textbuffer[ pos ] & 0x00FF;
 
-		textbuffer[ pos ] = mousecolor_textMode | curChar;
+		textbuffer[ pos ] = selectioncolor_textMode | curChar;
 
 		pos += 1;
 	}

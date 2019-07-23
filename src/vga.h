@@ -195,6 +195,35 @@ static char vga256_18bit_default [ 256 * 3 ] = {
 // static char vga256_18bit_custom [ 256 * 3 ] = {};
 
 
+/* It seems that a palette is shared between VGA modes,
+   but that indices are not consistent across the modes...
+   The following table is used to put the colors where
+   text mode (0x03) expects to find them. It is retrieved
+   from this forum post where more information can be found:
+   https://forum.osdev.org/viewtopic.php?f=1&t=23753&p=192800#p192800
+*/
+static char EGAtoVGA [ 16 ] = {
+	//
+	       // EGA   VGA
+	0x00,  // 0x0   0x00  Black
+	0x01,  // 0x1   0x01  Blue
+	0x02,  // 0x2   0x02  Green
+	0x03,  // 0x3   0x03  Cyan
+	0x04,  // 0x4   0x04  Red
+	0x05,  // 0x5   0x05  Magenta
+	0x14,  // 0x6   0x14  Brown
+	0x07,  // 0x7   0x07  Light Grey
+	0x38,  // 0x8   0x38  Grey
+	0x39,  // 0x9   0x39  Light Blue
+	0x3A,  // 0xA   0x3A  Light Green
+	0x3B,  // 0xB   0x3B  Light Cyan
+	0x3C,  // 0xC   0x3C  Light Red
+	0x3D,  // 0xD   0x3D  Light Magenta
+	0x3E,  // 0xE   0x3E  Yellow
+	0x3F,  // 0xF   0x3F  White
+};
+
+
 // Fonts __________________________________________________________________________
 
 /* Unknown font (8x16).
