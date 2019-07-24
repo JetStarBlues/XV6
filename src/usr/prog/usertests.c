@@ -695,10 +695,11 @@ void exitwait_test ( void )
 
 void mem_test ( void )
 {
-	void* m1;
-	void* m2;
-	int   pid,
-	      ppid;
+	void*  m1;
+	void*  m2;
+	int    pid,
+	       ppid;
+	char** tmp;  // stackoverflow.com/a/57174081
 
 	printf( stdout, "mem test\n" );
 
@@ -710,14 +711,22 @@ void mem_test ( void )
 
 		while ( ( m2 = malloc( 10001 ) ) != 0 )
 		{
-			*( char** ) m2 = m1;  // what does this cast mean?
+			// *( char** ) m2 = m1;
+
+			tmp = ( char** ) m2;
+
+			*tmp = m1;
 
 			m1 = m2;
 		}
 
 		while ( m1 )
 		{
-			m2 = *( char** ) m1;  // what does this cast mean?
+			// m2 = *( char** ) m1;
+
+			tmp = ( char** ) m1;
+
+			m2 = *tmp;
 
 			free( m1 );
 

@@ -104,20 +104,45 @@ static void startothers ( void )
 			continue;
 		}
 
-		// Tell entryother.S what stack to use, where to enter, and what
-		// pgdir to use. We cannot use kpgdir yet, because the AP processor
-		// is running in low memory, so we use entrypgdir for the APs too.
+		/* Tell entryother.S,
+		     . what stack to use,
+		     . where to enter,
+		     . what pgdir to use
+
+		   We cannot use kpgdir yet, because the AP processor
+		   is running in low memory, so we use entrypgdir for the APs too.
+		*/
+		/* TODO: What does this do??
+
+		    0x7000 + _binary_entryother_size ->  -------------------------
+		                                         contents of entryother.S
+		    0x7000                           ->  -------------------------  <- start
+		                                         address of ...
+		    0x7000 - 4                       ->  -------------------------  <- start - 4
+		                                         address of mpenter
+		    0x7000 - 8                       ->  -------------------------  <- start - 8
+		                                         address of ...
+		    0x7000 - 12                      ->  -------------------------  <- start - 12
+
+
+		   See stackoverflow.com/a/57174081
+
+		                  ( void** ) ( code - 4 )  -> pointer to pointer to void
+		    ( void ( ** ) ( void ) ) ( code - 8 )  -> pointer to pointer to function (with no return value, no parameters)
+		                   ( int** ) ( code - 12 ) -> pointer to pointer to int
+		*/
 		stack = kalloc();
 
-		*( void** )               ( code - 4 )  = stack + KSTACKSIZE;  // ?
+		*(                ( void** ) ( code - 4  )  ) = stack + KSTACKSIZE;  // stack top since it grows downwards ?
 
-		*( void ( ** ) ( void ) ) ( code - 8 )  = mpenter;
+		*(  ( void ( ** ) ( void ) ) ( code - 8  )  ) = mpenter;
 
-		*( int** )                ( code - 12 ) = ( void* ) V2P( entrypgdir );  // pdgdir to use
+		*(                 ( int** ) ( code - 12 )  ) = ( void* ) V2P( entrypgdir );  // pdgdir to use
 
 		lapicstartap( c->apicid, V2P( code ) );
 
-		// wait for cpu to finish mpmain()
+
+		// Wait for cpu to finish mpmain()
 		while ( c->started == 0 )
 		{
 			//
