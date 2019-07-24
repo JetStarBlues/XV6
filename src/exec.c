@@ -12,7 +12,7 @@
    It leaves the file descriptors, process id, and
    parent process unchanged.
 */
-int exec ( char* path, char** argv )
+int exec ( char* path, char* argv [] )
 {
 	char* s;
 	char* last;

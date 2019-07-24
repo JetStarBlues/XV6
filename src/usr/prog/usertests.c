@@ -710,14 +710,14 @@ void mem_test ( void )
 
 		while ( ( m2 = malloc( 10001 ) ) != 0 )
 		{
-			*( char** ) m2 = m1;
+			*( char** ) m2 = m1;  // what does this cast mean?
 
 			m1 = m2;
 		}
 
 		while ( m1 )
 		{
-			m2 = *( char** ) m1;
+			m2 = *( char** ) m1;  // what does this cast mean?
 
 			free( m1 );
 

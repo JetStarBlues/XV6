@@ -4,11 +4,11 @@
 #include "param.h"
 
 // Memory allocator by Kernighan and Ritchie,
-// The C programming Language, 2nd ed.  Section 8.7.
+// The C programming Language, 2nd ed. Section 8.7.
 
 typedef long Align;
 
-union header {
+union header {  // TODO: what does union mean?
 
 	struct {
 

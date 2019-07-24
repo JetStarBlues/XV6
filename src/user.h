@@ -5,7 +5,7 @@ struct rtcdate;
 int   chdir   ( const char* );
 int   close   ( int );
 int   dup     ( int );
-int   exec    ( char*, char** );
+int   exec    ( char*, char* [] );
 int   exit    ( void ) __attribute__( ( noreturn ) );
 int   fork    ( void );
 int   fstat   ( int, struct stat* );

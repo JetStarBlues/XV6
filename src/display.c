@@ -37,6 +37,7 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 
 		vgaSetMode( sel );
 	}
+
 	else if ( request == DISP_IOCTL_SETCOLOR )
 	{
 		int  index;
@@ -60,10 +61,12 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 
 		vgaSetPaletteColor ( index, r, g, b );
 	}
+
 	else if ( request == DISP_IOCTL_DEFAULTPAL )
 	{
 		vgaSetDefaultPalette();
 	}
+
 	else if ( request == DISP_IOCTL_SETPIXEL )
 	{
 		int x;
@@ -81,6 +84,7 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 
 		vgaWritePixel( x, y, colorIdx );
 	}
+
 	else if ( request == DISP_IOCTL_BLIT )
 	{
 		uchar* src;
@@ -89,6 +93,7 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 
 		vgaBlit( src );
 	}
+
 	else
 	{
 		cprintf( "displayioctl: unknown request - %d\n", request );

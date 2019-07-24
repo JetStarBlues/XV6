@@ -1,10 +1,14 @@
 // TODO
 
 /*
-    Various draw methods in here? To avoid cost of context switch
-    if use only drawPixel syscall ??
+	Algorithms for common drawing routines:
+		. rectangle
+		. line
+		. circle
 
-    ioctl( GFX, drawRectangle, *params ) ??
-    gfxioctl( drawRectangle, *params )
-    drawRectangle( params )
+	'drawPixel' function will be a parameter so that
+	various display devices can use the library.
+
+	Library is in kernel to avoid context switch cost of
+	calling 'drawPixel' at user level...
 */

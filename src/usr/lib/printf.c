@@ -45,9 +45,18 @@ static void printint ( int fd, int xx, int base, int sign )
 		i += 1;
 	}
 
-	while ( --i >= 0 )
+	/*while ( --i >= 0 )
 	{
 		putc( fd, buf[ i ] );
+	}*/
+
+	i -= 1;
+
+	while ( i >= 0 )
+	{
+		putc( fd, buf[ i ] );
+
+		i -= 1;
 	}
 }
 

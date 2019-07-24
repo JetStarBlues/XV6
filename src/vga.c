@@ -39,11 +39,13 @@ static struct
 
 static int currentMode;
 
+
 void        setTextMode                    ( void );
 static void clearScreen_textMode           ( void );
 static void updateMouseCursor_textMode     ( int, int );
 static void updateMouseCursor_graphicsMode ( int, int );
 static void vgaSetDefaultPalette_textMode  ( void );
+
 
 void vgainit ( void )
 {

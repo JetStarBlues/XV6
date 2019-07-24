@@ -27,7 +27,12 @@ void* memmove ( void* vdst, const void* vsrc, int n )
 
 	while ( n > 0 )
 	{
-		*dst++ = *src++;
+		/* *dst++ = *src++; */
+
+		*dst = *src;
+
+		dst += 1;
+		src += 1;
 
 		n -= 1;
 	}
@@ -49,18 +54,31 @@ int strcmp ( const char* p, const char* q )
 	return ( uchar ) *p - ( uchar ) *q;
 }
 
-char* strcpy ( char* s, const char* t )
+/* Copies the string pointed to by src, including the
+   terminating null byte, to the buffer pointed to by dst
+*/
+char* strcpy ( char* dst, const char* src )
 {
-	char* os;
+	char* odst;
 
-	os = s;
+	odst = dst;
 
-	while ( ( *s++ = *t++ ) != 0 )
+	/*while ( ( *dst++ = *src++ ) != 0 )
 	{
 		//
+	}*/
+
+	*dst = *src;  // in case src is null string
+
+	while ( *dst )
+	{
+		dst += 1;
+		src += 1;
+
+		*dst = *src;
 	}
 
-	return os;
+	return odst;
 }
 
 uint strlen ( const char* s )
@@ -81,7 +99,7 @@ char* strchr ( const char* s, char c )
 	{
 		if ( *s == c )
 		{
-			return ( char* )s;
+			return ( char* ) s;
 		}
 	}
 
@@ -148,6 +166,8 @@ int stat ( const char* path, struct stat* st )
 
 // _________________________________________________________________
 
+/* Converts the initial portion of the string to an int
+*/
 int atoi ( const char* s )
 {
 	int n;
@@ -156,7 +176,13 @@ int atoi ( const char* s )
 
 	while ( '0' <= *s && *s <= '9' )
 	{
-		n = n * 10 + *s++ - '0';
+		/* n = n * 10 + *s++ - '0'; */
+
+		n *= 10;
+
+		n += *s - '0';
+
+		s += 1;
 	}
 
 	return n;

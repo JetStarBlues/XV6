@@ -80,7 +80,6 @@ int main ( int argc, char* argv [] )
 	ioctl( displayfd, DISP_IOCTL_BLIT, argp );
 
 
-
 	/* When user enters "q", switch back to text mode.
 	   Ideally this would be an "onkeypress" event handler;
 	   for now we sleep on stdin
@@ -106,6 +105,9 @@ int main ( int argc, char* argv [] )
 
 	printf( 1, "Hasta luego!\n" );
 
+
+	//
+	free( imgbuf );  // deallocate memory, so it can be used for other things (no garbage collection)
 
 	exit();
 }

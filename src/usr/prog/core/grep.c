@@ -106,6 +106,7 @@ int match ( char* re, char* text )
 	{
 		return matchhere( re + 1, text );
 	}
+
 	do  // must look at empty string
 	{
 		if ( matchhere( re, text ) )
