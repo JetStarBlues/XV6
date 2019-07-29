@@ -1,0 +1,1629 @@
+---------------------------------------------------------------------------------------------
+39) File and Directories
+---------------------------------------------------------------------------------------------
+
+Files and directories
+
+	~~~ file ~~~
+
+	. A file is a linear array of bytes each of which can be read/written
+	. Each file usually has some low-level name, usually a number
+	  referred to as its "inode number"
+
+	. Most OSs don't know much about the structure of a file (whether its
+	  a picture, text, machine instructions).
+	. The OS (file system) is only responsible for store the data
+	  persistently on disk, and fetching it.
+
+
+	~~~ directory ~~~
+
+	. A directory, like a file, has an inode number
+	. Contains a list of user-readable and low-level name pairs
+	. Each entry refers to either files or other directories
+
+
+Creating files
+
+	. 'open' system call with 'O_CREAT' flag
+	. ex
+		int fd = open( "foo", O_CREAT|O_WRONLY|O_TRUNC, S_IRUSR|S_IWUSR );
+
+	. open returns a file descriptor - a per process integer used in
+	  Unix systems to access files
+	. One a file is opened, you use the fd to r/w the file
+
+
+Reading and writing files
+
+	~~~ strace ~~~
+
+	. see system calls a program makes
+	. -f : follow any fork'd children as well
+	. -t : report time of each call
+	. -e trace=open,close,read,write : trace only the specified syscalls
+
+
+	~~~ lseek ~~~
+
+	. Useful to be able to r/w to a specific offset within a file
+
+		off_t lseek ( int fd, off_t offset, int whence )
+
+	. 'whence' argument determines how the seek is performed:
+		. SEEK_SET - cur_offset = offset
+		. SEEK_CUR - cur_offset += offset
+		. SEEK_END - cur_offset = size of file + offset
+
+	. For each file a process opens, the OS tracks a "current" offset,
+	  which determines where the next read or write will begin
+	. The offset is updated:
+		. implicitly by read/write (cur_offset += nBytes read/written)
+		. explicitly by lseek
+
+
+Writing immediately w fsync
+
+	. Most times when a program calls 'write', it is telling the
+	  file system to write the data to persistent storage at some
+	  point in the future.
+	. For performance reasons, the file system "buffers" such writes
+	  in memory for some time (ex 5..30sec), after which it actually
+	  issues the write(s) to disk
+
+	. Some applications require something more than this eventual
+	  gaurantee
+	. In Unix, this is supported by:
+		int fsync ( int fd )
+
+	. When a process calls fsync, the OS responds by immediately
+	  writing to disk all "dirty" data belonging to the fd
+	. fsync returns once all the writes are complete
+
+	. Something about in some cases needing to fsync the directly
+	  containing the file...
+	. If the file is newly created... that directory entry reaches disk...
+
+
+Renaming files
+
+	. In command line:
+
+		mv oldname newname
+
+	. strace on 'mv' reveals it uses system call:
+
+		int rename ( char* oldpath, char* newpath );
+
+	. rename implemented as atomic call.
+	. That is, if the system crashes during renaming, the file
+	  will either have the old name or the new name.
+
+
+	. For example, suppose using a text editor and you insert a
+	  line into the middle of the file "foo.txt"
+	. To guarantee that the file has the original contents plus
+	  the new line inserted, the editor might:
+
+		int fd = open( "foo.txt.tmp", O_CREAT|O_WRONLY|O_TRUNC, S_IRUSR|S_IWUSR );
+
+		// Write new/updated version of file
+		write( fd, buffer, size );
+
+		// Push writes to disk
+		fsync( fd );
+
+		close( fd );
+
+		rename( "foo.txt.tmp", "foo.txt" );
+
+	. The editor writes the file to disk under a temporary name
+	  "foo.txt.tmp" because ... ???
+
+
+Getting information about files
+
+	. To view metadata of a file, can use stat or fstat, which
+	  return a struct stat
+
+		struct stat {
+
+			dev_t     st_dev;      // ID of device containing file
+			ino_t     st_ino;      // inode number
+			mode_t    st_mode;     // protection
+			nlink_t   st_nlink;    // number of hard links
+			uid_t     st_uid;      // user ID of owner
+			gid_t     st_gid;      // group ID of owner
+			dev_t     st_rdev;     // device ID (if special file)
+			off_t     st_size;     // total size, in bytes
+			blksize_t st_blksize;  // blocksize for filesystem I/O
+			blkcnt_t  st_blocks;   // number of blocks allocated
+			time_t    st_atime;    // time of last access
+			time_t    st_mtime;    // time of last modification
+			time_t    st_ctime;    // time of last status change
+		};
+
+	. Each file system keeps this type of information in a structure
+	  called an "inode"  ??
+
+
+Removing files
+
+	. unlink
+
+
+Making directories
+
+	. mkdir
+
+	. "Empty" directory it creates has two entries:
+		. "."  - entry that refers to the directory
+		. ".." - entry that refers to parent directory
+
+
+Reading directories
+
+	. ls
+	. DIR*           opendir  ( char* name )
+	. struct dirent* readdir  ( DIR* dirp )
+	. int            closedir ( DIR* dirp )
+
+	. For example, a program that prints the contents of a directory:
+
+		int main ( int arg, char* argv [] )
+		{
+			DIR* dp;
+			struct dirent* d;
+
+			dp = opendir( "." );
+
+			assert( dp != NULL );
+
+			while ( ( d = readdir( dp ) ) != NULL )
+			{
+				printf( "%lu %s\n", ( unsigned long ) d->d_ino, d->d_name );
+			}
+
+			closedir( dp );
+
+			return 0;
+		}
+
+	. struct dirent contents:
+
+		struct dirent {
+
+			char           d_name [ 256 ]; // filename
+			ino_t          d_ino;          // inode number
+			off_t          d_off;          // offset to the next dirent
+			unsigned short d_reclen;       // length of this record
+			unsigned char  d_type;         // type of file
+		};
+
+	. Because directory entries are light on information, a program
+	  might want to call stat on each file to get more information
+
+
+Deleting directories
+
+	. rmdir
+
+	. Because can potentially delete large amounts of data, rmdir
+	  requires that the directory be empty (only has . and .. entries)
+
+
+Hard links
+
+	. 'link' system call
+
+		int link ( char *oldpath, char *newpath );
+
+	. When you linke a new file name to an old one, you create
+	  another way to refer to the same file (inode number)
+	. The file is not copied
+
+	. When you create a file, you are really doing two things:
+
+		. making a structure (inode) that tracks relevant info
+		  about the file including:
+			. size
+			. location of its blocks on disk
+			. etc
+
+		. "linking" a human-readable name to the file, and
+		  putting that link into a directory
+
+	. For example:
+
+		// Create links to same file
+
+		echo hello > file  // first link
+
+		cat file
+		>>> hello
+
+		ln file file2  // second link
+
+		cat file2
+		>>> hello
+
+
+		// Both really referring to same inode number
+
+		ls -i file file2
+
+		>>> 12345 file
+		    12345 file2	
+
+
+		// If call unlink on one of them, still have access to the file
+
+		rm file  // uses unlink behind the scenes
+
+		cat file2
+		>>> hello
+
+
+	. When a file system unlinks a file, it checks a "reference count"
+	  in the respective inode
+	. The reference count allows the FS to track how many different
+	  file names have been linked to a particular inode
+	. unlink:
+		. removes the link between the given human-readable name and
+		  the inode number
+		. it then decrements reference count
+	. Only when reference count reaches zero does the FS also free
+	  the inode and related data blocks, and thus truly "delete" the file
+
+
+Symbolic links
+
+	. Limitations of hard links:
+		. Can't create one to a directory (to avoid possibility of
+		  creating a cycle in the directory tree)
+		. Can't create one for files in other disk partitions (because
+		  inode numbers only unique within a FS, not across many...)
+
+	. ln with s flag...
+
+		ln -s
+
+	. A symbolic link is actually a file itself
+
+		echo hello > file
+
+		ln -s file file2
+
+		cat file2
+		>>> hello
+
+		stat file
+		>>> ... regular file ...
+
+		stat file2
+		>>> ... symbolic link ...
+
+		ls -al
+
+		>>> drwxr-x---  2 remzi remzi   29 May 3 19:10 ./
+		    drwxr-x--- 27 remzi remzi 4096 May 3 15:14 ../
+		    -rw-r-----  1 remzi remzi    6 May 3 19:10 file
+		    lrwxrwxrwx  1 remzi remzi    4 May 3 19:10 file2 -> file
+
+	. In the example, file2 is 4 bytes because a symbolic link
+	  is formed by holding the pathname of the linked-to file as
+	  its contents
+	. In this cases, the contents of file2 is "file" (4 bytes)
+
+
+	. Symbolic links create the potential for "dangling references":
+
+		rm file
+
+		// Symbolic link refers to file that no longer exists
+
+		cat file2
+		>>> cat: file2: No such file or directory
+
+
+Making and mounting a file system
+
+	~~~ mkfs ~~~
+
+	. To make a file system, most FSs provide a tool, usually
+	  referred to as 'mkfs'
+
+	. Takes as input:
+		. a device (ex. /dev/hda1 )
+		. a file system type (ex. FAT, ext4)
+
+	. Once the FS is created, it needs to be made accessible within
+	  the uniform file-system tree ?
+
+
+	~~~ mount ~~~
+
+	. 'mount' program which makes a call to to the eponymous syscall
+	. mount takes an existing directory as a target "mount point" and
+	  essentially pastes a new FS onto the directory tree at that point...
+
+	. For example:
+		. we have an unmounted ext3 FS stored in /dev/sda1 with the
+		  following contents:
+
+			/
+			├── a
+			│   └── foo
+			└── b
+			    └── foo
+
+		. we wish to mount it at mount point /home/users
+
+			mount -t ext 3 /dev/sda1 /home/users
+
+		. if successful, directory tree now looks like
+
+			\
+			├── home
+			│   ├── users
+			│   │   ├── a
+			│   │   │   └── foo
+			│   │   └── b
+			│   │       └── foo
+			│   ├── ...
+			│   └── ...
+			├── ...
+			└── ...
+
+		. /home/users now referes to the root directory of the newly
+		  mounted directory
+
+		. directory "a" is accessed as /home/users/a
+
+	. mount "unfies" all file systems into one tree
+
+
+	. To see what is mounted on your system, run mount with no args
+
+		mount
+		>>> /dev/sda1  on /                type ext3   (rw)
+		    proc       on /proc            type proc   (rw)
+		    sysfs      on /sys             type sysfs  (rw)
+		    /dev/sda5  on /tmp             type ext3   (rw)
+		    /dev/sda7  on /var/vice/cache  type ext3   (rw)
+		    tmpfs      on /dev/shm         type tmpfs  (rw)
+		    AFS        on /afs             type afs    (rw)
+
+	. A variety of different file systems are present including:
+		. ext3
+		. proc   - a FS for accessing information about current processes
+		. tempfs - a FS for temporary files
+		. afs    - a distributed FS...
+
+	. They are all glued together into one file system tree
+
+
+Homework
+
+	. stat
+		. simply calls the 'stat' system call on a given file/dir
+		. print out:
+			. file size
+			. number of blocks allocated
+			. reference (link) count
+			. etc
+		. What is the link count of a directory as the number of entries
+		  changes?
+
+	. ls
+		. when called without args, just print file/dir name
+		. with -l flag, print additional information obtained from 'stat'
+
+	. tail
+		. prints out last few lines of a file
+		. should be efficient, in that:
+			. it seeks to near EOF,
+			. reads in a block of data,
+			. and then goes backwards until it finds the requested
+			  number of lines
+
+	. recursive search
+		. 'find' command...
+
+
+---------------------------------------------------------------------------------------------
+40) File System Implementation
+---------------------------------------------------------------------------------------------
+
+Intro
+
+	. We introduce a simple file system implementation -
+	  VSFS (Very Simple File System)
+
+	. The FS is pure software, unlike our development of virtual memory
+	. Because of this flexibility, many FS have been built
+
+
+	. Two ways to think about FSs:
+
+		. data strucures of the FS
+			. What types of on-disk data structures are utilized by the
+			  FS to organize its data and metadata
+			. VSFS uses simple structures like arrays of blocks
+			. XFS uses complicated tree-based structures
+
+		. access methods
+			. How does the FS map syscalls made by a process such as
+			  open, read, write onto its data structures
+			. Which structures are read during the execution of a
+			  particular call
+			. Which are read
+			. How efficiently are the steps performed
+
+
+Overall organization
+
+	. on-disk organization
+
+	. First step is to divide disk into blocks
+	. Simple FSs use one block size
+
+	. Assume we have a small disk (256K), and a block size of 4K,
+	  giving us 64 blocks:
+
+		block 0
+		block 1
+		...
+		block 63
+
+
+	~~~ data ~~~
+
+	. We then reserve a portion to hold data
+
+		block 0
+		block 1
+		...
+		block 8   <-
+		...         | data
+		block 63  <-
+
+
+	~~~ inodes ~~~
+
+	. The FS has to track information about each file such as:
+		. size
+		. which data blocks comprise it
+		. owner
+		. access rights
+		. access and modify times
+		. etc
+	. To store this info, FSs usually have a structure called an inode
+
+	. Lets reserve some space for the inodes.
+	. Our "inode table" holds an array of on-disk inodes
+
+		block 0
+		block 1
+		block 2
+		block 3   <-
+		...         | inodes
+		block 7   <-
+		block 8   <-
+		...         | data
+		block 63  <-
+
+
+	. inodes are typically not that big (ex 128 or 256 bytes)
+	. Assuming 256 bytes per inode, a 4K block can hold 16 inodes
+
+	. Our FS can hold 80 inodes (4K x 5 / 256)
+	. This number represents the maximum number of files we can have
+
+
+	~~~ allocation tracking ~~~
+
+	. We need a way to track whether inode and data blocks are free
+	  or allocated
+
+	. Many allocation tracking methods are possible. For ex:
+		. free list
+			. a pointer in the superblock points to the first free block
+			. the free block holds a pointer to the next free block,
+			  that block holds a pointer to the next free block, etc
+			. When a free block is needed, the head block is used and
+			  the list updated accordingly...
+		. bitmap
+			. each bit is used to indicate whether the corresponding
+			  block is free (0) or in use (1)
+		. B-tree
+		. ...
+
+	. We will choose the simple bitmamp and use two of them:
+		. one for the data region - data bitmap
+		. one for the inode table - inode bitmap
+
+	. Our on-disk layout now looks like:
+
+		block 0
+		block 1   <-  inode bitmap
+		block 2   <-  disk bitmap
+		block 3   <-
+		...         | inodes
+		block 7   <-
+		block 8   <-
+		...         | data
+		block 63  <-
+
+
+	. It is overkill to use an entire page for bitmaps.
+	. 4K x 32bits = more than enough to represent 80 inodes or 56 data blocks
+	. We do so for simplicity
+
+
+	~~~ superblock ~~~
+
+	. The superblock contains information about the particular FS
+	. For example:
+		. how many inodes
+		. how many data blocks
+		. where the inode table begins
+		. a magic number to identify the file system type
+		. etc.
+
+	. When mounting a file system, the OS will read the superblock
+	  first to get the info it needs to perform the mount (attach the
+	  volume to the file-system tree)
+	. When files within the volume are accessed, the FS will know
+	  exactly where to look for the needed on-disk structures
+
+
+File organization - inode
+
+	. The name inode is short for "index node" because historically
+	  the nodes were arranged in an array, and the array was
+	  indexed into when accessing a particular inode
+
+	. Each inode is implicitly referred to by a number - "inumber"
+
+	. In VSFS, given an i-number, you should directly be able to
+	  calculate where on the disk the correspoinding inode is located
+	. For example:
+
+		inodes per block = 4K / 256 = 15
+
+		block 3  // inodes  0..15   addr 12K
+		block 4  // inodes 16..31   addr 16K
+		block 5  // inodes 32..47   addr 20K
+		block 6  // inodes 48..63   addr 24K
+		block 7  // inodes 64..79   addr 28K
+
+
+	. To read inode number 32:
+
+		i_base_addr = i_table_base_addr + ( i_number * sizeof( inode ) )
+		            = 12K + ( 32 * 256 )
+		            = 20480
+
+		i_block_no = i_number * sizeof( inode ) / blocksize
+		           = 32 * 256 / 4K
+		           = 2
+
+	. Disks are not byte addressable, but instead consist of a large
+	  number of addressable sectors (usually 512 bytes)
+	. Thus to read byte address 20480, the FS would issue a read to
+	  sector 40 (20480 / 512)
+
+
+	~~~ ... ~~~
+
+	. Inside an inode is virtually all of the info you need about a file:
+
+		. type (regular file, directory, etc.)
+		. size
+		. number of data blocks allocated to it
+		. protection (who owns, who can access)
+		. time (created, modified, last accessed)
+		. a pointer to where its data blocks reside on-disk
+		. etc
+
+	. We refer to this info as a file's "metadata"
+
+	. Example of ext2 inode contents:
+
+		offset  size    name         description
+		------  ----    ----         -----------
+		  0     2       mode         r/w/e
+		  2     2       uid          owner
+		  4     4       size         .
+		  8     4       atime        last accesed
+		 12     4       ctime        created
+		 16     4       mtime        last modified
+		 20     4       dtime        time this inode was deleted ?
+		 24     2       gid          group belongs to
+		 26     2       links_count  number of hard links to file
+		 28     4       blocks       number of blocks allocated to file
+		 32     4       flags        .
+		 36     4       osd1         .
+		 40     15 x 4  block        disk pointers ? (15)
+		100     4       generation   .
+		104     4       file_acl     .
+		108     4       dir_acl      .
+		112     4       faddr        .
+		116     12      osd2         .
+
+
+	~~~ direct pointers ~~~
+
+	. An important design decision is how the inode refers to where
+	  data blocks are
+
+	. A simple approach would be to have one or more "direct pointers"
+	  (disk addresses) inside the inode
+	. Each pointer would refer to one disk block that belongs to the file
+
+	. However, this approach is limited.
+	. For example if you want to have a big file, one bigger in size
+	  than "blocksize x n_direct_pointers", out of luck
+
+
+	~~~ indirect pointers: multi-level index ~~~
+
+	. A common technique to support bigger files is to have a
+	  special pointer in the inode known as an "indirect pointer"
+
+	. Instead of pointing to a block that contains user data, it
+	  points to a block that contains more pointers, each of which
+	  point to user data
+
+	. An inode may have some fixed number of direct pointers (ex. 12),
+	  and a single indirect pointer
+
+	. If a file grows large enough, an "indirect block" is allocated
+	  (from the data-block region of the disk), and inode's
+	  indirect pointer set to point to it
+	. Assuming a 4K blocksize and 4-byte disk addresses,
+	  this adds 1024 data block pointers
+	. The file can grow to be 4144K in size ( 4K x ( 12 + 1024 ) )
+
+
+	~~~ ... ~~~
+
+	. You might want to support even larger files
+
+	. A "double indirect pointer" can be added to the inode
+	. The pointer would point to a block that contains indirect pointers,
+	  each of which would point to indirect blocks containing pointers
+	  to data blocks
+
+	  double indirect pointer
+	  |
+	  |  double indirect block (1)
+	  v
+	  indirect pointer
+	  |
+	  |  indirect blocks (1024)
+	  v
+	  block address
+
+	. A file can thus grow to be 4GB in size ( 4K x ( 12 + 1024 x 1024 ) )
+
+
+	. A "triple indirect pointer" can have file sizes as
+	  large as 4TB ( 4K x ( 12 + 1024 x 1024 x 1024 ) )
+
+
+	~~~ Why use an imbalanced tree? ~~~
+
+	. Most files are small
+	. With a small number of direct pointers, an inode can directly
+	  point to "blocksize x n_direct_pointers" of data
+	. Indirect blocks can be used when files are large
+
+
+	~~~ alternative approach: extent-based ~~~
+
+	. extent - a disk pointer plus a length (in blocks)
+
+	. Instead of requiring a pointer for every block of a file,
+	  only a single pointer and a length is needed
+
+	. Using a single extent is limiting as one might have trouble
+	  finding a contiguous chunk of on-disk free space available
+	  when allocating a file.
+	. Thus extent-based FSs often allow for more than one extent
+
+	. Pointer-based are more flexible, but they use a larger amount
+	  of metadata per file
+
+
+	~~~ alternative approach: link-based ~~~
+
+	. Use a linked list
+
+	. Inside an inode, instead of having multiple pointer, you have
+	  one that points to the first block of the file
+	. To handle larger files, a pointer to the next data block is
+	  added to the data block...
+
+	. Performs poorly for some workloads ex:
+		. accessing last block of a file
+		. random access
+
+
+	. To make link-based allocation work better, some FSs keep
+	  an in-memory table of link information, instead of storing the
+	  next pointers with the data blocks themselves
+
+	. The table is indexed by the address of a data block ??
+	. The content of an entry can be:
+		. a pointer to the next data block (address of the next block
+		  in the file)
+		. a NULL value indicating EOF
+		. a marker that indicates that the block is free
+
+	. The table allows for random access - the FS can first scan
+	  through the in-memory table to find the desired block address,
+	  and then access it (on-disk) directly ??
+
+	. FAT uses this approach...
+	. Instead of inodes, directory entries store metadata
+	  about a file including:
+		. name
+		. size
+		. address of first block
+
+	. For example:
+
+		file.txt might be composed of:
+
+			block 40
+			block 41
+
+		The FAT table might look like:
+
+			idx  contents
+			---  --------
+			 .    .
+			37    00
+			38    00
+			39    00
+			40    41   <- first block of "file.txt"
+			41    46   <- second block of "file.txt"
+			42    00
+			43    00
+			44    00
+			45    00
+			46    EOF  <- reached EOF of "file.txt"
+			47    00
+			48    00
+			49    00
+			50    00
+			 .    .
+
+
+Directory organization
+
+	. In VSFS, directory basically just contains a list of
+	  name-inodenumber pairs
+	. If the names are variable-sized, there is also a length
+	  associated with each name
+	. For example:
+
+		inum  recordlen  strlen  name
+		----  ---------  ------  ----
+		 5    12          2      .
+		 2    12          3      ..
+		12    12          4      foo
+		13    12          4      bar
+		24    36         28      foobar_is_a_pretty_longname
+
+
+	. Deleting a file (by calling unlink) can leave an empty space
+	  in the middle of the directory
+	. There should be a way to mark this (eg. by using a reserved
+	  inode number such as zero)
+	. This is one reason record length is used: a new entry can
+	  reuse an old one
+
+	. Where are directories stored?
+	. Often file systems treat diretories as a special type of file
+	. Thus a directory has an inode somewhere in the inode table
+	  (with the "type" field marked as "directory"), and data blocks
+
+	. A simple linear list of directory entries is not the only
+	  way to store the information
+	. XFS for example store directories in B-tree form, making file
+	  create operations (which have to ensure that a file name is not
+	  already in use) faster than lists which must be scanned in
+	  their entirety
+
+
+Free space management
+
+	. The FS must track which inodes and data blocks are free, and
+	  which are allocated, so that when a new file or directory is
+	  allocated, it can find space for it
+
+	. In VSFS, we use two bitmaps for this task
+
+	. When we create a file, we have to allocate an inode for it.
+	. The FS will thus search through the bitmap for an inode that
+	  is free, upon finding one, mark it allocated (1), and allocate
+	  it to the file...
+
+
+	~~~ pre-allocation ~~~
+
+	. Some Linux file systems like ext2 and ext3, will look for a
+	  sequence of data blocks (say 8) that are free when a new file
+	  is created and needs data blocks.
+	. By allocating the blocks to the file, the FS guarantees that a
+	  portion of the file will be contiguous on the disk, thus
+	  imporving performance
+
+
+Reading a file from disk
+
+	. Assume:
+		. you want to open a file "/foo/bar.txt", read it, then close it
+		. the file is 4K in size (1 block)
+
+
+	~~~ open ~~~
+
+	. When you issue the command
+		open( "/foo/bar.txt", O_RDONLY )
+	. The FS first needs to find the inode for the file "bar.txt", to
+	  obtain basic information about the file (permissions, size, etc.)
+
+	. All the FS has atm is the full pathname.
+	. It must traverse the pathname to locate the desired inode
+
+	. All traversals begin at the root directory of the FS
+	. Thus the first thing the FS will read from disk is the inode
+	  of the root directory
+
+	. To find an inode, we must know its i-number
+	. Usually, we find the i-number of a file or directory in its
+	  parent directory
+	. The root directory has no parent thus its i-number must be
+	  "well known". The Unix convention is 2.
+
+	. Once the root inode is read in, the FS can look inside of it
+	  to find pointers to data blocks which contain the contents of
+	  the root directory
+	. The FS will then read through the directory looking for an
+	  entry "foo"
+	. Once found, the FS will also have found the i-number of "foo"
+
+	. The FS then reads the block containing the inode of "foo", and
+	  then its directory data, finally finding the inode number of
+	  "bar.txt"
+
+	. The final step of 'open' is to:
+		. check read permissions, then
+		. read "bar.txt"'s inode into memory, then
+		. allocate a file descriptor for this process (in the
+		  per-process open-file table) and return it to the user
+
+		. JK - xv6 notes (argfd)
+			struct file *f;
+			int          fd;
+			f = myproc()->ofile[ fd ];
+
+
+	~~~ read ~~~
+
+	. Once open, the program can the issue a 'read' system call
+	  to read from the file
+
+	. The first read (at offset 0 unless 'lseek') will thus read in
+	  the first block of the file, consulting the inode to find the
+	  location of such a block
+	. It may also update the inode with a new last-accessed time
+	. The 'read' will update the file offset associated with the
+	  file descriptor, so that the next 'read' will read the where
+	  this one left off
+
+
+	~~~ close ~~~
+
+	. At some point, the file will be closed
+
+	. For now, all the FS needs to do is deallocate the fd
+
+
+	~~~ ... ~~~
+
+	. The entire process might look like:
+
+		sys_open
+			// find file
+			. read root inode
+			. read root data
+			. read foo inode
+			. read foo data
+			. read bar.txt inode
+
+		sys_read
+			// first data block
+				. read bar.txt inode
+				. read bar.txt data
+				. write bar.txt inode  // update inode's last accessed time
+			// second data block
+				. ditto
+
+		sys_close
+			.
+
+
+	. The amount of IO generated by 'open' is proportional to the
+	  length of the pathname
+	. For each additional directory in the path, we have to read its
+	  inode as well as its data
+
+	. This can be worse when we have large directories where you
+	  might have to read many data blocks to find the desired entry
+
+
+Writing a file to disk
+
+	. First the file is opened as above
+	. The program then issues 'write' calls to update the file with
+	  new contents
+	. Finally the file is closed
+
+	. Unlike reading, writing to the file may also require the
+	  allocation of one or more data blocks
+
+	. Each write to a file (if not overwritting an existing data
+	  block) generates five IOs:
+		. one to read file's inode
+		. one to read the data bitmap   (to find a free data block)
+		. one to write the bitmap       (to mark it allocated)
+		. one to write the file's inode (to update it with the new block's location)
+		. one to write the data block
+
+	. Creating a new file
+		. one to read the inode bitmap     (to find a free inode)
+		. one to write the inode bitmap    (to mark it allocated)
+		. one to write the new inode       (to initialize it)
+		. one to write the directory data  (to link the high-level name of the file to
+		                                    its inode number)
+		. one to read .. ??
+		. one to write the directory inode (to update it)
+
+		. If the directory needs to grow to accomodate the new entry,
+		  additional IOs are needed
+
+
+	. Suppose we are creating the file "/foo/bar.txt" and writing
+	  three blocks to it.
+	. The entire process might look like:
+
+		sys_open (create)
+			// find file
+			. read root inode
+			. read root data
+			. read foo inode
+			. read foo data
+
+			// create, since doesn't exist
+			. read inode bitmap
+			. write inode bitmap
+			. write foo data       // add directory entry?
+
+			. read bar.txt inode   // ?
+			. write bar.txt inode  // initialize, time created ?
+			. write foo inode      // time modified ?
+
+		sys_write
+			// first data block
+				. read bar.txt inode  // permissions, location of data blocks
+
+				// allocate data block
+				. read data bitmap
+				. write data bitmap
+
+				// actually write the data
+				. write bar.txt data
+				. write bar.txt inode  // location of new data block, time modified
+
+			// second data block
+				. ditto
+
+		sys_close
+			.
+
+
+Caching and buffering
+
+	. Most file systems aggressively use memory to cache important
+	  blocks to avoid incurring many IOs to the (slow) disk
+
+	. Imagine the file open example with caching
+	. The first open may gererate a lot of IO to read in directory
+	  inode and data while traversing the path
+	. However, subsequent opens of the file (or another file in the
+	  same directory) will mostly hit the cache
+
+	. During a read, it is possible to avoid disk
+
+	. During a write, the write has to at some point go to disk to
+	  become persistent
+	. Write buffering still has benefits:
+		. many changes can be written to disk as one
+			. for example if multiple new files are created,
+			  updating on-disk inode bitmap can be done once for all
+		. some write can be avoided altogether
+			. for example, if an application creates a file and then
+			  deletes it immediately
+
+	. Tradeoff
+	. If the FS buffers writes in memory (5..30sec) and the system
+	  crashes before the updates have been propogated to disk,
+	  the updates are lost
+	. However by keeping writes in memory longer, performace can
+	  be improved
+
+
+---------------------------------------------------------------------------------------------
+41) Locality and The Fast File System
+---------------------------------------------------------------------------------------------
+
+Intro
+
+	. Original Unix FS by Ken Thompson:
+
+		superblock
+		inode blocks
+		data blocks
+
+	. The super block contained information about the entire FS:
+		. size of volume
+		. number of inodes
+		. pointer to the head of a free list of blocks
+		. etc
+
+	. Though simple, performance was poor
+
+	. The FS treated disk like it was random-access-memory
+	. Data was spread ignoring the fact that the medium holding it
+	  was a (old school) disk
+
+	. The FS would also end up quite fragmented as the free space
+	  was not carefully managed
+	. The free list would end up pointing to a bunch of blocks
+	  spread across the disk
+	. As files got allocated, they would simply take the next free block
+	. The result was that a logically contiguous file would be
+	  accessed by going back and forth across the disk
+
+	. For example:
+
+		. start with:
+
+			|A|A|B|B|C|C|D|D|
+
+		. files B and D are deleted
+
+			|A|A|.|.|C|C|.|.|
+
+		. allocate new file E that is 4 blocks long
+
+			|A|A|E|E|C|C|E|E|
+
+		. file E gets spread across the disk
+
+
+Disk awareness
+
+	. A group at Berkely decided to build the FFS, that used
+	  allocation policies that were "disk aware"
+
+
+Cylinder group
+
+	. revisit
+
+
+---------------------------------------------------------------------------------------------
+42) Crash Consistency: FSCK and Journaling
+---------------------------------------------------------------------------------------------
+
+Intro
+
+	. What to do when encounter a power loss or system crash (ex. OS
+	  encouters a bug), while in the middle of updating on-disk
+	  FS data structures
+
+	. file system checker (fsck)
+		. early approach
+
+	. journaling (write-ahead logging)
+		. adds overhead to each write in exchange for quick recovery
+		  following crash or power loss
+
+
+A detailed example
+
+	. Assume the following workload:
+		. append of a single data block to an existing file
+		. accomplished by:
+			. opening the file
+			. calling lseek to move the file offset to the end
+			. issuing a single 4K write to the file
+			. closing the file
+
+	. Assume FS with:
+		. 1 inode bitmap (8bits)
+		. 1 data bitmap (8bits)
+		. 8 inodes
+		. 8 data blocks
+
+		. a single inode (#2) is allocated, and a single data block
+		  allocated to it (#4)
+		. and the inode looks like:
+
+			permissions : rw
+			size        : 1
+			direct_ptr  : 4
+			direct_ptr  : null
+			direct_ptr  : null
+			direct_ptr  : null
+
+
+	. When we append to the file, we are adding a new data block to it,
+	  and thus must update three on-disk structures:
+		. the inode
+			. add pointer to the new data block
+			. update size
+		. the new data block
+			. with the contents we are writing
+		. the data bitmap
+			. mark allocation of the data block
+
+	. If a crash happens after one or two of these writes have taken
+	  place, but not all three, the FS will be left in an inconsistent
+	  state
+
+
+Crash scenarios
+
+	. Just the data block is written to disk
+		. Data is on disk but there is no inode that points to it,
+		  or bitmap entry that says it is allocated
+		. Appears as if a write never happened
+		. For perspective of FS consistency, not a problem
+
+	. Just the updated inode is written to disk
+		. Inode points to a data block that contains unknown contents
+		. Bitmap views data block as unallocated while inode views it
+		  as allocated to it
+		. Disagreement in FS data structures - "inconsistency"
+
+	. Just the updated bitmap is written to disk
+		. Bitmap indicates block allocated but no inode points to it
+		. FS inconsistency...
+
+	. Just inode and bitmap are written to disk
+		. The FS metadata is consistent
+		. But the data block contains garbage
+
+	. Just inode and data block
+		. FS inconsistency
+
+	. Just bitmap and data block
+		. FS inconsistency
+
+
+Crash consistency problem
+
+	. Aka consistent-update problem
+
+	. Crashes can cause:
+		. inconsistency in FS data structures
+		. space leaks
+		. garbage data
+
+	. Ideally we want to *atomically* move the FS from one consistent
+	  state (ex. before the file got appended to) to another (ex. after
+	  the inode, bitmap, and new data block have been written to disk)
+
+
+Solution 1: File system checker
+
+	. Let inconsistencies happen and fix them later (when rebooting)
+
+	. The approach can't fix all problems
+	. Consider case where FS looks consistent but inode points to
+	  garbage data
+	. It only gaurantees consistency within the FS metadata
+
+	. The fsck runs before the file system is mounted
+
+	. It first checks if the superblock looks reasonable
+	. Ex. checking that FS size is greater than number of
+	  allocated blocks?
+
+	. It then scans the inodes, indirect blocks, double indirect
+	  blocks, etc., to build an understanding of which blocks in the
+	  FS are currently allocated
+	. It uses this knowledge to produce a correct version of the
+	  allocation bitmaps
+	. If there is any inconsistency between the bitmaps and inodes,
+	  it is resolved by trusting the information within the inodes
+
+	. Each inode is checked for corruption
+	. Ex. checks that has a valid type field
+	. If problems found that can't be easily fixed, the inode is
+	  removed and bitmap updated accordingly
+
+	. It also verifies the link count of each allocated inode.
+	. To do this, it scans through the entire directory tree,
+	  starting at root, and builds its own link count for every file
+	  and directory
+	. If a discrepancy is found, usually trusts its own count and
+	  updates the inode accordingly
+	. If an allocated inode is discovered but no directory refers
+	  to it, it is moved to the "lost+found" directory
+
+	. fsck also checks for duplicate pointers (i.e. when more
+	  than one inode refers to the same block)
+	. If one inode is obviously bad, it is removed
+	. Alternatively, the pointed-to block could be copied, thus
+	  giving each inode its own copy as desired
+
+	. Also checks for "bad" block pointers
+	. I.e. pointers that are obviously wrong (ex. points to a block
+	  greater than partition size)
+
+	. Since directories hold specially formatted information, fsck
+	  performs additional integrity checks on the contents of each
+	  directory:
+		. "." and ".." are the first entries
+		. each inode referred to in a directory entry is allocated
+		. no directory is linked to more than once in the entire hierarchy
+
+
+	~~~ ... ~~~~
+
+	. Building an fsck requires intricate knowledge of the FS
+
+	. They are also slow
+	. Scanning the entire disk to find all the allocated blocks, and
+	  reading the entire directory tree may take minutes or hours
+
+
+Solution 2: Journaling
+
+	. Aka write-ahead logging
+
+	. When updating the disk, before overwritting the structures
+	  currently there, first write down a little note (somewhere
+	  else on the disk) describing what you are about to do
+	. If a crash takes place during the update/overwrite of the
+	  structures, you can look at the note you made and try again...
+	. I.e. you will know exactly what to fix and how after a
+	  crash instead of scanning the whole disk to make an educated
+	  guess
+
+
+Data journaling
+
+	. Consider our earlier example where we wish to write an
+	  inode, bitmap, and data block.
+	. The log entry would look like:
+
+		------------------
+		transaction-begin
+		------------------  <-
+		inode                 |
+		------------------    |
+		bitmap                | physical logging
+		------------------    |
+		data block            |
+		------------------  <-
+		transaction-end
+		------------------
+
+	. The "transaction-begin" stores information about the update
+	  including:
+		. final addresses of the blocks
+		. transaction identifier (TID)
+		. ...
+
+	. This is followed by the data we eventually want to write to
+	  the file system
+	. This is known as "physical logging" since putting the exact
+	  physical contents of the update in the journal
+
+	. An alternative to physical logging is "logical logging"
+	. A more compact logical representation of the update is stored
+	  in the journal ex. "this update wishes to append the data
+	  block to file X"
+	. It is more complex to implement, but can save space in the log
+
+	. The "transaction-end" marks the end of the transaction
+	. It will also contain the TID
+
+
+	~~~ checkpoint ~~~
+
+	. Once the transaction is safely on disk, we are ready to overwrite
+	  the old structures in the file system
+	. To "checkpoint" the file system (i.e. to bring it up to date
+	  with the pending update in the journal), we issue the three
+	  writes to their final disk locations
+	. If the writes are successful, we are basically done?
+
+
+	. JK, At what point are the transactions removed from the log ???
+
+
+	~~~ ... ~~~
+
+	. The sequence of operations is thus:
+
+		. Journal write
+			. Write the transaction to the log:
+				. transaction-begin
+				. all pending data and metadata updates
+				. transaction-end
+			. Wait for these writes to complete
+
+		. Checkpoint
+			. Write the pending data and metadata updates to their
+			  final locations in the on-disk FS
+
+
+	~~~ ... ~~~
+
+	. Things get tricky when a crash occurs during writes to the journal
+
+	. Consider case where send the 5 writes as a batch to the disk
+	  for writing
+	. The disk scheduler may write them in an arbitrary order
+	. Suppose the disk manages to write the transaction-start and end
+	  blocks but loses power when writing the meta and data blocks
+
+		------------------
+		transaction-begin
+		------------------  <-
+		inode                 |
+		------------------    |
+		???                   | physical logging
+		------------------    |
+		data block            |
+		------------------  <-
+		transaction-end
+		------------------
+
+	. The logged transaction will seem valid even though the
+	  meta and data content is gargage
+
+
+	. To avoid this problem, the FS writes to the journal in two steps
+
+	. First, it writes all blocks except the transaction-end block to
+	  the journal
+	. That is, it sends the 4 writes as a batch to the disk
+
+		------------------
+		transaction-begin
+		------------------  <-
+		inode                 |
+		------------------    |
+		bitmap                | physical logging
+		------------------    |
+		data block            |
+		------------------  <-
+		...
+		------------------
+
+	. When the writes complete, it then issues the write for
+	  transaction-end
+
+		------------------
+		transaction-begin
+		------------------  <-
+		inode                 |
+		------------------    |
+		bitmap                | physical logging
+		------------------    |
+		data block            |
+		------------------  <-
+		transaction-end
+		------------------
+
+
+	~~~ ... ~~~
+
+	. An important aspect of the process is the *atomicity* gaurantee
+	  by the disk that any 512-byte write will either happen or not
+	  (i.e. itw will never be half written)
+
+	. Thus to ensure that the write of transaction-end is atomic,
+	  one should make it a single 512-byte block... ??
+
+
+	~~~ ... ~~~
+
+	. Thus our new sequence of operations is:
+
+		. Journal write
+			. Write the contents of the transaction to the log:
+				. transaction-begin
+			  	. all pending data and metadata updates
+			. Wait for these writes to complete
+
+		. Journal commit
+			. Atmoically write the transaction-end block
+			. Wait for the write to complete
+
+		. Checkpoint
+			. Write the pending data and metadata updates to their
+			  final locations in the on-disk FS
+
+
+	~~~ Alternative: checksum ~~~
+
+	. Instead of splitting the journal into two separate writes,
+	  an alternative is to include a checksum of the contents
+	  of the journal in the begin and end blocks.
+	. If during recovery, the FS notices a mismatch between the
+	  checksum it computes and that stored in the transcation,
+	  it can conclude a crash occured during the transaction,
+	  and thus discard it.
+
+
+Recovery
+
+	. If a crash happens before the transaction is safely written
+	  to the log, the pending update is skipped/ignored
+
+	. If a crash happens after the transaction has commited the log,
+	  but before the checkpoint is complete, the FS can recover the
+	  update as follows:
+
+		. When the system reboots, the FS recovery process will
+		  scan the log and look for comitted transactions
+		. The transactions are "replayed"
+
+
+Batching log updates
+
+	. Some FSs do not commit each update to disk one at a time,
+	  and instead buffer them into a global transaction
+	. This avoids several writes to the same data structure in
+	  the cases of multiple access (all the updates to the data
+	  structure are merged into one)
+
+	. For example, consider case create two files in same directory
+	. Minimally, the following data structures are affected:
+		. the inode bitmap
+		. the data bitmap
+		. inode for each newly created file
+		. data block of parent directory (new dirents)
+		. parent directory inode (ex. modified time)
+	. With this approach, the FS just marks the in-memory bitmaps,
+	  file inodes, directory inode, and directory data as dirty
+	  and adds them to the list of blocks in the current
+	  global transaction
+	. When it is time to commit (say after 5sec), a single log
+	  write is made for data structures that would otherwise be
+	  logged twice
+	. Ex. the parent directory inode is logged once with the
+	  most recent modified time, instead of twice for each file
+	  creation. And thus it is written to the on-disk FS only once.
+
+
+Making the log finite
+
+	. Journaling file systems treat the log as a circular data structure
+
+	. Once a transaction has been checkpointed, the FS should free the
+	  space it was occupying within the log
+
+	. One approach is to use a "journal superblock"
+	. In it, the FS records enough information to know which transactions
+	  have not yet been checkpointed
+
+	. For example ???
+
+
+	~~~ ... ~~~
+
+	. Thus our new sequence of operations is:
+
+		. Journal write
+			. Write the contents of the transaction to the log:
+				. transaction-begin
+			  	. all pending data and metadata updates
+			. Wait for these writes to complete
+
+		. Journal commit
+			. Atmoically write the transaction-end block
+			. Wait for the write to complete
+
+		. Checkpoint
+			. Write the pending data and metadata updates to their
+			  final locations in the on-disk FS
+
+		. Free
+			. Mark the transaction as free in the journal by updating
+			  the journal superblock
+
+
+Metadata journaling
+
+	. User data is not written to the journal
+	. The data block is instead written directly to on-disk FS,
+	  avoiding the extra write
+
+	. Metadata journaling, instead of full data journaling, results
+	  in less disk traffic
+
+	. To avoid the scenario where the transaction is successfully
+	  written to the log but the associated data fails to write to
+	  the on-disk FS (crash happens and thus is garbage), some FSs
+	  first ensure the data write is successful, before writing the
+	  related metadata to the log
+	. The sequence of operations is:
+
+		. Data write
+			. Write data to final on-disk location
+			. Wait for completion (optional?)
+
+		. Journal metadata write
+		. Journal commit
+		. Checkpoint metadata
+		. Free
+
+	. The key requirement is that the "data write" and
+	  "journal metadata write" complete before the "journal commit"
+
+
+Block reuse
+
+	. Consider case where metadata journaling
+	. revisit
+
+
+Journaling timeline
+
+	. revisit
+
+
+Solution 3: Other approaches
+
+	. revisit
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------------------------------------------------------------------------------
+43) Log-structured File Systems
+---------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------
+44) Flash-based SSDs
+---------------------------------------------------------------------------------------------

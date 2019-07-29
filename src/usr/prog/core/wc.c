@@ -1,4 +1,5 @@
-/*** Word count ***/
+/* Word count */
+
 #include "types.h"
 #include "stat.h"
 #include "user.h"
@@ -18,18 +19,20 @@ void wc ( int fd, char* name )
 	{
 		for ( i = 0; i < n; i += 1 )
 		{
+			// Count bytes
 			c += 1;
 
+			// Count newlines
 			if ( buf[ i ] == '\n' )
 			{
 				l += 1;
 			}
 
+			// Count words
 			if ( strchr( " \r\t\n\v", buf[i] ) )
 			{
 				inword = 0;
 			}
-
 			else if ( ! inword )
 			{
 				inword = 1;

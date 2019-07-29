@@ -2677,34 +2677,34 @@ exec
 	. TODO: not sure about push order...
 	. Ex. exec( "/init\0", [ "/init\0", 0 ] )  ??
 
-	       ---->  ---------------
-	      |       0
-	stack |       't'
-	      |       'i'
-	      |       'n'
-	      |       'i'
-	      |       '/'              argv[0]
-	      |       ---------------
-	      |       x                argv[1] if existed
-	      |       ---------------
-	      |       x                argv[2] if existed
-	      |   ->  ---------------
-	      |  |    0                end of argv
-	'ustack' |    ---------------
-	      |  |    x                argv[2] pointer if existed ...
-	      |  |    ---------------
-	      |  |    x                argv[1] pointer if existed ...
-	      |  |    ---------------
-	      |  |    argv[0] pointer  ...
-	      |  |    ---------------
-	      |  |    ??               argv pointer?
-	      |  |    ---------------
-	      |  |    1                argc
-	      |  |    ---------------
-	      |  |    0xffffffff       fake return PC
-	      |   ->  ---------------
-	      |       ...
-	       ---->  ---------------
+	           ---->  ---------------
+	          |       '\0'
+	    stack |       't'
+	          |       'i'
+	          |       'n'
+	          |       'i'
+	          |       '/'              argstr0
+	argstr0 ------->  ---------------
+	          |       x                argstr1 if existed
+	          |       ---------------
+	          |       x                argstr2 if existed
+	          |   ->  ---------------
+	          |  |    0                end of argv
+	    'ustack' |    ---------------
+	          |  |    x                argstr2 pointer if existed ...
+	          |  |    ---------------
+	          |  |    x                argstr1 pointer if existed ...
+	          |  |    ---------------
+	          |  |    argstr0 pointer
+	argv ---------->  ---------------
+	          |  |    argv pointer
+	          |  |    ---------------
+	          |  |    1                argc
+	          |  |    ---------------
+	          |  |    0xffffffff       fake return PC
+	          |   ->  ---------------
+	          |       ...
+	           ---->  ---------------
 
 
 	/// exec.c ///

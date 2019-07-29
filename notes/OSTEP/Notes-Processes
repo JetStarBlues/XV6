@@ -1,0 +1,910 @@
+---------------------------------------------------------------------------------------------
+4) The Process Abstraction
+---------------------------------------------------------------------------------------------
+
+The abstraction
+
+	. A process's machine state constists of:
+		. address space
+		. registers including:
+			. instruction pointer
+			. stack pointer (stack holds function parameters,
+			  local variables, return addresses)
+		. list of files it has open...
+
+
+API
+
+	. create       - a method to create new processes
+	. destroy      - destroy a process forcefully.
+	                 Mant processes will run and exit by themselves when
+	                 complete. When they don't, this method is used.
+	. wait         - wait for a process to stop running...
+	. misc control - suspend a process, resume a process
+	. status       - used to get information about a process (ex. how
+	                 long it has run for, what state it is in)
+
+
+Creation
+
+	. How are programs transformed into processes?
+
+	~~~ ... ~~~
+
+	. The first step is to load the code and any static data? (ex.
+	  initialized variables) into memory, into the address space of
+	  the process
+
+	. Programs initially reside on disk in some kind of executable format
+	. Thus the process of loading a program and static data into memory
+	  requires the OS to read those bytes from disk
+
+	. In early/simple OSs, the loading process is done "eagerly" - i.e.
+	  all the bytes are loaded at once
+	. Modern OSs load "lazily" - load pieces of code or data only as
+	  they are needed during program execution
+
+
+	~~~ ... ~~~
+
+	. Some memory must be allocated for the program's stack
+	. The OS will also likely initialize the stack with arguments.
+	. Specifically, it will fill in the paramaters to the
+	  'main' function ex. 'argc', 'argv'
+
+
+	~~~ ... ~~~
+
+	. The OS may also allocate some memory for the program's heap
+	. The heap will be small at first
+	. As the program runs and requests more memory via malloc, the
+	  OS may allocate more memory to the process to meet needs
+
+
+	~~~ ... ~~~
+
+	. In Unix, each process by default has three open fds: stdin/out/error
+
+
+	~~~ ... ~~~
+
+	. The last step is to start the program running at its entry point
+	  (typically the function 'main')
+	. By jumping to the 'main' routine, the OS transfers control of
+	  the CPU to the newly-created process
+
+
+States
+
+	. running - running (executing instructions) on the CPU
+	. ready   - ready to run, but not running atm
+	. blocked - not ready to run until some other event takes place.
+	            Ex. when a process initiates an IO request to disk, it
+	            becomes blocked, and thus another process can use the
+	            CPU. On completion of the requested IO, process state
+	            changed to ready.
+
+	. initial - state in when being created
+	. final   - aka zombie. Has exited but has not yet been cleaned up.
+	            Useful because allows the parent (that created the
+	            process) to see if the process executed successfully.
+
+	            When finished, the parent makes a call to 'wait' for the
+	            completion of the child... and indicate to the OS that
+	            it can clean up any relevant data structures that
+	            referred to the process...
+
+
+	. Being moved from ready to running means the process has been
+	  "scheduled"
+	. Running to ready known as "descheduled"
+
+
+Data structures
+
+	. Some kind of process list to track the state of each process
+	. Track which process is currently running...
+	. Track which processes are blocked. When an IO event completes,
+	  wake the correct process...
+
+
+	. "register context" holds the contents of the registers of a
+	  stopped process
+	. Before resuming to run the process, the OS "restores" the
+	  registers with the saved values
+	. E.g. in xv6:
+
+		struct context
+		{
+			uint edi;
+			uint esi;
+			uint ebx;
+			uint ebp;
+			uint eip;
+		};
+
+
+---------------------------------------------------------------------------------------------
+5) Process API
+---------------------------------------------------------------------------------------------
+
+Intro
+
+	. In Unix, new process created with pair of system calls: fork and exec
+
+	. A third system call 'wait' can be used by a process wishing to wait
+	  for a process it has created to complete
+
+
+Fork
+
+	. Ex:
+
+		int main ( int argc, char *argv[] )
+		{
+			printf( "hello world (pid:%d)\n", ( int ) getpid() );
+
+			int rc = fork();
+
+			if ( rc < 0 )  // fork failed; exit
+			{
+				fprintf( stderr, "fork failed\n" );
+
+				exit( 1 );
+			}
+			else if ( rc == 0 )  // child (new process)
+			{
+				printf( "hello, I am child (pid:%d)\n", ( int ) getpid() );
+			}
+			else  // parent goes down this path (main)
+			{
+				printf( "hello, I am parent (pid:%d) of child (pid:%d)", ( int ) getpid(), rc );
+			}
+
+			return 0;
+		}
+
+	. When run might result in:
+
+		hello world (pid:29146)
+		hello, I am parent (pid:29146) of child (pid:29147)
+		hello, I am child (pid:29147)
+
+
+	. The process calls fork
+	. The process created is an (almost) exact copy of the calling process
+	. To the OS, it looks like there are now two copies of the program
+	  running? and both are about to return from the call to fork
+	. The child process does not start running at 'main'. Instead it
+	  comes to life as if it had called fork itself
+
+
+	. The child is not an exact copy
+	. Specifically, it has its own copy of the address space, its own
+	  registers, its own PC, its own PID etc.
+	. The value it returns to the caller of fork is also different
+	. Specifically, while the parent receives the PID of the new child
+	  as a return value, the child receives 0
+
+
+	~~~ ... ~~~
+
+	. When the child process is created, there are now two active?
+	  processes in the system
+	. Assuming we are running on a single CPU, either the child or
+	  parent (or another process?) might run at this point
+
+	. The CPU scheduler determines which process runs at a given moment
+	. We cannot usually make assumptions about which process it will
+	  choose to run or when
+
+
+Wait
+
+	. Sometimes quite useful for a parent to wait for child process
+	  to finish what it is doing
+	. This is accomplished via 'wait' (or 'waitpid')
+
+	. Ex:
+
+		int main ( int argc, char *argv[] )
+		{
+			printf( "hello world (pid:%d)\n", ( int ) getpid() );
+
+			int rc = fork();
+
+			if ( rc < 0 )  // fork failed; exit
+			{
+				fprintf( stderr, "fork failed\n" );
+
+				exit( 1 );
+			}
+			else if ( rc == 0 )  // child (new process)
+			{
+				printf( "hello, I am child (pid:%d)\n", ( int ) getpid() );
+			}
+			else  // parent goes down this path (main)
+			{
+				int wc = wait( NULL );
+
+				printf( "hello, I am parent (pid:%d) of child (pid:%d) (wc:%d)\n", ( int ) getpid(), rc, wc );
+			}
+
+			return 0;
+		}
+
+	. When run might result in:
+
+		hello world (pid:29146)
+		hello, I am child (pid:29147)
+		hello, I am parent (pid:29146) of child (pid:29147) (wc:29147)
+
+
+	. The call to wait delays the execution of the parent until the
+	  child finishes executing
+	. when the child is done, 'wait' returns to the parent...
+
+
+Exec
+
+	. Useful when you want to run a program that is different from the
+	  calling program
+
+	. Ex:
+
+		int main ( int argc, char *argv[] )
+		{
+			printf( "hello world (pid:%d)\n", ( int ) getpid() );
+
+			int rc = fork();
+
+			if ( rc < 0 )  // fork failed; exit
+			{
+				fprintf( stderr, "fork failed\n" );
+
+				exit( 1 );
+			}
+			else if ( rc == 0 )  // child (new process)
+			{
+				printf( "hello, I am child (pid:%d)\n", ( int ) getpid() );
+
+				char* myargs [ 3 ];
+
+				myargs[ 0 ] = strdup( "wc" );        // program: "wc" (word count)
+				myargs[ 1 ] = strdup( "file.txt" );  // argument: file to count
+				myargs[ 2 ] = NULL;                  // marks end of array
+
+				execvp( myargs[ 0 ], myargs );  // runs word count
+
+				printf( "this shouldn’t print out" );
+			}
+			else  // parent goes down this path (main)
+			{
+				int wc = wait( NULL );
+
+				printf( "hello, I am parent (pid:%d) of child (pid:%d) (wc:%d)\n", ( int ) getpid(), rc, wc );
+			}
+
+			return 0;
+		}
+
+	. When run might result in:
+
+		hello world (pid:29146)
+		hello, I am child (pid:29147)
+		29  107  1030  file.txt
+		hello, I am parent (pid:29146) of child (pid:29147) (wc:29147)
+
+
+	. Given the name of an executable and some arguments, it loads code
+	  (and static data) from that executable, and overwrites its current
+	  code segment (and static data) with it.
+	. The heap and stack and other parts of the address space of the
+	  program are re-initialized
+	. The OS then runs the program, passing in any arguments as the
+	  'argv' of the process
+
+	. Thus exec does not create a new process. Rather it transforms the
+	  currently running program into a different program
+	. If exec runs successfuly, it will not return
+
+
+Motivating API
+
+	. Why fork and exec?
+	. Separation of fork and exec allows the Unix shell to run code
+	  after the call to fork, but before the call to exec
+	. This code can alter the environment of the about-to-be-run program,
+	  and thus enables a variety of interesting features ??
+
+	. The shell is a user program
+	. It shows you a prompt then waits for you to type something into it
+	. You then type a command (ex. name of executable and args) into it
+	. The shell then figures out where the exe resides and calls some
+	  variant of exec to run the command
+	. It waits for the command to complete by calling 'wait' on the child
+	  process
+	. When the child completes, the shell returns from wait and prints
+	  out a prompt again, ready for the next command
+
+	. The separation of fork and exec allows things like redirection
+	  to be done easily
+	. Ex:
+
+		wc file1.txt > file2.txt
+
+	. In the example, the output of the wc program is redirected
+	  into file2.txt
+	. When the child is created, before calling exec, the shell closes
+	  its stdout and opens file2.txt
+	. Thus file2.txt becomes the stdout of the child process
+
+	. In the case of pipes, the output of one process is connected
+	  to the output of another
+	. Ex to count how many times a word occurs in a file:
+
+		grep -o cats file.txt | wc -l
+
+	. When the child is created, ??
+
+
+Other parts of the API
+
+	. kill - send signals to a process such as sleep, die ?
+
+
+---------------------------------------------------------------------------------------------
+6) Limited Direct Execution
+---------------------------------------------------------------------------------------------
+
+Intro
+
+	. The OS needs to share the CPU among many jobs running seemingly
+	  at the same time
+
+	. Challenges:
+		. How to implement without adding excessive overhead
+		. How retain control over CPU.
+			. If the OS does not control the CPU, a process could run
+			  forever and take over the machine, or it could access
+			  information it shouldn't be
+
+
+Restricted operations
+
+	. user vs kernel mode
+	. system call - allow user to perform privileged operation
+
+
+	~~~ Trap ~~~
+
+	. To execute a system call, a program must execute a CPU "trap"
+	  instruction
+	. The instruction simulataneously jumps into the kernel and raises
+	  the privilege level to kernel mode...
+	. When done servicing the system call, the OS executes a CPU
+	  "return-from-trap" instruction
+	. The instruction simultaneously returns into the calling user
+	  program and lowers the  privilege level to user mode...
+
+	. Before executing a trap, the caller's registers need to be saved
+	. In x86 for example, the CPU trap instruction ('int'), pushes the
+	  following onto a per-process kernel stack:
+
+		. %eip
+		. %esp
+		. %eflags
+		. %err
+
+	. The return-from-trap instruction ('iret' in x86) will pop these
+	  values off the stack and resume execution of the user mode program
+
+
+	~~~ Trap handlers ~~~
+
+	. Trap table setup at boot time.
+	. The OS informs the CPU of the location of trap handlers, usually
+	  with a special CPU instruction
+	. Once informed, the CPU remembers the location of the handlers until
+	  the next reboot
+
+
+	~~~ Traps in xv6 ~~~
+
+	. x86 uses 'int' instruction to "trap" into kernel mode
+
+		/// usys.S ///
+
+		fork:
+			movl $SYS_fork, %eax
+			int  $T_SYSCALL
+			ret
+
+
+		/// traps.h ///
+
+		#define T_SYSCALL 64
+
+
+	. In xv6, all interrupts are directed to a single ISR, 'alltraps'
+
+		/// vectors.S ///
+
+		vector64:
+			pushl $0   // If x86 CPU does not push an error code, push 0
+			pushl $64  // trapno
+			jmp   alltraps
+
+
+		vectors:
+			.long vector0
+			...
+			.long vector255
+
+
+	. 'lidt' is used to load the IDT table created by 'tvinit'
+	  using the 'vectors#'
+
+		/// trap.c ///
+
+		lidt( idt, sizeof( idt ) );
+
+
+	. IDT entry
+
+		. ISR address
+		. priviledge level (who can call int #)
+		. type: trap or interrupt (distinction because ??)
+
+
+	. The 'int' instruction pushes some registers onto the stack
+
+		. %err
+		. %eip
+		. %cs
+		. %eflags
+		. %esp
+		. %ss
+
+	. The rest are manually pushed by 'alltraps'
+
+		alltraps:
+
+			pushl   %ds
+			pushl   %es
+			pushl   %fs
+			pushl   %gs
+			pushal
+
+	. Resulting in the creation of a "struct trapframe" on the stack,
+	  which 'alltraps' passes as an argument to its call to the
+	  'trap' C function
+
+		alltraps:
+
+			...
+
+			pushl   %esp
+			call    trap
+
+
+	. x86 uses 'reti' instruction to "return-from-trap" into user mode
+
+		/// trapasm.S ///
+
+		trapret:
+
+			popal
+			popl   %gs
+			popl   %fs
+			popl   %es
+			popl   %ds
+			addl   $0x8, %esp  # trapno and errcode
+			iret
+
+
+	~~~ System call number ~~~
+
+	. To specify a system call, the user program places the desired
+	  system call number in a register or specified location on the stack
+	. The OS, when handling the system call inside a trap handler,
+	  exampines the number, and if valid, executes the corresponding code
+
+	. The indirection acts as a form of protection.
+	. The user program cannot specify an exact address to jump to. It can
+	  only request a system call via its number.
+
+	. xv6 example:
+
+		/// usys.S ///
+
+		fork:
+			movl $SYS_fork, %eax
+			int  $T_SYSCALL
+			ret
+
+
+		/// syscall.h ///
+
+			#define SYS_fork 1
+
+
+		/// trap.c ///
+
+		void trap ( struct trapframe *tf )
+		{
+			if ( tf->trapno == T_SYSCALL )
+			{
+				...
+
+				myproc()->tf = tf;
+
+				syscall();
+
+				...
+			}
+
+			...
+		}
+
+
+		/// syscall.c ///
+
+		void syscall ( void )
+		{
+			...
+
+			num = curproc->tf->eax;
+
+			if ( num > 0 && num < NELEM( syscalls ) && syscalls[ num ] )
+			{
+				curproc->tf->eax = syscalls[ num ]();
+			}
+			else
+			{
+				...
+				curproc->tf->eax = - 1;
+			}
+		}
+
+
+	~~~ Trap timeline ~~~
+
+	. Boot
+
+		OS    - initialize trap table
+	
+	. Run
+
+		OS    - create entry for process in process list
+		      - allocate memory for program
+		      - load program into memory
+		      - setup user stack with argv
+		      - fill kernel stack with registes including PC
+		      - return from trap
+
+		CPU   - restore registers from kernel stack
+		      - move to user mode
+		      - jump to main
+
+		uProg - run main
+		      - ...
+		      - call system call
+		      - "trap" into OS
+
+		CPU   - save registers to kernel stack  // [a]
+		      - move to kernel mode
+		      - jump to trap handler
+
+		OS    - handle trap
+		      - do work of syscall
+		      - return from trap
+
+		CPU   - restore registers from kernel stack
+		      - move to user mode
+		      - jump to PC after trap
+
+		uProg - ...
+		      - return from main
+		      - trap (via call to 'exit')
+
+		OS    - free memory of process
+		      - remove process from process list
+
+
+	~~~ xv6 example ~~~
+
+	TODO: what is equivalent process setup and cleanup code in xv6 ?
+
+	. userinit?
+	. allocproc?
+	. fork?
+	. exec?
+
+
+
+
+
+
+Switching between processes
+
+	~~~ Cooperative approach ~~~~
+
+	. The OS trusts processes to behave reasonably
+	. Processes that run for too long are assumed to periodically give up
+	  the CPU so that the OS can decide to run some other task
+
+	. A process gives up the CPU with a "yield" system call, which does
+	  nothing except transfer control to the OS so that it can run other
+	  processes
+
+	. A process can also give up the CPU indirectly by making all other
+	  system calls (which will trap to OS for execution)
+
+
+	~~~ Non-cooperative approach ~~~~
+
+	. Using a timer interrupt allows the OS to run again on a CPU even
+	  if processes act in a non-cooperative fashion
+
+	. When the timer interrupts, the currently running process is halted,
+	  and an ISR in the OS runs
+	. At this point, the OS has regained control of the CPU and can do
+	  whatever it wants
+
+
+	~~~ Saving and restoring context ~~~
+
+	. Scheduler...
+
+	. If the decision is made to switch to another process, the OS
+	  executes a chunk of called referred to as "context switch"
+
+	. Conceptually, a context switch is simple.
+	. All the OS has to do is save a few register values for the currently
+	  executing process (onto its kernel stack, for example), and restore
+	  a few for the soon-to-be executing process (from its kernel stack)
+	. When the return-from-trap instruction is finally executed, instead
+	  of returning to the process that was running, the system resumes
+	  execution of another process
+
+	. To save the context of the currently-running process, the OS saves
+	  the general purpose registers, PC, and kernel stack pointer?? of the
+	  process...
+	. To restore the context of the soon-to-be running process, the OS restores
+	  the general purpose registers and PC of the process, and switches to
+	  its kernel stack??
+
+	. By switching kernel stacks, the kernel enters the call to the switch
+	  code in the context of one process (the one that was interrupted),
+	  and returns in the context of another (the soon-to-be executing one)
+
+	. When the OS finally executes a return-from-trap, the soon-to-be
+	  executing process becomes the currently-running process...
+
+
+
+	~~~ Context switch timeline ~~~
+
+	. Boot
+
+		OS    - initialize trap table
+		      - configure and start interrupt timer
+	
+	. Run
+
+		uProg - process_1
+
+		CPU   - timer interrupt
+		      - save regs(1) to kernel stack (1)  // [a]
+		      - move to kernel mode
+		      - jump to trap handler
+
+		OS    - handle the trap
+		      - call 'switch' routine
+		          - save regs(1) to proc-struct(1)       // [b]
+		          - restore regs(2) from proc-struct(2)
+		          - switch to kernel stack (2)
+		      - return from trap (into process_2)
+
+		CPU   - restore regs(2) from kernel stack (2)
+		      - move to user mode
+		      - jump to process_2's PC
+
+		uProg - process_2
+
+
+	[a] . In xv6 "struct trapframe" in the kernel stack is created by
+	      registers that are auto pushed by the 'int' instruction and
+	      those manaully pushed by 'alltraps' ISR.
+
+	    . The switch from user to kernel stack happens when ???
+
+
+	[b] . The registers pushed to the kernel stack on 'int' (i.e. those
+	      in the trapframe) belong to the process running just before
+	      the interrupt is serviced...
+
+	    . The registers pushed to ? when a context switch occurs ...
+	      soon-to-run process...
+	      p->context, cpu->scheduler
+
+
+	~~~ ... ~~~
+
+	. Note that there are two types of register saves/restores in this
+	  timeline
+
+	. The first is when the timer interrupt occurs ('int' instruction)
+	. In this case, user registers of the running process are implicitly
+	  saved by the CPU, using the kernel stack of the process ???
+
+	. The second is when the OS decides to switch from running process_1
+	  to process_2
+	. In this case, the kernel registers are explicitly saved by the code
+	. They are saved into the process structure of the process...
+
+
+	~~~ xv6 example ~~~
+
+
+
+/// proc.c ///
+
+void scheduler ( void )
+{
+	struct proc *p;
+	struct cpu  *c = mycpu();
+
+	...
+
+	for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
+	{
+		...
+
+		// Switch to chosen process.
+		c->proc = p;
+
+		switchuvm( p );
+
+		p->state = RUNNING;
+
+		swtch( &( c->scheduler ), p->context );
+
+		switchkvm();
+
+		// Process is done running for now.
+		// It should have changed its p->state before coming back.
+		c->proc = 0;
+	}
+
+	...
+}
+
+
+void sched ( void )
+{
+	...
+
+	swtch( &p->context, mycpu()->scheduler );
+
+	...
+}
+
+
+void yield ( void )
+{
+	...
+
+	myproc()->state = RUNNABLE;
+
+	sched();
+
+	...
+}
+
+void sleep ( void *chan, struct spinlock *lk )
+{
+	struct proc *p = myproc();
+
+	...
+
+	// Go to sleep.
+	p->chan  = chan;
+	p->state = SLEEPING;
+
+	sched();
+
+	// Tidy up.
+	p->chan = 0;
+
+	...
+}
+
+void exit ( void )
+{
+	struct proc *curproc = myproc();
+
+	...
+
+	// Jump into the scheduler, never to return.
+	curproc->state = ZOMBIE;
+
+	sched();
+
+	...
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/// proc.h ///
+
+struct context
+{
+	uint edi;
+	uint esi;
+	uint ebx;
+	uint ebp;
+	uint eip;
+};
+
+
+
+struct proc
+{
+	...
+	struct context* context;  // swtch() here to run process
+	...
+};
+
+
+struct cpu
+{
+	...
+	struct context* scheduler;  // swtch() here to enter scheduler
+	...
+	struct proc*    proc;       // The process running on this cpu or null
+};
+
+
+
+
+
+
+. kernel vs user stack
+. Separate kernel stack allows kernel to execute even if a process has
+  wrecked its user stack
+. Kernel stack used when executing kernel code (system call or interrupt)
+
+. A process's thread can "block" in the kernel to wait for IO ??
+
+. Per process page table, p->pgdir
+
+. allocproc
+	. allocate a "struct proc" in the process table
+	. initialize ? special kernel stack and registers that cause the
+	  new process to "return" to user space ??
+
+. process table
+
+	struct
+	{
+		struct spinlock lock;
+		struct proc     proc [ NPROC ];
+
+	} ptable;
+
+

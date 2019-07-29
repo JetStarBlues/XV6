@@ -28,12 +28,13 @@ int exec ( char* path, char* argv [] )
 	struct proghdr  ph;
 	pde_t*          pgdir;
 	pde_t*          oldpgdir;
-	struct proc*    curproc = myproc();
+	struct proc*    curproc;
 
 
 	//
-	pgdir = 0;
-	sz    = 0;
+	curproc = myproc();
+	pgdir   = 0;
+	sz      = 0;
 
 
 	// Open ...?
@@ -164,8 +165,51 @@ int exec ( char* path, char* argv [] )
 	sp = sz;  // set stack pointer
 
 
-	// Push argument strings (ex. "hello.txt" in exec( "cat", "hello.txt" )), 
-	// and prepare rest of stack in ustack.
+	/* Push argument strings received (from argv) onto stack,
+	   and prepare rest of stack in ustack.
+	*/
+	/* Ex.
+	       ls -p /usr/include
+
+	       argc -> 3
+
+	       argv -> argptr -> ls\0            // argv[0] convention
+	               argptr -> -p\0
+	               argptr -> /usr/include\0
+	               0                         // argv[] is null terminated
+	*/
+	/* ustack prepared as follows (TODO, confirm):
+
+	       ustack -> returnAddress
+	                 argc
+	                 argvptr                  // hmmm... seems redundant...
+	                 argptr -> ls\0
+	                 argptr -> -p\0
+	                 argptr -> /usr/include\0
+	                 0
+
+	   stack prepared as follows:
+
+	                 \0
+	                 s
+	              -> l
+	                 \0
+	                 p
+	              -> -
+	                 \0
+	                 ...
+	                 r
+	                 s
+	                 u
+	              -> /
+	                 0
+	                 argptr -> /usr/include\0
+	                 argptr -> -p\0
+	         argv -> argptr -> ls\0
+	                 argvptr
+	                 argc
+	       ustack -> returnAddress
+	*/
 	for ( argc = 0; argv[ argc ]; argc += 1 )
 	{
 		if ( argc >= MAXARG )
@@ -201,8 +245,8 @@ int exec ( char* path, char* argv [] )
 	ustack[ 2 ] = sp - ( argc + 1 ) * 4;  // argv pointer
 
 
-	// Push ustack (retAddress, argc, argv)
-	sp -= ( 3 + argc + 1 ) * 4;
+	// Push ustack
+	sp -= ( 3 + argc + 1 ) * 4;  // size of ustack
 
 	if ( copyout(
 

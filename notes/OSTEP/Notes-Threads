@@ -1,0 +1,3263 @@
+---------------------------------------------------------------------------------------------
+26) Concurrency: An Introuction
+---------------------------------------------------------------------------------------------
+
+Intro
+
+	. Instead of our classic view of a single point of execution
+	  within a program, a mult-threaded program has more than one
+	  point of exection.
+	. Each thread is like a serparate process, except that they
+	  *share* the same address space and can thus access the same
+	  data
+
+	. State of a single thread:
+		. has own program counter
+		. has own private set of registers.
+	. Thus if there are two threads running on a single processor,
+	  a *context switch* must take place when switching from running
+	  one thread to running the other
+
+	. Context switching is similar to that of processes:
+		. save registers
+		. save thread state (to a thread control block)
+	. Differences:
+		. address space remains the same
+		. instead of a single stack residing in the address space,
+		  each thread has its own stack
+
+		Single thread
+
+			--------
+			code
+			--------
+			heap
+			--------
+			...
+			--------
+			stack
+			--------
+
+
+		Multiple Threads
+
+			--------
+			code
+			--------
+			heap
+			--------
+			...
+			--------
+			stack 2
+			--------
+			...
+			--------
+			stack 1
+			--------
+
+
+Why use threads?
+
+	. Parallelism of a task when multiple processors are available
+		. ex. adding two large arrays, incrementing the value of
+		  each element in an array by some amount
+
+	. To avoid blocking a program due to slow IO
+	. Instead of waiing, a program may wish to do something else
+	. While one thread in the program waits, the CPU scheduler can
+	  switch to other threads which are ready to run and do something
+	  useful
+
+	. Since threads share an address space, it is easier to share
+	  data than between processes
+
+
+Thread creation
+
+	. Sample code
+
+	. The main program creates two threads each of which will
+	  run the function "mythread", but with different arguments
+	. Once a thread is created, it may start running right away
+	  (depending on the whims of the scheduler), or it might be
+	  put in a "ready" but not "running" state.
+
+	. The calls to join ensure that T1 and T2 will run and
+	  complete before finally alowing the main thread to run again
+
+		void *mythread ( void *arg )
+		{
+			printf( "%s\n", ( char * ) arg );
+
+			return NULL;
+		}
+
+		int main ( int argc, char *argv [] )
+		{
+			pthread_t p1,
+			          p2;
+			int       rc;
+
+			printf( "main: begin\n" );
+
+			rc = pthread_create( &p1, NULL, mythread, "A" ); assert( rc == 0 );
+			rc = pthread_create( &p2, NULL, mythread, "B" ); assert( rc == 0 );
+
+			// join waits for the threads to finish
+			rc = pthread_join( p1, NULL ); assert( rc == 0 );
+			rc = pthread_join( p2, NULL ); assert( rc == 0 );
+
+			printf( "main: end\n" );
+
+			return 0;
+		}
+
+
+Shared data
+
+	. For example suppose we want to increment a "counter" by 2e7
+	. So we setup two threads, each to increment "counter" by 1e7
+
+		static volatile int counter = 0;
+
+		void *mythread ( void *arg )
+		{
+			int i;
+
+			printf( "thread %s: begin\n", ( char * ) arg );
+
+			for ( i = 0; i < 1000000; i += 1 )
+			{
+				counter += 1;
+			}
+
+			printf( "thread %s: done\n", ( char * ) arg );
+
+			return NULL;
+		}
+
+	. The assembly for the increment might look like this:
+
+		mov 0x80444, %eax
+		add $0x1,    %eax
+		mov %eax,    0x80444
+
+	. Since each thread has its own eax register, context switches
+	  that happen before eax has been updated, mean that...
+
+		counter 50
+
+		T1:  mov $counter, %eax      // eax = 50
+
+		switch
+
+		T2:  mov $counter, %eax      // eax = 50
+		T2:  add $0x1,     %eax      // eax = 51
+		T2:  mov %eax,     $counter  // counter = 51
+
+		switch
+
+		T1:  add $0x1,     %eax      // eax = 51
+		T1:  mov %eax,     $counter  // counter = 51
+
+		counter 51  // instead of 52
+
+
+	. What we want is that when one thread is executing code within the
+	  "critical section", others will be prevented from doing so
+	  "mutual exclusion"
+
+
+Atmocity
+
+	. Atomicty - can't be interrupted midway. Either has run to
+	  completion or has not run at all.
+	. Transaction = grouping of many actions into a single atomic action
+
+
+Waiting for another
+
+	. Apart from accessing shared variables, threads can interact with
+	  each other via sleep/wake
+	. For example a thread waiting on IO
+
+
+---------------------------------------------------------------------------------------------
+27) Thread API
+---------------------------------------------------------------------------------------------
+
+Thread creation
+
+	. pthread_create parameters:
+
+		pthread_t* thread
+			. Pointer to pthread_t structure
+			. We will usethis to interact with the thread
+
+		const pthread_attr_t* attr
+			. Specify attributes ex stack size
+
+		void* ( *start_routine )( void* )
+			. Which function should this thread start running
+			. The functions is passed a single argument of type void*,
+			  and returns a value of type void*
+			. Having a type void* argument allows us to pass *any*
+			  type of argument
+			. The thread once executed can simply cast its argument
+			  to the type it expects
+			. Ditto having a type void* return
+
+		void* arg
+			. The argument to be passed to the function
+
+	. pthread_create declaration:
+
+		int pthread_create ( pthread_t*            thread,
+		                     const pthread_attr_t* attr,
+		                     void*                 ( *start_routine )( void* ),
+		                     void*                 arg )
+		{
+			//
+		}
+
+	. argument cast example:
+
+		typedef struct __myarg_t {
+
+			int a;
+			int b;
+
+		} myarg_t;
+
+		void* mythread ( void* arg )
+		{
+			myarg_t* m = ( myarg_t* ) arg;
+
+			...
+		}
+
+		int main ( int argc, char *argv [] )
+		{
+			pthread_t p;
+			int       rc;
+			myarg_t   args;
+
+			args.a = 10;
+			args.b = 20;
+
+			rc = pthread_create( &p, NULL, mythread, &args );
+
+			...
+		}
+
+
+Thread completion
+
+	. Wait for completion
+
+	. pthread_join parameters:
+
+		. pthread_t thread
+			. Which thread to wait for
+
+		. void** value_ptr
+			. Pointer to return value expect to get back
+			. Because the routine can return anything, it is defined to
+			  return a pointer to a void
+			. The return value is allocated outside the thread so
+			  that it doesn't point to a location in the thread's stack
+			  (which will be deallocated on thread completion)
+
+	. pthread_join declaration:
+
+		int pthread_join ( pthread_t thread, void** value_ptr )
+		{
+			//
+		}
+
+	. example:
+
+		typedef struct __myret_t {
+
+			int x;
+			int y;
+
+		} myret_t;
+
+		void* mythread ( void* arg )
+		{
+			myarg_t* m;
+			myret_t* r;
+
+			m = ( myarg_t* ) arg;
+
+			printf( "%d %d\n", m->a, m->b );
+
+			// return NULL;
+
+			r = malloc( sizeof( myret_t ) );
+
+			r->x = 1;
+			r->y = 2;
+
+			return ( void* ) r;
+		}
+
+		int main ( int argc, char *argv [] )
+		{
+			pthread_t p;
+			int       rc;
+			myarg_t   args;
+			myret_t*  ret;
+
+			args.a = 10;
+			args.b = 20;
+
+			rc = pthread_create( &p, NULL, mythread, &args );
+
+			rc = pthread_join( p, ( void** ) &ret );
+
+			printf( "returned %d %d\n", ret->x, ret->y );
+
+			free( ret );
+
+			return 0;
+		}
+
+
+Locks
+
+	. Acquire, release
+		int pthread_mutex_lock   ( pthread_mutex_t *mutex );
+		int pthread_mutex_unlock ( pthread_mutex_t *mutex );
+
+	. When you have a region of code you consider a critical section
+
+		pthread_mutex_t lock;
+
+		pthread_mutex_lock( &lock );    // acquire lock
+
+		...                             // critical code
+
+		pthread_mutex_unlock( &lock );  // release lock
+
+	. When no other thread holds the lock when 'pthread_mutex_lock' is
+	  called, the thread acquires the lock and enters the critical
+	  section
+	. If another thread holds the lock, the thread will not return
+	  from its call to 'pthread_mutex_lock' until it has acquired
+	  the lock
+
+	. Initializing a lock:
+
+		. Static? way
+
+			pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+
+			. Sets lock to default value
+
+		. Dynamic way
+
+			pthread_mutex_t lock;
+
+			int rc = pthread_mutex_init( &lock, NULL );
+
+			assert( rc == 0 );
+
+			. The second argument is an optional set of attributes.
+			  Passing NULL uses the default attributes
+
+	. Disposing lock:
+
+		pthread_mutex_destroy( pthread_mutex_t *mutex )
+
+		. Should be called when you are done with a lock
+
+
+	. Checking error codes:
+
+		. Can wrap a call so that write error checking logic once
+
+			void _pthread_mutex_lock ( pthread_mutex_t *mutex )
+			{
+				int rc = pthread_mutex_lock( mutex );
+
+				assert( rc == 0 );
+			}
+
+
+	. What if don't want to get stuck waiting for a lock?
+
+		. pthread_mutex_trylock
+
+			int pthread_mutex_trylock ( pthread_mutex_t *mutex );
+
+			. returns failure if the lock is already held
+
+		. pthread_mutex_timedlock
+
+			int pthread_mutex_timedlock( pthread_mutex_t *mutex, struct timespec *abs_timeout );
+
+			. returns after a timeout or after acquiring the lock,
+			  whichever happens first
+
+		. Both should generally be avoided except for special cases
+
+
+Condition variables
+
+	. Useful when some kind of signaling must take place between threads
+	. For ex. when one thread is waiting for another to do something
+	  before it can continue
+
+	. Pair
+		int pthread_cond_wait( pthread_cond_t *cond, pthread_mutex_t *mutex );
+		int pthread_cond_signal( pthread_cond_t *cond );
+
+
+	~~~ pthread_cond_wait ~~~
+
+	. Puts the calling thread to sleep, and then waits for another
+	  thread to signal it
+
+	. Example use:
+
+		pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+		pthread_cond_t  cond = PTHREAD_COND_INITIALIZER;
+
+		Pthread_mutex_lock( &lock );
+
+		while ( ready == 0 )
+		{
+			Pthread_cond_wait( &cond, &lock );
+		}
+
+		Pthread_mutex_unlock( &lock );
+
+		. After initializing the lock and condition, the thread
+		  checks to see if "ready" is still zero. If it is, the
+		  thread calls pthread_cond_wait to sleep until another
+		  thread wakes it again
+
+	. The wait call takes a lock as an argument because when
+	  putting the calling the thread to sleep, it *releases*
+	  the lock
+	. This allows another thread to acquire the lock while the
+	  thread is sleeping
+	. However, after being woken and *before* returning, the wait
+	  call re-acquires the lock
+
+	. The waiting thread re-checks the condition in a while loop,
+	  instead of an if-statement. We will see why later when we
+	  study condition variables in detail later...
+	. Something about spurious wakeup...and safer to view
+	  waking up as a hint that something might have changed,
+	  rather than an absolute fact...
+
+
+	~~~ pthread_cond_signal ~~~
+
+	. The code to wake the thread above (running in another
+	  thead) would look like this:
+
+		Pthread_mutex_lock( &lock );
+
+		ready = 1;
+
+		Pthread_cond_signal( &cond );
+
+		Pthread_mutex_unlock( &lock );
+
+	. We make sure to hold the lock before modifying the global
+	  variable "ready"
+
+
+	~~~ ... ~~~
+
+	. It is tempting to use a simple flag instead of a
+	  wait and signal pair
+	. Research shows that ??
+
+		/// thread 1 ///
+
+		Pthread_mutex_lock( &lock );
+
+		while ( ready == 0 )
+		{
+			// spin
+		}
+
+		Pthread_mutex_unlock( &lock );
+
+
+		/// thread 2 ///
+
+		Pthread_mutex_lock( &lock );
+
+		ready = 1;
+
+		Pthread_mutex_unlock( &lock );
+
+
+---------------------------------------------------------------------------------------------
+28) Locks
+---------------------------------------------------------------------------------------------
+
+Basic idea
+
+	. A lock variable holds the state of the lock at any instance in time
+	. It is either available/unlocked/free or acquired/locked/held
+
+	. We could store more information in the lock data type such as
+		. which thread holds the lock
+		. a queue for ordering lock acquisition
+
+	. POSIX uses the name "mutex" (mutual exclusion)
+
+
+Controlling interrupts
+
+	. One of the earliest solutions used to provide mutual exclusion
+	  was to disable interruprs during critical sections
+
+		void lock ()
+		{
+			disableInterrupts();
+		}
+
+		void unlock ()
+		{
+			enableInterrupts();
+		}
+
+	. Shortcomings:
+		. Need to allow privileged operation (en/disabling interrupts)
+		  by all, and thus trust that it won't be abused
+		. Does not work for multiprocessors
+		. Turning off interrupts for extended periods can lead to
+		  interrupts becoming lost
+
+
+Just using loads/stores
+
+	. Let's try to build a a simple lock by using a single flag variable
+	. When the flag is set, it indicates that a thread holds the lock
+
+		typedef struct __lock_t {
+
+			int flag;  // 0 -> lock is available, 1 -> held
+
+		} lock_t;
+
+		void init ( lock_t *mutex )
+		{
+			mutex->flag = 0;  // mark as available
+		}
+
+		void lock ( lock_t *mutex )
+		{
+			while ( mutex->flag == 1 )  // lock unavailable
+			{
+				// spin
+			}
+
+			mutex->flag = 1;  // mark as held
+		}
+
+		void unlock ( lock_t *mutex )
+		{
+			mutex->flag = 0;
+		}
+
+	. This approach does not provide mutual exclusion
+
+		T1: call lock()
+		TI: while( mutex->flag == 1 )
+
+		switch
+
+		T2: call lock()
+		T2: while( mutex->flag == 1 )
+		T2: mutex->flag = 1
+
+		switch
+
+		T1: mutex->flag = 1  // also!
+
+
+Spinlock with "test-and-set" instruction
+
+	. Hardware support via a test-and-set instruction
+
+	. For example:
+		. 'xchg' in x86
+		. 'ldstub' (load-store unsigned byte) in SPARC
+
+	. It does the following in one instruction:
+
+		int TestAndSet ( int *old_ptr, int new )
+		{
+			int old;
+
+			old = *old_ptr;  // fetch old value at old_ptr
+
+			*old_ptr = new;  // store 'new' into old_ptr
+
+			return old;      // return the old value
+		}
+
+		. Returns the old value pointed to by the pointer
+		. Simultaneously updates said value to the new one
+
+	. It enables you to "test" the old value (which is
+	  returned), while simultaneously "setting" the memory
+	  location to the new value
+
+	. The instruction allows use to build a simple spin lock
+
+		typedef struct __lock_t
+		{
+			int flag;  // 0 indicates that lock is available, 1 that it is held
+
+		} lock_t;
+
+		void init ( lock_t *lock )
+		{
+			lock->flag = 0;
+		}
+
+		void lock ( lock_t *lock )
+		{
+			while ( TestAndSet( &lock->flag, 1 ) == 1 )
+			{
+				// spin
+			}
+		}
+
+		void unlock ( lock_t *lock )
+		{
+			lock->flag = 0;
+		}
+
+	. To work correctly on a single processor, a spin lock requires
+	  a preemptive scheduler (one that will interrupt a thread via a
+	  timer, in order to run a different thread from time to time).
+	  Otherwise it will spin forever, never relinquishing the CPU
+
+
+	. A note on XV6
+	. The xchg instruction is used to "test-and-set"
+
+		/// spinlock.c ///
+
+		void acquire ( struct spinlock *lk )
+		{
+			...
+
+			while ( xchg( &lk->locked, 1 ) != 0 )
+			{
+				// spin, waiting for lock to become available
+			}
+
+			...
+		}
+
+
+		/// x86.h ///
+
+		static inline uint xchg ( volatile uint *addr, uint newval )
+		{
+		   uint result;
+
+		   asm volatile(
+
+		      "lock; xchgl %0, %1" :
+		      "+m" ( *addr ), "=a" ( result ) :
+		      "1" ( newval ) :
+		      "cc"
+		   );
+
+		   return result;
+		}
+
+
+	. A simpler variant of assembly that does the same:
+	. https://forum.osdev.org/viewtopic.php?f=1&t=33690
+
+		unsigned int xchg ( volatile unsigned int *addr, unsigned int newval )
+		{
+		   return __sync_lock_test_and_set ( addr, newval );
+		}
+
+		/// goldbot expansion ///
+
+		mov  edx, DWORD PTR [ esp + 4 ]  // edx = address of old
+		mov  eax, DWORD PTR [ esp + 8 ]  // eax = new value
+		xchg eax, DWORD PTR [ edx ]      // eax = old value; old value = new value
+		ret
+
+
+	. Hack equivalent...
+
+		               ld  rAddr   rSP
+		               add rSP     4
+		               ld  rNewVal rSP
+
+		make this -->  ld  rOldVal rAddr  // rOldVal == rReturn...
+		atomic    -->  sto rNewVal rAddr
+		|
+		|              -----------------------
+		|
+		 ----------->  swpm rReturn rAddr 
+
+
+Spinlock with "compare-and-swap" instruction
+
+	. For example:
+		. 'cmpxchg' in x86
+		. 'cas' in SPARC
+
+	. It does the following in one instruction:
+
+		int CompareAndSwap ( int *ptr, int expected, int new )
+		{
+			int actual; 
+
+			actual = *ptr;
+
+			if ( actual == expected )
+			{
+				*ptr = new;
+			}
+
+			return actual;
+		}
+
+	. The basic idea is to test whether the value at the address
+	  specified by 'ptr' is equal to 'expected'
+	. If so, update the memory location pointed to, otherwise
+	  do nothing
+	. In either case, it returns the actual value at the memory location
+	  allowing the code calling it to know whether it succeeded or not
+
+	. A spin lock can be built as follows:
+
+		void lock ( lock_t *lock )
+		{
+			while ( CompareAndSwap( &lock->flag, 0, 1 ) == 1 )
+			{
+				// spin
+			}
+		}
+
+
+	. CAS is a more powerful instruction than TAS...
+	. We will make use of this power in the future when we briefly
+	  look int lock-free synchronization...
+
+
+Spinlock with "load-linked" and "store-conditional" instructions
+
+	. Some CPUs provide a pair of instructions that work in concert
+	  to build locks and other concurrent structures
+
+	. For example:
+		. LL (load-linked) and SC (store-conditional) in MIPS
+		. LDREX and STREX in ARM
+		. LDARX and STDCX in PowerPC
+		. LR and SC in RISC
+
+	. They do the following:
+
+		int LoadLinked ( int *ptr )
+		{
+			return *ptr;
+		}
+
+		int StoreConditional ( int *ptr, int value )
+		{
+			if ( ... )
+			{
+				// if no one has updated *ptr since
+				// the LoadLinked to this address,
+
+				*ptr = value;
+
+				return 1;  // success!
+			}
+			else
+			{
+				return 0;  // failed to update
+			}
+		}
+
+	. load-linked operates much like a typical load instruction,
+	  fetching a value from memory and placing it in a register
+
+	. store-conditional only succeeds (and updates the value stored
+	  in the address just load-linked from?) if no intervening store
+	  to the address has taken place.
+
+	. A spin lock can be built as follows:
+
+		void lock ( lock_t *lock )
+		{
+			while ( 1 )
+			{
+				// Lock unavailable
+				while ( LoadLinked( &lock->flag ) == 1 )
+				{
+					// spin until lock is not held (i.e. is 0)
+				}
+
+				// Lock is available
+				if ( StoreConditional( &lock->flag, 1 ) == 1 )
+				{
+					// If acquiring lock (setting to 1) was successful,
+					// all done. Otherwise, try it all over again
+
+					return;
+				}
+			}
+		}
+
+	. store-conditional can fail when:
+		. Thread_one calls 'lock' and executes load-linked returning 0
+		  as the lock is not held
+		. Before Thread_one can attempt store-conditional, it is
+		  interrupted by another thread
+		. Thread_two enters the lock code and also calls load-linked
+		  which returns 0 as the lock is still not held
+		. At this point, both threads are about to attempt store-conditional
+		. However, only of these threads will succeed.
+		. The second thread to attempt to store-conditional will fail
+		  because the previous thread will have updated the flag, and
+		  will thus have to try to acquire the lock from scratch again
+
+
+Ticketlock with "fetch-and-add" instruction
+
+	. fetch-and-add atomically increments a value while
+	  returning the old value at a particular address
+
+	. It does the following in one instruction:
+
+		int FetchAndAdd ( int *ptr )
+		{
+			int old;
+
+			old = *ptr;
+
+			*ptr = old + 1;
+
+			return old;
+		}
+
+
+	. Instead of a flag, this approach uses a ticket and turn to
+	  build a lock
+
+		typedef struct __lock_t
+		{
+			int ticket;
+			int turn;
+
+		} lock_t;
+
+		void lock_init ( lock_t *lock )
+		{
+			lock->ticket = 0;
+			lock->turn   = 0;
+		}
+
+	. When a thread wishes to acquire a lock, it first does a
+	  fetch-and-add on the ticket's value.
+	. The returned value is now considered the thread's turn
+
+	. The globally shared lock->turn is then used to determine
+	  which thread's turn it is.
+	. When (myturn == lock->turn) for a given thread, it is that
+	  thread's turn to enter the critical section
+
+		void lock ( lock_t *lock )
+		{
+			int myturn = FetchAndAdd( &lock->ticket );
+
+			while ( lock->turn != myturn )
+			{
+				// spin
+			}
+		}
+
+	. Unlock is accomplished by incrementing lock->turn so that
+	  the next waiting thread can now enter its critical section
+
+		void unlock ( lock_t *lock )
+		{
+			lock->turn += 1;
+		}
+
+
+	. One important difference between a ticket lock and the
+	  previous examples is that each thread is ensured progress.
+	. Once a thread is assigned a value, it will be scheduled at
+	  some point in the future
+
+
+Too much spinning
+
+	. While simple, spinning can be inefficient
+	. Any time a thread gets caught spinning, it wastes an entire
+	  time slice doing nothing
+	. The more threads that are contending for a lock, the more
+	  time slices are wasted, as they wait for a thread to release
+	  the lock
+
+
+Yield
+
+	. Instead of spinning, give up the CPU to another thread
+
+	. We assume the OS has the 'yield' primitive which a thread
+	  can call when it wants to give up the CPU
+
+	. A thread can be in one of three states (running, ready, or
+	  blocked).
+	. yield changes the caller's state from running to ready
+
+	. Simple case: two threads on one CPU
+
+		void init ()
+		{
+			flag = 0;
+		}
+
+		void lock ()
+		{
+			while ( TestAndSet( &flag, 1 ) == 1 )
+			{
+				yield();  // give up the CPU
+			}
+		}
+
+		void unlock ()
+		{
+			flag = 0;
+		}
+
+		. If a thread calls lock and finds a lock held, it will
+		  simply yield the CPU
+
+	. Consider case of many threads each wanting the lock.
+	. If round-robin scheduler, each thread will execute the
+	  run-and-yield pattern before the thread holding the lock
+	  gets to run again
+	. Though better than each of them spinning, it is still
+	  expensive because of the cost of a context switch
+
+
+Queues
+
+	. Problem with previous approaches is that scheduler determines
+	  which thread runs next.
+	. If the scheduler makes a bad choice, the thread that runs must
+	  either spin or yield the CPU
+
+	. We want to have control over which thread next gets to acquire
+	  the lock after the current holder releases it...
+	. This requires OS support and a queue to track which threads
+	  are waiting to acquire the lock
+
+	. For simpicity, assume the OS functions:
+		. park()             - put a calling thread to sleep
+		. unpark( threadID ) - wake a particular thread
+	. The two routines can be used to build a lock that puts a 
+	  caller to sleep if it tries to acquire a held lock and wakes
+	  it when the lock is free...
+
+	. ???
+
+	. Combine "test-and-set" with a queue of waiters
+
+		typedef struct __lock_t {
+
+			int      flag;   // lock is available when set, held otherwise
+			int      guard;  // guard lock is available when set, held otherwise
+			queue_t *q;
+
+		} lock_t;
+
+		void lock_init ( lock_t *m )
+		{
+			m->flag  = 0;
+			m->guard = 0;
+
+			queue_init( m->q );
+		}
+
+
+	. Spinlock to guard queue and flag manipulation...
+	. If a thread cannot acquire a lock, it is added to the queue
+
+		void lock ( lock_t *m )
+		{
+			while ( TestAndSet( &m->guard, 1 ) == 1 )
+			{
+				// acquire guard lock by spinning
+			}
+
+			if ( m->flag == 0 )
+			{
+				m->flag  = 1;  // lock is acquired
+				m->guard = 0;
+			}
+			else
+			{
+				queue_add( m->q, gettid() );
+
+				m->guard = 0;
+
+				park();  // sleep()
+
+				// <-- thread returns here after unpark/wakeup()
+			}
+		}
+
+
+	. Lock is passed directly from the thread releasing the lock
+	  to the next thread acquiring it...
+	. When a thread is woken up, ???
+
+		void unlock ( lock_t *m )
+		{
+			while ( TestAndSet( &m->guard, 1 ) == 1 )
+			{
+				// acquire guard lock by spinning
+			}
+
+			if ( queue_empty( m->q ) )
+			{
+				m->flag = 0;  // let go of lock; no one wants it
+			}
+			else
+			{
+				unpark( queue_remove( m->q ) );  // wakeup(); hold lock (for next thread!)
+			}
+
+			m->guard = 0;
+		}
+
+
+	. Possible race condition...
+
+	. Doubts...
+		. Why does the guard lock exist? To prevent another
+		  thread from executing the subsequent code should a
+		  context switch occur...
+		. What does this approach do, why does it work...
+
+
+Linux futex
+
+	. revisit...
+
+
+Two-phase locks
+
+	. revisit...
+
+
+---------------------------------------------------------------------------------------------
+29) Lock-based concurrnet data structures
+---------------------------------------------------------------------------------------------
+
+Concurrent counters
+
+	. Simple, non thread-safe counter:
+
+		typedef struct __counter_t {
+
+			int value;
+
+		} counter_t;
+
+		void init ( counter_t *c )
+		{
+			c->value = 0;
+		}
+
+		void increment ( counter_t *c )
+		{
+			c->value += 1;
+		}
+
+		void decrement ( counter_t *c )
+		{
+			c->value -= 1;
+		}
+
+		int get ( counter_t *c )
+		{
+			return c->value;
+		}
+
+
+	~~~ Simple, poor performance ~~~
+
+	. To make it threadsafe we add a single lock that is
+	  acquired when about to manipulate the data structure and
+	  released after
+
+		typedef struct __counter_t
+		{
+			pthread_mutex_t lock;
+			int             value;
+
+		} counter_t;
+
+		void init ( counter_t *c )
+		{
+			c->value = 0;
+
+			Pthread_mutex_init( &c->lock, NULL );
+		}
+
+		void increment ( counter_t *c )
+		{
+			Pthread_mutex_lock( &c->lock );
+
+			c->value += 1;
+
+			Pthread_mutex_unlock( &c->lock );
+		}
+
+		void decrement ( counter_t *c )
+		{
+			Pthread_mutex_lock( &c->lock );
+
+			c->value -= 1;
+
+			Pthread_mutex_unlock( &c->lock );
+		}
+
+		int get ( counter_t *c )
+		{
+			Pthread_mutex_lock( &c->lock );
+
+			int rc = c->value;
+
+			Pthread_mutex_unlock( &c->lock );
+
+			return rc;
+		}
+
+	. Whereas a single thread without locks can complete a million
+	  counter updates in a tiny amount of time, with this simple
+	  approach having more than one thread leads to a massive
+	  slowdown in per-thread performance...
+	. Ideally you would like to see the threads on multiple
+	  processors complete just as quickly
+
+
+	~~~ Sloppy counter, better performance ~~~
+
+	. Sloppy counter works by representing a counter as
+	  multiple local/per-CPU counters and one global counter
+	. There is a lock per local counter, and one for the global
+	  counter
+	. Each thread increments its local counter. Access to which
+	  is synchronized by the corresponding local lock
+	. Thus threads can update their local counters without contention
+
+	. To keep the global counter up-to-date, the local values
+	  are periodically transferred to the global counter
+	. The global lock is acquired, global counter incremented by
+	  the local counter value, and the local counter set to zero
+
+	. How often this update of the global counter occurs determines
+	  how scalable the approach is.
+	. The more updates, the closer it behaves to the previous
+	  non-scalable but threadsafe counter.
+
+		typedef struct __counter_t {
+
+			int             global;             // global count
+			pthread_mutex_t glock;              // global lock
+
+			int             local [ NUMCPUS ];  // local count (per cpu)
+			pthread_mutex_t llock [ NUMCPUS ];  // ... and locks
+
+			int             threshold;          // update frequency
+
+		} counter_t;
+
+		// init: record threshold, init locks, init values
+		// of all local counts and global count
+		void init ( counter_t *c, int threshold )
+		{
+			c->threshold = threshold;
+			c->global    = 0;
+
+			pthread_mutex_init( &c->glock, NULL );
+
+			int i;
+			for ( i = 0; i < NUMCPUS; i += 1 )
+			{
+				c->local[ i ] = 0;
+
+				pthread_mutex_init( &c->llock[ i ], NULL );
+			}
+		}
+
+		// update: usually, just grab local lock and update local amount
+		// once local count has risen by ’threshold’, grab global
+		// lock and transfer local values to it
+		void update ( counter_t *c, int threadID, int amt )
+		{
+			int cpu = threadID % NUMCPUS;
+
+			pthread_mutex_lock( &c->llock[ cpu ] );
+
+			c->local[ cpu ] += amt;  // assumes amt > 0
+
+			if ( c->local[ cpu ] >= c->threshold )  // transfer to global
+			{
+				pthread_mutex_lock( &c->glock );
+
+				c->global += c->local[ cpu ];
+
+				pthread_mutex_unlock( &c->glock );
+
+				c->local[ cpu ] = 0;
+			}
+
+			pthread_mutex_unlock( &c->llock[ cpu ] );
+		}
+
+		// get: just return global amount (which may not be perfect)
+		int get ( counter_t *c )
+		{
+			pthread_mutex_lock( &c->glock );
+
+			int val = c->global;
+
+			pthread_mutex_unlock( &c->glock );
+
+			return val;  // only approximate!
+		}
+
+
+Concurrent linked lists
+
+	~~~ Simple, error prone? ~~~
+
+	. Thread simply acquires a lock when it enters the insert
+	  routine, and releases it when it exits
+	. A special case is if malloc fails, where it releases the
+	  lock and exits early
+
+		// basic node structure
+		typedef struct __node_t {
+
+			int              key;
+			struct __node_t *next;
+
+		} node_t;
+
+		// basic list structure (one used per list)
+		typedef struct __list_t {
+
+			node_t         *head;
+			pthread_mutex_t lock;
+
+		} list_t;
+
+		void List_Init ( list_t *L )
+		{
+			L->head = NULL;
+
+			pthread_mutex_init( &L->lock, NULL );
+		}
+
+		int List_Insert ( list_t *L, int key )
+		{
+			pthread_mutex_lock( &L->lock );
+
+			node_t *new = malloc( sizeof( node_t ) );
+
+			if ( new == NULL )
+			{
+				perror( "malloc" );
+
+				pthread_mutex_unlock( &L->lock );
+
+				return - 1;  // fail
+			}
+
+			new->key  = key;
+			new->next = L->head;
+
+			L->head = new;
+
+			pthread_mutex_unlock( &L->lock );
+
+			return 0;  // success
+		}
+
+		int List_Lookup ( list_t *L, int key )
+		{
+			pthread_mutex_lock( &L->lock );
+
+			node_t *curr = L->head;
+
+			while ( curr )
+			{
+				if ( curr->key == key )
+				{
+					pthread_mutex_unlock( &L->lock );
+
+					return 0;  // success
+				}
+
+				curr = curr->next;
+			}
+
+			pthread_mutex_unlock( &L->lock );
+
+			return - 1;  // failure
+		}
+
+
+	~~~ ..., less error prone ~~~
+
+	. Lock and release only surronds the critical section
+	. If assume 'malloc' is threadsafe, each thread can call it
+	  without worrying about race conditions etc.
+	. Only when updating the shared list does a lock need
+	  to be held
+
+		void List_Insert ( list_t *L, int key )
+		{
+			// synchronization not needed
+			node_t *new = malloc( sizeof( node_t ) );
+
+			if ( new == NULL )
+			{
+				perror( "malloc" );
+
+				return;
+			}
+
+			new->key = key;
+
+			// just lock critical section
+			pthread_mutex_lock( &L->lock );
+
+			new->next = L->head;
+
+			L->head = new;
+
+			pthread_mutex_unlock( &L->lock );
+		}
+
+
+	. A common exit path is used, so that minimize chance
+	  of forgetting to release lock in special exits (failures)
+
+		int List_Lookup ( list_t *L, int key )
+		{
+			int rv = - 1;
+
+			pthread_mutex_lock( &L->lock );
+
+			node_t *curr = L->head;
+
+			while ( curr )
+			{
+				if ( curr->key == key )
+				{
+					rv = 0;
+
+					break;
+				}
+
+				curr = curr->next;
+			}
+
+			pthread_mutex_unlock( &L->lock );
+
+			return rv; // now both success and failure
+		}
+
+
+	~~~ Better performance ~~~
+
+	. hand-over-hand locking...
+	. Instead of a single lock for the entire list, have a
+	  lock per node
+	. When traversing, the code first grabs the next node's lock,
+	  then releases the current one's
+
+	. The idea is to allow concurrent traversal of a list by
+	  multiple threads
+
+	. In practice, hard to make such a structure faster than a
+	  single lock due to overhead of acquire/releasing each
+	  node's lock as traverse
+
+
+Concurrent queues
+
+	. Designed by ...
+	. Two locks (one for the head, one for tail) with the goal
+	  of enabling concurrent enqueue and dequeue operations
+	. Since in the common case, enqueue will only access tail,
+	  and dequeue the head lock
+
+	. The code adds a dummy node at initialization so that head
+	  and tail operations are separated...
+
+		typedef struct __node_t {
+
+			int              value;
+			struct __node_t *next;
+
+		} node_t;
+
+		typedef struct __queue_t {
+
+			node_t *head;
+			node_t *tail;
+
+			pthread_mutex_t headLock;
+			pthread_mutex_t tailLock;
+
+		} queue_t;
+
+		void Queue_Init ( queue_t *q )
+		{
+			node_t *tmp = malloc( sizeof( node_t ) );
+
+			tmp->next = NULL;
+
+			q->head = q->tail = tmp;
+
+			pthread_mutex_init( &q->headLock, NULL );
+			pthread_mutex_init( &q->tailLock, NULL );
+		}
+
+		void Queue_Enqueue ( queue_t *q, int value )
+		{
+			node_t *tmp = malloc( sizeof( node_t ) );
+
+			assert( tmp != NULL );
+
+			tmp->value = value;
+			tmp->next  = NULL;
+
+			pthread_mutex_lock( &q->tailLock );
+
+			q->tail->next = tmp;
+			q->tail       = tmp;
+
+			pthread_mutex_unlock( &q->tailLock );
+		}
+
+		int Queue_Dequeue ( queue_t *q, int *value )
+		{
+			pthread_mutex_lock( &q->headLock );
+
+			node_t *tmp     = q->head;
+			node_t *newHead = tmp->next;
+
+			if ( newHead == NULL )
+			{
+				pthread_mutex_unlock( &q->headLock );
+
+				return - 1;  // queue was empty
+			}
+
+			*value = newHead->value;
+
+			q->head = newHead;
+
+			pthread_mutex_unlock( &q->headLock );
+
+			free( tmp );
+
+			return 0;
+		}
+
+	. A queue that enables a thread to wait if the queue is
+	  either empty or full will be introduced in the next chapter
+
+
+Concurrent hash table
+
+	. Simple hash table that does not resize
+	. It has good performance because instead of using a single
+	  lock for the entire structure, it uses a lock per hash bucket,
+	  which allows many concurrent operations to take place...
+
+		#define BUCKETS 101
+
+		typedef struct __hash_t {
+
+			list_t lists [ BUCKETS ];  // each hash bucket is represented by a linked? list...
+
+		} hash_t;
+
+		void Hash_Init ( hash_t *H )
+		{
+			int i;
+			for ( i = 0; i < BUCKETS; i += 1 )
+			{
+				List_Init( &H->lists[ i ] );
+			}
+		}
+
+		int Hash_Insert ( hash_t *H, int key )
+		{
+			int bucket = key % BUCKETS;
+
+			return List_Insert( &H->lists[ bucket ], key );
+		}
+
+		int Hash_Lookup ( hash_t *H, int key )
+		{
+			int bucket = key % BUCKETS;
+
+			return List_Lookup( &H->lists[ bucket ], key );
+		}
+
+
+Summary
+
+	. Avoid premature optimization
+		. Start with a single big lock. It will likely be correct.
+		. If you find its too slow, you can refine it, making it
+		  only as fast as it needs to be
+
+
+---------------------------------------------------------------------------------------------
+30) Condition Variables
+---------------------------------------------------------------------------------------------
+
+Intro
+
+	. Many cases where a thread wishes to checkc whether a condition
+	  is true before continuing
+
+	. For example, a parent might want to check whether a child has
+	  compleeted before continuing
+	. This is often called 'join'
+	. How should such a wait be implmented?
+
+	. Consider the following code
+
+		void *child ( void *arg )
+		{
+			printf( "child\n" );
+
+			// XXX how to indicate we are done?
+
+			return NULL;
+		}
+
+		int main ( int argc, char *argv[] )
+		{
+			pthread_t c;
+
+			printf( "parent: begin\n" );
+
+			Pthread_create( &c, NULL, child, NULL );  // create child
+
+			// XXX how to wait for child?
+
+			printf( "parent: end\n" );
+
+			return 0;
+		}
+
+	. We wish to see the following output:
+
+		parent: begin
+		child
+		parent: end
+
+	. We could try using a shared variable
+	. Though this solution generally works, it is inefficient as
+	  the parent thread spins wasting CPU time...
+	. What we would like instead is a way to put the parent
+	  to sleep until the condition we are waiting for becomes true
+
+		volatile int done = 0;
+
+		void *child ( void *arg )
+		{
+			printf( "child\n" );
+
+			done = 1;
+
+			return NULL;
+		}
+
+		int main ( int argc, char *argv[] )
+		{
+			pthread_t c;
+
+			printf( "parent: begin\n" );
+
+			Pthread_create( &c, NULL, child, NULL ); // create child
+
+			while ( done == 0 )
+			{
+				// spin
+			}
+
+			printf( "parent: end\n" );
+
+			return 0;
+		}
+
+
+Definition and routines
+
+	. A condition variable is an explicit queue that threads can
+	  put themselves on when some condition is not what is dersired...
+	. When another thread changes the condition, it can wake
+	  the threads waiting on the condition
+
+	. A condition variable has two operations associated with it:
+		. wait()   - executed when a thread wishes to put
+		             itself to sleep
+		. signal() - executed when a thread has changed something
+		             in the program and thus wants to wakeup a
+		             thread sleeping on this condition
+
+	. 'wait' takes a mutex as a parameter, which it assumes is locked
+	. 'wait' then releases the lock and puts the thread to sleep
+	. When the thread wakes up (after another thread has signalled it),
+	  'wait' reacquires the lock before returning to the caller
+
+	. In the following code sequence, the parent first creates the
+	  child thread but continues running itself, reaching 'thr_join'
+	. The call to 'thr_join' causes the parent to 'wait' for the
+	  child to complete
+	. The child eventually completes its task, and calls 'thr_exit'
+	. The call to 'thr_exit' wakes up the parent by sending a
+	  'signal'
+	. Finally the parent runs (returning from 'wait', 'thr_join')
+
+		int done = 0;
+
+		pthread_mutex_t m = PTHREAD_MUTEX_INITIALIZER;
+		pthread_cond_t  c = PTHREAD_COND_INITIALIZER;
+
+		void thr_join ()
+		{
+			Pthread_mutex_lock( &m );
+
+			while ( done == 0 )
+			{
+				Pthread_cond_wait( &c, &m );
+			}
+
+			Pthread_mutex_unlock( &m );
+		}
+
+		void thr_exit ()
+		{
+			Pthread_mutex_lock( &m );
+
+			done = 1;
+
+			Pthread_cond_signal( &c );
+
+			Pthread_mutex_unlock( &m );
+		}
+
+		void *child ( void *arg )
+		{
+			printf( "child\n" );
+
+			thr_exit();
+
+			return NULL;
+		}
+
+		int main ( int argc, char *argv[] )
+		{
+			pthread_t p;
+
+			printf( "parent: begin\n" );
+
+			Pthread_create( &p, NULL, child, NULL );
+
+			thr_join();
+
+			printf( "parent: end\n" );
+
+			return 0;
+		}
+
+
+	. It can also happen that the child runs immediately upon
+	  creation
+	. Upon reaching 'thr_exit', it sets 'done' to 1 and calls
+	  'signal' to wakeup any threads sleeping on the condition,
+	  of which there are none
+	. When the parent runs 'thr_join', it will find 'done' is set
+	  and thus does not 'wait'
+
+
+	~~~ ... ~~~
+
+	. Why do we need the state variable 'done'?
+	. Why can't the code simply look like this?
+
+		void thr_join ()
+		{
+			Pthread_mutex_lock( &m );
+
+			Pthread_cond_wait( &c, &m );
+
+			Pthread_mutex_unlock( &m );
+		}
+
+		void thr_exit ()
+		{
+			Pthread_mutex_lock( &m );
+
+			Pthread_cond_signal( &c );
+
+			Pthread_mutex_unlock( &m );
+		}
+
+	. If the child runs immediately and completes, when
+	  the parent runs and calls 'wait', there will be no thread to
+	  wake it
+
+
+	~~~ ... ~~~
+
+	. Why do we need to hold a lock in order to signal or wait?
+	. Why can't the code simply look like this?
+
+		void thr_join ()
+		{
+			while ( done == 0 )
+			{
+				Pthread_cond_wait( &c, &m );
+			}
+		}
+
+		void thr_exit ()
+		{
+			done = 1;
+
+			Pthread_cond_signal( &c );
+		}
+
+	. A race condition is introduced...
+	. Say the parent calls 'thr_join' and finds 'done' is 0
+	. Just before it calls 'wait' to sleep, it is interrupted and
+	  the child runs
+	. The child changes 'done' to 1 and signals
+	. However there is currently no thread currently waiting on
+	  the signal
+	. The parent runs again, finally waiting on the signal
+	. However the signal has already been sent, and the parent will
+	  sleep forever
+
+	. TLDR: hold lock when calling signal or wait
+
+
+The producer consumer (bounded buffer) problem
+
+	. Imagine one+ producer threads that generate data items and
+	  place them in a buffer
+	. Imagine one+ consumer threads that grab items from the
+	  buffer and consume them in some way
+
+	. This arrangement occurs in many real systems. For example:
+		. A multi-threaded web server
+			. A producer puts HTTP requests into a work queue
+			. Consumer threads take requests out of this queue and
+			  processes them
+		. Piping the output of one program into another
+			. E.g. "cat file.txt | wc"
+			. cat is the producer process
+			. wc is the consumer process
+			. Between them is an in-kernel bounded buffer (Unix pipe)
+
+	. Because the bounded buffer is a shared resource, we require
+	  synchronized access to it to avoid race conditions
+
+
+	~~~ ... ~~~
+
+	. Let's make a simple buffer that holds one item
+
+		int buffer;
+		int count = 0;  // initially, empty
+
+		void put ( int value )
+		{
+			assert( count == 0 );  // check that buffer is empty
+
+			count = 1;
+
+			buffer = value;
+		}
+
+		int get ()
+		{
+			assert( count == 1 );  // check that buffer is not empty
+
+			count = 0;
+
+			return buffer;
+		}
+
+
+	. Let's make a simple producer that puts an integer into the
+	  buffer 'n' number of times
+
+		void *producer ( void *arg )
+		{
+			int i;
+			int n = ( int ) arg;
+
+			for ( i = 0; i < n; i += 1 )
+			{
+				put( i );
+			}
+		}
+
+	. And a consumer that gets data out of the buffer forever,
+	  printing the item it has retrieved
+
+		void *consumer ( void *arg )
+		{
+			int i;
+
+			while ( 1 )
+			{
+				int tmp = get();
+
+				printf( "%d\n", tmp );
+			}
+		}
+
+
+	~~~ A broken solution ~~~
+
+	. In this attempt, we use a single condition variable 'cond'
+	  and associated lock 'mutex'
+
+	. When the producer wants to fill the buffer, it waits for
+	  it to be empty
+	. When the consumer wants to get a value from the buffer, it
+	  waits for the buffer to be full
+
+		cond_t  cond;
+		mutex_t mutex;
+
+		void *producer ( void *arg )
+		{
+			int i;
+			for ( i = 0; i < loops; i += 1 )
+			{
+				Pthread_mutex_lock( &mutex );
+
+				// Wait for buffer to be empty before writing
+				if ( count == 1 )
+				{
+					Pthread_cond_wait( &cond, &mutex );
+				}
+
+				put( i );
+
+				// Signal threads waiting on buffer (now that it is full)
+				Pthread_cond_signal( &cond );
+
+				Pthread_mutex_unlock( &mutex );
+			}
+		}
+
+		void *consumer ( void *arg )
+		{
+			int i;
+			for ( i = 0; i < loops; i += 1 )
+			{
+				Pthread_mutex_lock( &mutex );
+
+				// Wait for buffer to be full before reading
+				if ( count == 0 )
+				{
+					Pthread_cond_wait( &cond, &mutex );
+				}
+
+				int tmp = get();
+
+				// Signal threads waiting on buffer (now that it is empty)
+				Pthread_cond_signal( &cond );
+
+				Pthread_mutex_unlock( &mutex );
+
+				printf( "%d\n", tmp );
+			}
+		}
+
+
+	. With just a single producer and consumer, the code works
+	. However with more than one producer and/or consumer, the
+	  approach has two critical problems
+
+	. First problem - the if statement before the wait
+
+		. Assume there are two consumers, and one producer
+		. consumer_1 runs, sees no buffers are ready for consumption,
+		  and waits
+		. producer_1 runs, finds buffer empty, places a value,
+		  then signals that the buffer is full
+		. this moves consumer_1 from sleeping to runnable state
+
+		. Suppose consumer_2 runs before consumer_1
+		. consumer_2 grabs the value from the buffer
+
+		. Finally consumer_1 gets a chance to run
+		. Upon returning from 'wait', it immediately calls get()
+		. This throws an error as the buffer is empty
+
+	. Signaling a thread only wakes it up. It is a hint that
+	  the state of the world has changed.
+	. The thread upon waking up, must check whether the state
+	  has changed as desired
+
+
+	~~~ Better but still broken ~~~
+
+	. So we change the if-statement to a while-loop accordingly...
+
+		/// producer ///
+
+		while ( count == 1 )
+		{
+			Pthread_cond_wait( &cond, &mutex );
+		}
+
+		put( i );
+
+
+		/// consumer ///
+
+		while ( count == 0 )
+		{
+			Pthread_cond_wait( &cond, &mutex );
+		}
+
+		int tmp = get();
+
+
+	. The second problem - signal broadcast
+
+		. Assume there are two consumers, and one producer
+		. Suppose the two consumers run first and go to sleep
+		  upon finding an empty buffer
+		. The producer then runs placing a value in the buffer,
+		  and signaling the threads wainting on the condition
+		. The producer then waits for the buffer to be emptied
+
+		. One of the consumer threads wakes, say consumer_1
+		. consumer_1 gets the value from the buffer and
+		  signals the threads waiting on the condition,
+		  then goes to sleep
+
+		. Ideally the thread to wakeup should be producer_1,
+		  not consumer_2
+		. However in this case consumer_2 wakes up and finds
+		  that the buffer is empty (count == 0) and goes back
+		  to sleep
+
+		. Now all three threads are sleeping.
+		. With no one awake to generate a signal, they will
+		  sleep indefinetely
+
+	. Signaling must be more directed
+	. A consumer should not wake other consumers, only producers
+	. And vice versa
+
+
+	~~~ ... ~~~
+
+	. The solution to the second problem is to use *two* condition
+	  variables in order to speccify which type of thread
+	  (consumer/producer) should wake up
+
+	. In the code below:
+		. producer threads wait on the *empty* condition and signal *full
+		. consumers wait on *full*, and signal *empty*
+
+		cond_t empty;
+		cond_t full;
+
+		void *producer ( void *arg )
+		{
+			...
+
+			// Wait for buffer to be empty before writing
+			while ( count == 1 )
+			{
+				Pthread_cond_wait( &empty, &mutex );
+			}
+
+			put( i );
+
+			// Signal threads waiting on buffer to be full
+			Pthread_cond_signal( &full );
+
+			...
+		}
+
+		void *consumer ( void *arg )
+		{
+			...
+
+			// Wait for buffer to be full before reading
+			while ( count == 0 )
+			{
+				Pthread_cond_wait( &full, &mutex );
+			}
+
+			int tmp = get();
+
+			// Signal threads waiting on buffer to be empty
+			Pthread_cond_signal( &empty );
+
+			...
+		}
+
+
+	~~~ A general correct solution ~~~
+
+	. To enable more concurrency, we add more buffer slots so that:
+		. multiple values can be produced before sleeping
+		. multiple values can be consumed before sleeping
+
+	. With just a single producer, this approach is more efficient
+	  as it reduces context switches
+	. With multiple producers and consumers, the approach allows
+	  concurrent producing and consuming to take place...?
+
+	. The first change is with the buffer structure itself
+
+		int buffer [ MAX ];
+
+		int count    = 0;  // initially, empty
+		int fill_ptr = 0;
+		int use_ptr  = 0;
+
+		void put ( int value )
+		{
+			buffer[ fill_ptr ] = value;
+
+			fill_ptr += 1;
+
+			fill_ptr %= MAX;  // ring
+
+			count += 1;
+		}
+
+		int get ()
+		{
+			int value = buffer[ use_ptr ];
+
+			use_ptr += 1;
+
+			fill_ptr %= MAX;  // ring
+
+			count -= 1;
+
+			return value;
+		}
+
+	. The second change is with the conditions producers and
+	  consumers check to determine whether to sleep or not
+	. A producer only sleeps if all buffers are currently filled
+	. A consumer sleeps only if all buffers are currently empty
+
+		void *producer ( void *arg )
+		{
+			...
+
+			// Wait for buffer to be empty before writing
+			while ( count == MAX )
+			{
+				Pthread_cond_wait( &empty, &mutex );
+			}
+
+			...
+		}
+
+		void *consumer ( void *arg )
+		{
+			...
+
+			// Wait for buffer to be full before reading
+			while ( count == 0 )
+			{
+				Pthread_cond_wait( &full, &mutex );
+			}
+
+			...
+		}
+
+
+	. All together:
+
+		int buffer [ MAX ];
+
+		int count    = 0;  // initially, empty
+		int fill_ptr = 0;
+		int use_ptr  = 0;
+
+		void put ( int value )
+		{
+			buffer[ fill_ptr ] = value;
+
+			fill_ptr += 1;
+
+			fill_ptr %= MAX;  // ring
+
+			count += 1;
+		}
+
+		int get ()
+		{
+			int value = buffer[ use_ptr ];
+
+			use_ptr += 1;
+
+			fill_ptr %= MAX;  // ring
+
+			count -= 1;
+
+			return value;
+		}
+
+		void *producer ( void *arg )
+		{
+			int i;
+			for ( i = 0; i < loops; i += 1 )
+			{
+				Pthread_mutex_lock( &mutex );
+
+				// Wait for buffer to be empty before writing
+				while ( count == MAX )
+				{
+					Pthread_cond_wait( &empty, &mutex );
+				}
+
+				put( i );
+
+				// Signal threads waiting on buffer to be full
+				Pthread_cond_signal( &full );
+
+				Pthread_mutex_unlock( &mutex );
+			}
+		}
+
+		void *consumer ( void *arg )
+		{
+			int i;
+			for ( i = 0; i < loops; i += 1 )
+			{
+				Pthread_mutex_lock( &mutex );
+
+				// Wait for buffer to be full before reading
+				while ( count == 0 )
+				{
+					Pthread_cond_wait( &full, &mutex );
+				}
+
+				int tmp = get();
+
+				// Signal threads waiting on buffer to be empty
+				Pthread_cond_signal( &empty );
+
+				Pthread_mutex_unlock( &mutex );
+
+				printf( "%d\n", tmp );
+			}
+		}
+
+
+When broadcasting is desired...
+
+	. Consider a simple multi-threaded memory allocation library
+
+	. When a thread calls into the memory allocation code, it
+	  might have to wait in order for more memory to become free
+	. Conversely when a thread frees memory, it signals that
+	  more memory is now available
+	. Which waiting thread should the thread calling 'free' signal?
+
+		cond_t  c;
+		mutex_t m;
+
+		int bytesLeft = MAX_HEAP_SIZE;
+
+		void *allocate ( int size )
+		{
+			Pthread_mutex_lock( &m );
+
+			while ( bytesLeft < size )
+			{
+				Pthread_cond_wait( &c, &m );
+			}
+
+			void *ptr = ...;  // get mem from heap
+
+			bytesLeft -= size;
+
+			Pthread_mutex_unlock( &m );
+
+			return ptr;
+		}
+
+		void free ( void *ptr, int size )
+		{
+			Pthread_mutex_lock( &m );
+
+			bytesLeft += size;
+
+			Pthread_cond_signal( &c );  // whom to signal??
+
+			Pthread_mutex_unlock( &m );
+		}
+
+
+	. For example, assume there are no free bytes
+	. thread_1 calls allocate( 100 ), and has to wait
+	. thread_2 calls allocate(  10 ), and has to wait
+
+	. thread_3 then calls free( 50 )
+	. However there is no way to signal only the waiting thread
+	  whose memory needs can be satisfied with the free
+
+	. Instead of waking only *one* thread, an alternative is to
+	  wake *all* waiting threads
+	. By doing so, we guarantee that any threads that should be
+	  woken are
+	. The downside is the negative performance impact of waking
+	  threads that shouldn't yet be awake. These threads will
+	  wakeup, re-check the condition, and go back to sleep
+
+
+	. We could have used this approach earlier to resolve
+	  the second producer/consumer problem
+	. I.e. consumer_1 to wake both producer_1 and consumer_2
+	. However a neater solution (two condition variables) was available
+
+
+---------------------------------------------------------------------------------------------
+31) Semaphores
+---------------------------------------------------------------------------------------------
+
+A definition
+
+	. A semaphore is an object with an ineger value that we can
+	  manipulate with two routines: POSIX 'sem_wait' and 'sem_post'
+
+		int sem_wait ( sem_t *s )
+		{
+			/* Decrement the value of semaphore s by one.
+			   Wait if value of s is negative */
+		}
+
+		int sem_post ( sem_t *s )
+		{
+			/* Increment the value of semaphore s by one.
+			   If there are one or more threads waiting, wake one */
+		}
+
+	. The initial value of a semaphore determines its behaviour
+	. Before calling any other routine to interact with the
+	  semaphore, it must be initialized
+
+		#include <semaphore.h?
+
+		sem_t s;
+
+		sem_init( &s, 0, 1 );  // initialize to 1
+
+
+	. sem_wait will either:
+		. return right away when the value is greater than zero,
+		  since this indicates... ??
+		. or cause caller to wait for a subsequent sem_post
+	. If multiple threads call sem_wait, they will all
+	  be queued waiting to be woken... ??
+
+
+	. The value of the semaphore when negative is the number of
+	  waiting threads...
+
+
+A simple implementation
+
+	. We use just:
+		. one lock,
+		. one condition variable,
+		. and one state variable to track the value of the semaphore
+
+
+		typedef struct __Zem_t {
+
+			int             value;
+			pthread_cond_t  cond;
+			pthread_mutex_t lock;
+
+		} Zem_t;
+
+		// only one thread can call this
+		void Zem_init ( Zem_t *s, int value )
+		{
+			s->value = value;
+
+			Cond_init( &s->cond );
+
+			Mutex_init( &s->lock );
+		}
+
+		void Zem_wait ( Zem_t *s )
+		{
+			Mutex_lock( &s->lock );
+
+			s->value -= 1;
+
+			while ( s->value < 0 )
+			{
+				Cond_wait( &s->cond, &s->lock );
+			}
+
+			// Does flipping order matter?
+			/*
+			while ( s->value <= 0 )
+			{
+				Cond_wait( &s->cond, &s->lock );
+			}
+
+			s->value -= 1;
+			*/
+
+			Mutex_unlock( &s->lock );
+		}
+
+		void Zem_post ( Zem_t *s )
+		{
+			Mutex_lock( &s->lock );
+
+			s->value += 1;
+
+			Cond_signal( &s->cond );
+
+			Mutex_unlock( &s->lock );
+		}
+
+
+	. Unlike pure semaphores as defined by Dijkstra, we don't
+	  maintain the invariant that the value of the semaphore when
+	  negative reflects the number of waiting threads
+	. Infact, our value is never less than zero...
+	. JK, does this hold true when we flip order to match descriptions ??
+
+
+Binary semaphores (locks)
+
+	. Using a semaphore as a lock...
+
+		sem_t m;
+
+		sem_init( &m, 0, 1 );
+
+		sem_wait( &m );
+
+		// critical section here
+
+		sem_post( &m );
+
+
+	~~~ Why initialize as 1 ~~~
+
+	. Consider a scenario with two threads
+
+	. thread_1 calls sem_wait
+	. sem_wait decrements sem->value (to 0)
+	. Since there are no waiting threads (sem->value >= 0),
+	  it returns immediately
+	. thread_1 is now free to enter its critical section
+
+	. If no other thread tries to acquire the lock while
+	  thread_1 is in its critical section, when it finally
+	  calls sem_post, it will simply restore sem->value to 1
+
+	. A more interesting case arises when while thread_1
+	  "holds the lock" (has called sem_wait but not yet called
+	  sem_post), and another thread (thread_2) tries to enter
+	  its own critical section by calling sem_wait
+
+		. thread_2's call to sem_wait will decrement sem->value
+		  to -1, and then wait
+
+		. When thread_1 runs again, it will eventually call sem_post
+		. sem_post increments sem->value to 0, and then signals
+		  any threads waiting on the semaphore
+
+		. When thread_2 wakes, it will continue onto its
+		  critical section
+		. Eventually it will call sem_post which will increment
+		  sem->value to 1
+
+
+Semaphores for ordering
+
+	. Semaphores can be used to order events in a concurrent program
+	. I.e. on thread waiting for something to happen, and another
+	  signals it when it does
+
+	. For example, consider the case where a thread creates
+	  another thread and wants to wait for it to complete its
+	  execution:
+
+		sem_t s;
+
+		void *child ( void *arg )
+		{
+			printf( "child\n" );
+
+			sem_post( &s );  // signal here: child is done
+
+			return NULL;
+		}
+
+		int main ( int argc, char *argv[] )
+		{
+			pthread_t c;
+
+			sem_init( &s, 0, 0 );
+
+			printf( "parent: begin\n" );
+
+			Pthread_create( c, NULL, child, NULL );
+
+			sem_wait( &s );  // wait here for child
+
+			printf( "parent: end\n" );
+
+			return 0;
+		}
+
+	. We wish to see the following output:
+
+		parent: begin
+		child
+		parent: end
+
+	. How to use a semaphore to acheive this?
+
+
+	~~~ Why initialize as 0 ~~~
+
+	. If the parent creates the child and the child has not run yet:
+
+		. the parent will proceed to call sem_wait
+		. sem_wait will decrement sem->value to -1, and then wait
+
+		. when the child eventually runs, it will eventually
+		  call sem_post, which will increment sem->value to 0,
+		  and signal threads waiting on sem (the parent)
+
+	. If the child runs to completion before the parent gets
+	  a chance to call sem_wait:
+
+		. the child's call to sem_post will increment sem->value
+		  to 1
+
+		. when the parent eventually runs and calls sem_wait,
+		  sem_wait will decrement sem->value to 0
+		. Since sem->value is not negative, sem_wait will return
+		  immediately
+
+
+Semaphores for the producer/consumer problem
+
+	~~~ First attempt ~~~
+
+	. We use two semaphores, 'empty' and 'full'
+
+		int buffer [ MAX ];
+
+		int fill_ptr = 0;
+		int use_ptr  = 0;
+
+		void put ( int value )
+		{
+			buffer[ fill_ptr ] = value;
+
+			fill_ptr += 1;
+
+			fill_ptr %= MAX;  // ring
+		}
+
+		int get ()
+		{
+			int value = buffer[ use_ptr ];
+
+			use_ptr += 1;
+
+			fill_ptr %= MAX;  // ring
+
+			return value;
+		}
+
+		sem_t empty;
+		sem_t full;
+
+		void init ()
+		{
+			sem_init( &empty, 0, MAX );  // MAX buffers are empty at initialization
+			sem_init( &full, 0, 0 );     // zero buffers are full at initialization
+		}
+
+		void *producer ( void *arg )
+		{
+			int i;
+			for ( i = 0; i < loops; i += 1 )
+			{
+				// Wait for buffer to be empty before writing
+				sem_wait( &empty );
+
+				put( i );
+
+				// Signal threads waiting on buffer to be full
+				sem_post( &full );
+			}
+		}
+
+		void *consumer ( void *arg )
+		{
+			int tmp = 0;
+
+			while ( tmp >= 0 )  // ??
+			{
+				// Wait for buffer to be full before reading
+				sem_wait( &full );
+
+				tmp = get();
+
+				// Signal threads waiting on buffer to be empty
+				sem_post( &empty );
+
+				printf( "%d\n", tmp );
+			}
+		}
+
+
+	. Consider case of two threads, a consumer and producer
+	. Suppose the consumer runs first
+	. Its call to sem_wait will decrement full->value to -1
+	  then wait on the full semaphore
+
+	. Suppose the producer then runs
+	. Its call to sem_wait will decrement empty->value to MAX-1
+	  and return immediately
+	. The producer will then put a value in the buffer and call
+	  sem_post on full
+	. Its call to sem_post will increment full->value to 0 and
+	  signal threads waiting on the full semaphore
+
+	. If the consumer thread runs next, it wakes, and proceeds
+	  to get a value from the buffer
+	. Its call to sem_post will increment empty->value to MAX
+
+	. If the producer thread runs next instead, same as above
+
+
+	~~~ Mutual exclusion ~~~
+
+	. Consider the case when there are more than two producer
+	  threads
+	. Suppose producer_1 gets to run first and starts to fill
+	  the buffer
+	. Before it gets a chance to incrment fill_ptr, producer_2
+	  starts running and it too places data in the buffer
+	. However since fill_ptr had not yet been incremented,
+	  producer_2's data overwrites producer_1's
+
+	. Let's put a lock around the 'put' and 'get' calls
+
+		sem_t empty;
+		sem_t full;
+		sem_t mutex;
+
+		void init ()
+		{
+			sem_init( &empty, 0, MAX );  // MAX buffers are empty at initialization
+			sem_init( &full,  0, 0 );    // zero buffers are full at initialization
+			sem_init( &mutex, 0, 1 );    // initialize as 1 because using it as a lock
+		}
+
+		void *producer ( void *arg )
+		{
+			int i;
+			for ( i = 0; i < loops; i += 1 )
+			{
+				// Wait for buffer to be empty before writing
+				sem_wait( &empty );
+
+				sem_wait( &mutex );
+
+				put( i );
+
+				sem_post( &mutex );
+
+				// Signal threads waiting on buffer to be full
+				sem_post( &full );
+			}
+		}
+
+		void *consumer ( void *arg )
+		{
+			int tmp = 0;
+
+			while ( tmp >= 0 )  // ??
+			{
+				// Wait for buffer to be full before reading
+				sem_wait( &full );
+
+				sem_wait( &mutex );
+
+				tmp = get();
+
+				sem_post( &mutex );
+
+				// Signal threads waiting on buffer to be empty
+				sem_post( &empty );
+
+				printf( "%d\n", tmp );
+			}
+		}
+
+
+Reader-Writer locks
+
+	. More flexible lock for specific scenarios
+	. For example concurrent list operations:
+		. insert - allow only one thread at a time since
+		           data is changed
+		. read   - allow multiple threads since no data is
+		           changed
+
+	. Setup:
+
+		typedef struct _rwlock_t {
+
+			sem_t lock;       // binary semaphore (basic lock)
+			sem_t writelock;  // used to allow ONE writer or MANY readers
+			int   readers;    // count of readers reading in critical section
+
+		} rwlock_t;
+
+		void rwlock_init ( rwlock_t *rw )
+		{
+			rw->readers = 0;
+
+			sem_init( &rw->lock, 0, 1 );
+
+			sem_init( &rw->writelock, 0, 1 );
+		}
+
+
+	. For writes, we use the usual locks that allow only
+	  one thread at a time
+
+		void rwlock_acquire_writelock ( rwlock_t *rw )
+		{
+			sem_wait( &rw->writelock );
+		}
+
+		void rwlock_release_writelock ( rwlock_t *rw )
+		{
+			sem_post( &rw->writelock );
+		}
+
+	. For reads, a bit more fancy
+	. When a reader acquires the readlock, it increments the
+	  'readers' count
+	. If the reader is the first, it acquires the 'writelock'
+	. If a thread wishes to acquire the 'writelock', it will
+	  have to wait until *all* readers are finished as the
+	  last reader to release the readlock is the one to release
+	  the 'writelock'
+
+		void rwlock_acquire_readlock ( rwlock_t *rw )
+		{
+			sem_wait( &rw->lock );
+
+			rw->readers += 1;
+
+			if ( rw->readers == 1 )
+			{
+				sem_wait( &rw->writelock );  // first reader acquires writelock
+			}
+
+			sem_post( &rw->lock );
+		}
+
+		void rwlock_release_readlock ( rwlock_t *rw )
+		{
+			sem_wait( &rw->lock );
+
+			rw->readers -= 1;
+
+			if ( rw->readers == 0 )
+			{
+				sem_post( &rw->writelock );  // last reader releases writelock
+			}
+
+			sem_post( &rw->lock );
+		}
+
+
+	. Downsides:
+		. readrs can starve writers
+		. overhead
+
+
+Dininig philosophers
+
+	. Basic loop of each processor
+
+		while ( 1 )
+		{
+			think();
+
+			getforks();
+
+			eat();
+
+			putforks();
+		}
+
+	. Helper functions to grab respective forks:
+
+		int left  ( int p ) { return p; }
+		int right ( int p ) { return ( p + 1 ) % 5; }
+
+
+	~~~ Broken solution ~~~
+
+	. Deadlock ... revisit
+	. If everyone grabs the fork to their left ...
+
+		sem_t forks [ 5 ];
+
+		void getforks ()
+		{
+			sem_wait( forks[ left( p ) ] );
+			sem_wait( forks[ right( p ) ] );
+		}
+
+		void putforks ()
+		{
+			sem_post( forks[ left( p ) ] );
+			sem_post( forks[ right( p ) ] );
+		}
+
+
+	~~~ ... ~~~
+
+	. Have one philospher acquire the forks in a different order
+	  than the rest
+
+		void getforks ()
+		{
+			if ( p == 4 )
+			{
+				sem_wait( forks[ right( p ) ] );
+				sem_wait( forks[ left( p ) ] );
+			}
+			else
+			{
+				sem_wait( forks[ left( p ) ] );
+				sem_wait( forks[ right( p ) ] );
+			}
+		}
+
+
+Summary
+
+	. One can view semaphores as a generalization of locks and
+	  condition variables
+	. However, is such a generalization neeeded?
+
+
+---------------------------------------------------------------------------------------------
+32) Common concurrency problems
+---------------------------------------------------------------------------------------------
+
+Revisit
+
+
+
+---------------------------------------------------------------------------------------------
+33) Event-based concurrency
+---------------------------------------------------------------------------------------------
+
+Event loop
+
+	. You wait for something (an event) to occur. When it does,
+	  check what type of event it is, and do the small amount of
+	  work it requires
+
+	. A canonical event-based server looks like:
+
+		while ( True )
+		{
+			events = getEvents();
+
+			for ( e in events )
+			{
+				processEvent( e );
+			}
+		}
+
+	. The code that processes each event is known as an event handler
+
+	. When a handler processes an event, it is the *only* activity
+	  taking place in the system
+	. Thus deciding which event to handle next is equivalent to
+	  scheduling... ??
+	. This explicit control over scheduling...
+
+
+Blocking vs non-blocking interfaces
+
+	. Blocking (synchronous) interfaces do all their work before
+	  returning to the caller
+	. Non-blocking (asynchronous) interfaces begin some work but
+	  return immediately, thus letting whatever work that needs
+	  to be done get done in the background
+
+	. The usual culprit in blocking calls is IO of some kind.
+	. For example, if a call must read from disk to complete,
+	  it migh block, waiting for the IO request that has been
+	  sent to disk to return ???
+
+	. Non-blocking interfaces are essential in event-based...
+
+
+select, poll
+
+	. How can event server tell when a message has arrived for it?
+
+	. For example, how can a network application (such as a
+	  web server) check whether any network packets have arrived,
+	  in order to service them...
+
+	. select/poll system call is used to check whether there is
+	  any incoming IO that should be attended to...
+
+	. man entry:
+
+		int select (
+			int             nfds,
+			fd_set         *readfds,
+			fd_set         *writefds,
+			fd_set         *errorfds,
+			struct timeval *timeout
+		);
+
+		select() allows a program to monitor multiple file descriptors,
+		waiting until one or more of the file descriptors become
+		"ready" for some class of IO operation (ex. input possible).
+		A file descriptor is considered ready if it is possible to
+		perform the corresponding IO operation (ex. read) without
+		blocking.
+
+		On exit, the sets are modified in place? to indicate
+		whether the file descriptors actually changed status...
+
+		On success, "select" returns the number of file descriptors
+		contained in the three returned descriptor sets? (that is,
+		the total number of bits that are set in readfds, writefds,
+		and errorfds).
+		On error, -1 is returned.
+
+		Event classes:
+			
+			readfds  - read can proceed without blocking
+			writefds - write can proceed without blocking
+			errorfds - exception pending...
+
+		nfds - highest numbered fd in any of the sets + 1
+
+		timeout - how long "select" should block waiting for a
+		          file descriptor to become ready
+
+		Four macros are provided to manipualte the sets:
+
+			FD_ZERO  (     fd_set ) - clears a set
+			FD_SET   ( fd, fd_set ) - add a file descriptor to the set
+			FD_CLR   ( fd, fd_set ) - remove a file descriptor from the set
+			FD_ISSET ( fd, fd_set ) - checks if the file descriptor is part
+			                          of the set
+
+
+	. man entry (textbook):
+
+		...
+
+		The first nfds descriptors (0 .. nfds-1) are checked
+		in each set.
+
+		On return, "select" replaces the given descriptor sets with
+		subsets consisiting of those descriptors that are ready
+		for the requested operation.
+		"select" then returns the total number of ready descriptors
+		in all sets
+
+
+	. select allows you to check whether descriptors can be
+	  *read* from as well as *written* to.
+
+	. For a server:
+		. monitoring 'readfds' allows it to determine if a new
+		  packet has arrived and is in need of processing
+		. monitoring 'writefds' allows it to know when it is
+		  okay to reply (i.e. the outbound queue is not full)
+
+	. The 'timeout' argument is often set to NULL.
+	. In this case 'select' blocks indefinitely until a descriptor
+	  is ready...
+
+
+	. Network server example...??
+
+		while ( True )
+		{
+			events = getEvents();  // check for incoming packets
+
+			for ( e in events )
+			{
+				processEvent( e );  // read from sockets with messages in them,
+				                    // and/or write replies as needed...
+			}
+		}
+
+
+Using select
+
+	. Let's look at an example where select is used to see which
+	  network descriptors have incoming messages on them:
+
+		#include <stdio.h>
+		#include <stdlib.h>
+		#include <sys/time.h>
+		#include <sys/types.h>
+		#include <unistd.h>
+
+		int main ( void )
+		{
+			int    fd;
+			int    rc;
+			fd_set readFDs;
+
+			// Open and set up a bunch of sockets (not shown)
+			...
+
+			// Main loop
+			while ( 1 )
+			{
+				// Initialize the fd_set to all zero
+				FD_ZERO( &readFDs );
+
+				// Now set the bits for the descriptors this server is interested in
+				// ( for simplicity, all of them from min to max )
+				for ( fd = minFD; fd < maxFD; fd += 1 )
+				{
+					FD_SET( fd, &readFDs );
+				}
+
+				// Use select to find descriptors with data available for reading
+				rc = select( maxFD + 1, &readFDs, NULL, NULL, NULL );
+
+				// Check which actually have data using FD_ISSET()
+				for ( fd = minFD; fd < maxFD; fd += 1 )
+				{
+					if ( FD_ISSET( fd, &readFDs ) )
+					{
+						processFD( fd );
+					}
+				}
+			}
+		}
+
+
+	. After some initialization, the server enters an infinite loop
+	. Inside the loop:
+		. It first uses FD_ZERO to first clear the set of fds
+		. It then uses FD_SET to set all the fds it is intersetsed in.
+		  For example, they can be all the network sockets which
+		  the server is paying attention to
+		. The server calls select to find which of the connections
+		  have data available on them
+		. Finally, it uses FD_ISSET to identify file descriptors
+		  that have data ready and processes it
+
+
+No locks needed
+
+	. With a single CPU and an event-based application, because only
+	  one event is being handled at a time, there is no need to
+	  acquire/release locks
+
+
+A problem, blocking system calls
+
+	. What if an event requires that you issue a system call that
+	  might block?
+
+	. For example, a request comes from a client to read a file
+	  from disk and returns its contents to the clent (much like
+	  a simple HTTP request)
+	. To service this request, some event handler will eventually
+	  have to issue an "open" system call to open the file,
+	  followed by a series of "read" system calls to read the file.
+	. When the file is read in memory, the server will likely start
+	  sending the results to the client
+
+	. Both 'open' and 'read' may issues IO requests to the
+	  storage system and thus may take a long time to service
+
+	. With a thread-based server, this is not an issue.
+	. While the thread issuing the IO request suspends (waiting
+	  for the IO to complete), other threads can run
+
+	. With an event-based server however, there are no other
+	  threads to run - just the main event loop
+	. This implies that the entire server will block until
+	  the system call completes
+
+
+A solution, asynchronous IO
+
+	. Many modern operating systems have introduced asynchronous
+	  IO interfaces... ?? such as ??
+	. These interfaces enable an application to issue an
+	  IO request and return control immediately to the caller,
+	  before the IO has completed
+
+	. Additional interfaces enable an application to determine
+	  wheter various IOs have completed... ?? such as ??
+
+
+	. For example, let us examine the interface provided on a Mac
+	. The APIs revolve around a basic structure - "struct aiocb"
+	  (asynchronous IO control block)
+	. A simplified version of the struct looks like this:
+
+		struct aiocb {
+
+			int            aio_fildes;  // file descriptor
+			off_t          aio_offset;  // file offset
+			volatile void *aio_buf;     // location of buffer
+			size_t         aio_nbytes;  // length of transfer
+		};
+
+		. see man aio
+
+	. To issue an asynchronous read to a file, an application should
+	  first fill in this structure with the relevant information:
+		. file descriptor
+		. offset within the file
+		. length of request
+		. target memory location into which results of read should
+		  be copied to
+
+	. After the structure is filled, the application issues an
+	  asynchronous call to read the file:
+
+		#include <aio.h>
+
+		aio_read( custom_aiocb );
+
+	. If the call is successful, it returns right away and the
+	  application can continue with other work
+
+
+	. How can we tel when the IO is complete, and thus that the
+	  buffer now has the requested data?
+
+
+	~~~ polling ~~~
+
+	. On a Mac (at time of textbook), one can use 'aio_error' to
+	  check whether the request has completed:
+
+		aio_error( custom_aiocb );
+
+	. The call to aio_error returns:
+		. 0           if the request completed successfully
+		. EINPROGRESS if the request is still in progresss
+	. Thus for very outstanding asynchronous IO, the application
+	  periodically *polls* using 'aio_error'
+
+	. This can become painful when a program has many IOs issued
+	  at a given point in time
+
+
+	~~~ interrupts, signals ~~~
+
+	. Some systems use Unix *signals* to inform applications
+	  when an asynchronous IO completes
+
+	. ...
+
+
+	~~~ Unix signals ~~~
+
+	. Signals provide a way to communicate with a process
+
+	. A signal can be delivered to an application. Doing so
+	  causes the application to stop what it is doing and
+	  run a signal handler
+	. When finished, the process just resumes its previous
+	  behaviour
+
+	. Each signal has a name (see man 7) e.g.
+
+		SIGHUP    Hangup detected on controlling terminal
+		          or death of controlling process
+		SIGINT    Interrupt from keyboard
+		SIGQUIT   Quit from keyboard
+		SIGILL    Illegal Instruction
+		SIGABRT   Abort signal from abort(3)
+		SIGFPE    Floating point exception
+		SIGKILL   Kill signal
+		SIGSEGV   Invalid memory reference
+		SIGPIPE   Broken pipe: write to pipe with no readers
+		SIGALRM   Timer signal from alarm(2)
+		SIGTERM   Termination signal
+		SIGCHLD   Child stopped or terminated
+		SIGCONT   Continue if stopped
+		SIGSTOP   Stop process
+		SIGTSTP   Stop typed at terminal
+		SIGTTIN   Terminal input for background process
+		SIGTTOU   Terminal output for background process
+
+	. For example when a program encounters a segment violation,
+	  the OS sends it a SIGSEGV.
+	. If the program is configured to catch the signal, it can
+	  run some code in response.
+	. If the program is not configured, the default behaviours is
+	  enacted. For SIGSEGV, the process is killed.
+
+	. Here is a simple program that goes into an infinite loop, but
+	  first, it has set up a signal handler to catch SIGHUP:
+
+		#include <stdio.h>
+		#include <signal.h>
+
+		void handle ( int arg )
+		{
+			printf( "stop wakin’ me up...\n" );
+		}
+
+		int main ( int argc, char *argv[] )
+		{
+			signal( SIGHUP, handle );
+
+			while ( 1 )
+			{
+				// doin' nothin' except catchin' some sigs
+			}
+
+			return 0;
+		}
+
+		. You can send signals to it with the 'kill' command:
+
+			prompt> ./main &
+			[3] 36705
+			prompt> kill -HUP 36705
+			stop wakin’ me up...
+			prompt> kill -HUP 36705
+			stop wakin’ me up...
+			prompt> kill -HUP 36705
+			stop wakin’ me up...
+
+
+Another problem, state management
+
+	. The need for "manual stack management"...
+
+	. Consider a case where a thread-based server needs to
+	  read from a file descriptor (fd) and once complete,
+	  write the data that it to a network socket descriptor (sd):
+
+		int rc;
+
+		rc = read( fd, buffer, size );
+
+		rc = write( sd, buffer, size );
+
+
+	. As you can see, this kind of task is trivial in a
+	  thread-based server
+	. When read() returns, the code immediately knows which socket
+	  to write because the information is on the stack of the thread
+
+
+	. In an event-based system, to perform the same task we would:
+		. issue an aio_read
+		. poll its progress using aio_error
+	. When aio_error informs us the read is complete, how does the
+	  server know what to do?
+
+	. "Continuation" concept:
+		. Record the information needed to finish processing
+		  the event
+		. Send out the aio
+		. When the aio finishes, retrieve the saved information
+		  and finish processing the event
+
+	. For this example:
+		. sd would be saved in some kind of data structure indexed
+		  by fd (ex. a hash table)
+		. When the disk IO completes, the event handler would use
+		  the fd to lookup the continuation
+		. At this point, the server can do the last bit of work
+		  to write the data to the socket
+
+
+What is still difficult
+
+	. Complexity introduced when move from single to multiple CPUs
+	. With multiple event handlers running in parallel, the usual
+	  synchronization problems (ex. critical sections) arise
+
+	. Implicit blocking due to CPU
+	. For example in the case of a page fault, the server will
+	  block until the page fault completes...
+
+
+
+
+
+
+
+

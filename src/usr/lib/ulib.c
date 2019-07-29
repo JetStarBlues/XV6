@@ -43,6 +43,12 @@ void* memmove ( void* vdst, const void* vsrc, int n )
 
 // _________________________________________________________________
 
+/* Returns zero if the two strings are equal.
+
+   Returns a value less than zero, if first non equal
+   character of p is less than of q. Ditto greater than.
+   Possible use of the non-zero values is sorting.
+*/
 int strcmp ( const char* p, const char* q )
 {
 	while ( *p && *p == *q )
@@ -51,7 +57,7 @@ int strcmp ( const char* p, const char* q )
 		q += 1;
 	}
 
-	return ( uchar ) *p - ( uchar ) *q;
+	return ( uchar ) *p - ( uchar ) *q;  // Why the cast (and not just "*p - *q")?
 }
 
 /* Copies the string pointed to by src, including the
@@ -81,6 +87,7 @@ char* strcpy ( char* dst, const char* src )
 	return odst;
 }
 
+// Length excluding null terminal
 uint strlen ( const char* s )
 {
 	int n;
@@ -93,6 +100,9 @@ uint strlen ( const char* s )
 	return n;
 }
 
+/* Returns a pointer to the first occurrence of
+   character c in string s. If not found, returns NULL
+*/
 char* strchr ( const char* s, char c )
 {
 	for ( ; *s; s += 1 )

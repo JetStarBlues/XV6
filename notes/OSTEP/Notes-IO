@@ -1,0 +1,319 @@
+---------------------------------------------------------------------------------------------
+36) IO Devices
+---------------------------------------------------------------------------------------------
+
+Canonical device
+
+	. A "hardware interface" that allows system software to control its
+	  operation
+
+	. Internals specific to device
+
+	. Diagram:
+
+		---------------------------------- <-
+		registers : status, command, data    | interface
+		---------------------------------- <- 
+		microcontroller                      |
+		memory                               |
+		asic                                 | internals
+		antenna                              |
+		etc.                                 |
+		---------------------------------- <-
+
+
+Canonical protocol
+
+	. In our canonical device, the interface comprises of the registers:
+		. status  - can be read to see current device status
+		. command - can be written to to tell the device to perform a task
+		. data    - can be used to pass data to, or get data from the device
+
+	. By reading and writing these registers, the OS can control the
+	  device's behaviour
+
+	. A typical interaction:
+
+		while ( STATUS == busy )
+		{
+			// wait until device is not busy
+		}
+
+		write data to DATA register
+
+		write command to COMMAND register
+
+		while ( STATUS == busy )
+		{
+			// wait until device is done with requested task
+		}
+
+	. The protocol has four steps:
+		. OS waits until the device is ready to receive a command
+		. OS sends some data to the data register
+		. OS writes a command to the command register.
+			. Doing so implicitly lets the device know that the relevant
+			  data is present and it should begin working on the command
+		. OS waits for device to finish command
+
+	. Our simple protocol uses polling
+
+
+Lowering CPU overhead with interrupts
+
+	. Instead of polling the device repeatedly, the OS can:
+		. issue a request,
+		. put the calling process to sleep, and
+		. context switch to another task
+	. When the device is finished, it will raise a hardware interrupt,
+	  causing the CPU to jump into the OS at a pre-determined
+	  interrupt service routine
+	. The ISR:
+		. finishes the request (ex. by reading data and perharps
+		  an error code from the device), and
+		. wakes the process sleeping on the IO
+
+
+	~~~ ... ~~~
+
+	. Using interrupts is not *always* the best solution
+	. For example, imagine a device that performs its tasks very quickly,
+	  and the first poll usually finds the device to be done
+	. Using interrupts in this case will slow down the system
+	  because 1) switching to another process 2) handling the interrupt
+	  3) then switching back is expensive
+
+	. If a device is fast, polling might be ideal
+	. If a device is slow, interrupts are the way to go
+	. If the speed of the device is unknown, or sometimes fast and
+	  sometimes slow, a hybrid approach might be ideal
+		. poll for a little while
+		. if the device is not yet finished, use interrupts
+
+	. Another reason not to use interrupts arises in networks
+	. When a huge stream of incoming packets each generate an interrupt,
+	  it is possible for the OS to find itself only processing interrupts,
+	  and never allowing a user-level process to run and actually service
+	  the requests
+	. Using polling allows for better control over what happens in
+	  the system (execution flow)
+	. In this scenario, it can be used to allow the user-level
+	  program (web server) to service some of the packets (requests)
+	  before going back to check for more packet arrivals
+
+
+More efficient data movement with DMA
+
+	. When transferring a large chunk of data to a device, the CPU is
+	  over-burdened with a trivial task
+
+	. Instead of the CPU copying data from memory to the device
+	  one word at a time, we can eliminate its role as a middleman
+
+	. DMA is a device? within a CPU which can orchestrate transfers
+	  between devices and main memory without much CPU intervention
+
+	. To transfer data to a device, the OS would program the
+	  DMA controller by telling it:
+		. where the data lives in memory
+		. how much data to copy
+		. which device to send it to
+	. After which, the OS is done with the transfer and can proceed
+	  with other work
+
+	. When the DMA controller finishes the copy, it raises an interrupt
+	  to notify the OS that the copy is complete
+	. The OS can then send the relevant commands to the IO device
+
+	. A timeline:
+
+		CPU       1 1 1 1 2 2 2 2 2 2 2 1 1 1 1 1
+		DMA       . . . . c c c . . . . . . . . .
+		IO device . . . . . . . 1 1 1 1 . . . . .
+
+		. Copying is handled by the DMA instead of the CPU, freeing
+		  the CPU to do other tasks
+
+
+Methods of device interaction
+
+	~~~ method one ~~~
+
+	. Use explicit IO instructions
+	. Ex. 'in' and 'out' x86 instructions
+
+	. To send data to a device, the caller specifies:
+		. a register with the data in it ?
+		. a port which names the device
+
+	. The in and out instructions are privileged instructions
+
+
+	~~~ method two ~~~
+
+	. Use memory-mapped IO
+	. The CPU? makes device registers available as if they were
+	  memory lcoations
+
+	. To access a particular register, the OS issues a load (to read)
+	  or store (to write) the address... ??
+	. The CPU then routes the load/store to the device instead of
+	  main memory
+
+
+	~~~ ... ~~~
+
+	. There is no great advantage of one over the other
+	. Both approaches are used...
+
+
+Device driver
+
+	. How do we fit devices, each of which has very specific interfaces,
+	  into the OS, which we would like to keep as general as possible?
+
+	. For example, we would like to build a file system that works
+	  on top of SCSI disks, IDE disks, USB drives, etc.
+	. I.e. the file system should be oblivious to the details of
+	  how to issue a read or write request to these various devices
+
+	. At the lowest level, a piece of software in the OS must know
+	  in detail how a device works - device driver
+
+	. Consider the Linux file system software stack (levels of
+	  abstraction):
+
+		application
+		|
+		| POSIX API (open, read, write, close)
+		|
+		v
+		file system
+		|
+		| Generic Block Interface (block read, block write)
+		|
+		V
+		generic block layer
+		|
+		| Specific Block Interface (protocol-specifgic read/write)
+		|
+		V
+		device driver (SCSI, ATA, IDE, etc.)
+
+	. The file system simply issues block reads and writes to the
+	  generic block layer
+
+
+	. A downside of abstraction is the inability to use some of the
+	  special features (ex. rich error reporting) a device might have
+	  since the device has to present a generic interface to the rest
+	  of the kernel
+
+
+Case study: A simple IDE disk driver
+
+	. Interface consists of four types of registers:
+
+		. control (0x3F6)
+
+			7 - 0
+			6 - 0
+			5 - 0
+			4 - 0
+			3 - 1
+			2 - reset
+			1 - enable interrupt (active low)
+			0 - 0
+
+		. command block
+
+			. 0x1F0 = data port
+			. 0x1F2 = sector count
+			. 0x1F3 = LBA low byte
+			. 0x1F4 = LBA mid byte
+			. 0x1F5 = LBA hi  byte
+			. 0x1F6 = mixed...
+
+				7    - 1
+				6    - LBA
+				5    - 1
+				4    - drive
+				3..0 - LBA bits 27..24
+
+			. 0x1F7 = command (on wr; status on rd)
+
+		. status (0x1F7)
+
+			7 - BUSY
+			6 - READY
+			5 - FAULT
+			4 - SEEK
+			3 - DRQ (drive request for data)
+			2 - CORR ?
+			1 - IDDEX ?
+			0 - ERROR
+
+		. error (0x1F1)
+
+			7 - bad block
+			6 - uncorrectable data error
+			5 - media changed
+			4 - ID mark not found
+			3 - media change requested
+			2 - command aborted
+			1 - track 0 not found
+			0 - address mark not found
+
+
+	. Basic protocol (assuming the device is already initialized):
+
+		. Wait for device to be ready
+			. Read status register 0x1F7 until drive is READY
+			  and not BUSY
+	
+		. Write parameters to command registers
+			. Write to command registers 0x1F2..0x1F6:
+				. the sector count
+				. logical block addresses (LBA) of the sectors to be accessed
+				. drive number (master = 0x00, slave = 0x10)
+
+		. Start the IO
+			. By issuing READ(WRITE) command to command register (0x1F7)
+
+		. Data transfer (for writes)
+			. Wait until drive status is READY and DRQ
+			. Then write to data port (0x1F0)
+
+		. Handle interrupts
+			. In the simplest case, handle interrupt for each sector that
+			  is transferred
+			. More complex approaches allow batching and thus one final
+			  interrupt when the entire transfer is complete
+
+		. Error handling
+			. After each operation, read the status register.
+			. If the ERROR bit is set, read the error register for details
+
+
+	~~~ XV6 ~~~
+
+	. ide_rw
+		. Queues a request (if there are others pending), or issues it
+		  directly to the disk (via ide_startRequest)
+		. Then waits for the request to complete by putting the
+		  calling process to sleep
+
+	. ide_startRequest
+		. Sends a request (and data in the case of a write) to the disk
+		. Uses ide_waitReady to ensure the drive is ready before
+		  issuing a request to it
+
+	. ide_waitReady
+		. Spins until device is ready
+
+	. ide_intr
+		. Called when an interrupt takes place
+		. It reads data from the device if the request is a read
+		. Then wakes the process waiting for the IO to complete
+		. If there are more requests in the queue, launches the next
+		  via ide_startRequest
