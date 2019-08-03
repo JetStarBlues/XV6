@@ -3,7 +3,7 @@
 #include "user.h"
 #include "fcntl.h"
 
-char buf[ 512 ];
+char buf [ 512 ];
 
 void cat ( int fd )
 {

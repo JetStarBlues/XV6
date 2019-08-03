@@ -1,5 +1,6 @@
 # Paths
 SRCDIR       = src/
+UHEADERDIR   = src/usr/include/
 UPROGDIR     = src/usr/prog/
 UPROGCOREDIR = src/usr/prog/core/
 ULIBDIR      = src/usr/lib/
@@ -17,7 +18,7 @@ FSUSRDIR    = fs/usr/
 FSUSRBINDIR = fs/usr/bin/
 
 # Kernel code
-OBJS =          \
+KERNOBJS =      \
 	buf.o       \
 	console.o   \
 	display.o   \
@@ -93,9 +94,9 @@ UPROGS =            \
 
 
 # JK... stackoverflow.com/a/4481931
-OBJS_BINDIR   = $(addprefix $(KERNBINDIR), $(OBJS))
-UPROGS_BINDIR = $(addprefix $(USERBINDIR), $(UPROGS))
-ULIB_BINDIR   = $(addprefix $(USERBINDIR), $(ULIB))
+KERNOBJS_BINS = $(addprefix $(KERNBINDIR), $(KERNOBJS))
+ULIB_BINS     = $(addprefix $(USERBINDIR), $(ULIB))
+UPROGS_BINS   = $(addprefix $(USERBINDIR), $(UPROGS))
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -201,8 +202,8 @@ initcode: $(SRCDIR)initcode.S
 	$(OBJCOPY) -S -O binary $(KERNBINDIR)initcode.out $(IMGDIR)initcode
 	$(OBJDUMP) -S $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
 
-kernel: $(OBJS) entry.o entryother initcode $(SRCDIR)kernel.ld
-	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(OBJS_BINDIR) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
+kernel: $(KERNOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld
+	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERNOBJS_BINS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
 	$(OBJDUMP) -S $(IMGDIR)kernel > $(DEBUGDIR)kernel.asm
 	$(OBJDUMP) -t $(IMGDIR)kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernel.sym
 
@@ -212,7 +213,7 @@ kernel: $(OBJS) entry.o entryother initcode $(SRCDIR)kernel.ld
 # exploring disk buffering implementations, but it is
 # great for testing the kernel on real hardware without
 # needing a scratch disk.
-MEMFSOBJS = $(filter-out ide.o, $(OBJS)) memide.o
+MEMFSOBJS = $(filter-out ide.o, $(KERNOBJS)) memide.o
 MEMFSOBJS_BINDIR = $(addprefix $(KERNBINDIR), $(MEMFSOBJS))  # JK
 
 kernelmemfs: $(MEMFSOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld fs.img
@@ -220,7 +221,7 @@ kernelmemfs: $(MEMFSOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld fs.img
 	$(OBJDUMP) -S $(IMGDIR)kernelmemfs > $(DEBUGDIR)kernelmemfs.asm
 	$(OBJDUMP) -t $(IMGDIR)kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernelmemfs.sym
 
-tags: $(OBJS) entryother.S _init
+tags: $(KERNOBJS) entryother.S _init
 	etags *.S *.c
 
 vectors.S: $(SRCDIR)vectors.pl
@@ -248,26 +249,26 @@ vectors.o: vectors.S
 
 # JK Used to compile user code
 %.o: $(ULIBDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$@
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$@
 %.o: $(ULIBDIR)%.S
 	$(CC) $(ASFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$@
 
 %: $(UPROGCOREDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$*.o
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINDIR)
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$*.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINS)
 	$(OBJDUMP) -S $(FSBINDIR)$@ > $(DEBUGDIR)$*.asm
 	$(OBJDUMP) -t $(FSBINDIR)$@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$*.sym
 
 %: $(UPROGDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$*.o
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINDIR)
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$*.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINS)
 	$(OBJDUMP) -S $(FSUSRBINDIR)$@ > $(DEBUGDIR)$*.asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$*.sym
 
 forktest: $(UPROGDIR)forktest.c
 	# forktest has less library code linked in
 	# Needs to be small in order to be able to max out the proc table.
-	$(CC) $(CFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)forktest.o
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)ulib.o $(USERBINDIR)usys.o
 	$(OBJDUMP) -S $(FSUSRBINDIR)forktest > $(DEBUGDIR)forktest.asm
 
@@ -287,7 +288,7 @@ mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 # .PRECIOUS: %.o
 
 # fs.img: mkfs README $(ULIB) $(UPROGS)
-# 	$(BINDIR)mkfs $(IMGDIR)fs.img README $(UPROGS_BINDIR)
+# 	$(BINDIR)mkfs $(IMGDIR)fs.img README $(UPROGS_BINS)
 
 # mkfs will clone an exisiting directory (fs). Based on,
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
