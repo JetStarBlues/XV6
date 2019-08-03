@@ -127,3 +127,6 @@ int sys_gettime ( void )
 
 	return 0;
 }
+
+/* Is 'select' based on sleep/wakeup 
+*/

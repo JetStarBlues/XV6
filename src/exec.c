@@ -209,6 +209,7 @@ int exec ( char* path, char* argv [] )
 	                 argvptr
 	                 argc
 	       ustack -> returnAddress
+	           sp -> ...
 	*/
 	for ( argc = 0; argv[ argc ]; argc += 1 )
 	{

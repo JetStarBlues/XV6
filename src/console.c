@@ -5,6 +5,14 @@
 /* Why is panic detected and handled here ??
 */
 
+/* Seems specifying between 0,1,2 for stdin/out/err is
+   irrelevant since by the time consolewrite is called,
+   fd information has been lost
+*/
+
+/* TODO - understand how input buffer works
+*/
+
 #include "types.h"
 #include "defs.h"
 #include "param.h"
@@ -17,8 +25,8 @@
 #include "proc.h"
 #include "x86.h"
 
-#define BACKSPACE 0x100
-#define INPUT_BUF 128
+#define BACKSPACE  0x100
+#define INPUTBUFSZ 128
 
 #define C( x ) ( ( x ) - '@' )  // Control-x
 
@@ -34,10 +42,10 @@ static struct
 
 struct {
 
-	char buf [ INPUT_BUF ];
-	uint r;                  // Read index
-	uint w;                  // Write index
-	uint e;                  // Edit index
+	char buf [ INPUTBUFSZ ];
+	uint rdIdx;  // Read index
+	uint wrIdx;  // Write index
+	uint edIdx;  // Edit index
 
 } input;
 
@@ -328,10 +336,10 @@ void consoleintr ( int ( *getc ) ( void ) )
 			// Kill line
 			case C( 'U' ):
 
-				while ( input.e != input.w &&
-				        input.buf[ ( input.e - 1 ) % INPUT_BUF] != '\n' )
+				while ( input.edIdx != input.wrIdx  &&                          // Haven't reached ??
+				        input.buf[ ( input.edIdx - 1 ) % INPUTBUFSZ] != '\n' )  // Haven't reached end of previous line
 				{
-					input.e -= 1;
+					input.edIdx -= 1;
 
 					consputc( BACKSPACE );
 				}
@@ -342,9 +350,9 @@ void consoleintr ( int ( *getc ) ( void ) )
 			case C( 'H' ):
 			case '\x7f':
 
-				if ( input.e != input.w )
+				if ( input.edIdx != input.wrIdx )  // ??
 				{
-					input.e -= 1;
+					input.edIdx -= 1;
 
 					consputc( BACKSPACE );
 				}
@@ -353,25 +361,26 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 			default:
 
-				if ( ( c != 0 ) && ( input.e - input.r < INPUT_BUF ) )
+				if ( ( c != 0 ) &&
+					 ( input.edIdx - input.rdIdx < INPUTBUFSZ ) )  // ??
 				{
 					c = ( c == '\r' ) ? '\n' : c;
 
-					input.buf[ input.e % INPUT_BUF ] = c;
+					input.buf[ input.edIdx % INPUTBUFSZ ] = c;
 
-					input.e += 1;
+					input.edIdx += 1;
 
 					consputc( c );
 
 					// Gather until either of the following conditions met,
 					// then wakeup whoever is sleeping on input
-					if ( c == '\n'                        ||  // enter key
-					     c == C( 'D' )                    ||  // ctrl-D
-					     input.e == input.r + INPUT_BUF )     // input buffer is full
+					if ( c == '\n'                                ||  // enter key
+					     c == C( 'D' )                            ||  // ctrl-D
+					     input.edIdx == input.rdIdx + INPUTBUFSZ )    // ?? input buffer is full
 					{
-						input.w = input.e;
+						input.wrIdx = input.edIdx;
 
-						wakeup( &input.r );
+						wakeup( &input.rdIdx );
 					}
 				}
 
@@ -414,7 +423,7 @@ int consoleread ( struct inode* ip, char* dst, int n )
 
 	while ( n > 0 )
 	{
-		while ( input.r == input.w )
+		while ( input.rdIdx == input.wrIdx )
 		{
 			if ( myproc()->killed )
 			{
@@ -425,12 +434,12 @@ int consoleread ( struct inode* ip, char* dst, int n )
 				return - 1;
 			}
 
-			sleep( &input.r, &cons.lock );
+			sleep( &input.rdIdx, &cons.lock );
 		}
 
-		c = input.buf[ input.r % INPUT_BUF ];
+		c = input.buf[ input.rdIdx % INPUTBUFSZ ];
 
-		input.r += 1;
+		input.rdIdx += 1;
 
 		if ( c == C( 'D' ) )  // EOF
 		{
@@ -438,7 +447,7 @@ int consoleread ( struct inode* ip, char* dst, int n )
 			{
 				// Save Ctrl+D for next time, to make sure
 				// caller gets a 0-byte result.
-				input.r -= 1;
+				input.rdIdx -= 1;
 			}
 
 			break;

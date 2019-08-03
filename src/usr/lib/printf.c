@@ -113,13 +113,13 @@ void printf ( int fd, const char* fmt, ... )
 			{
 				putc( fd, *argp );
 
-				argp += 1;
+				argp += 1;  // it seems that chars pushed as int to stack...
 			}
 			else if ( c == 's' )
 			{
 				s = ( char* ) *argp;
 
-				argp += 1;
+				argp += 1;  // pointer, sizeof( char* ), seems to be sizeof( int )
 
 				if ( s == 0 )
 				{
