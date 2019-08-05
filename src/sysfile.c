@@ -453,8 +453,8 @@ static struct inode* create ( char* path, short type, short major, short minor )
 
 		// No ip->nlink += 1 for ".": avoid cyclic ref count.
 
-		if ( dirlink( ip,  ".", ip->inum         ) < 0  ||  // current directory
-			 dirlink( ip, "..", parentdir->inum ) < 0 )     // parent directory
+		if ( dirlink( ip,  ".", ip->inum        ) < 0  ||  // current directory
+			 dirlink( ip, "..", parentdir->inum ) < 0 )    // parent directory
 		{
 			panic( "create: dots" );
 		}
