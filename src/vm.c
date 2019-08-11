@@ -455,6 +455,11 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 			return 0;
 		}
 
+		// Zero the memory
+		/* Security and clean garbage...
+		   Also of minor note, C assumes that unitialized statics (BSS section)
+		   have a value of zero...
+		*/
 		memset( mem, 0, PGSIZE );
 
 		if ( mappages( pgdir, ( char* ) a, PGSIZE, V2P( mem ), PTE_W | PTE_U ) < 0 )

@@ -171,6 +171,12 @@ int filestat ( struct file* f, struct stat *st )
 }
 
 // Read n bytes from file f, starting at f->off
+/*
+   On success, the number of bytes read is returned.
+   If the number of bytes read is zero, indicates EOF.
+
+   On error, -1 is returned (and in Linux errno is set appropriately).
+*/
 int fileread ( struct file* f, char* addr, int n )
 {
 	int nRead;

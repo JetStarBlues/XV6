@@ -1079,7 +1079,7 @@ void stati ( struct inode* ip, struct stat* st )
 
 int namecmp ( const char* s, const char* t )
 {
-	return strncmp( s, t, DIRNAMESZ );
+	return strncmp( s, t, FILENAMESZ );
 }
 
 // Look for a directory entry in a directory.
@@ -1180,7 +1180,7 @@ int dirlink ( struct inode* dir, char* name, uint inum )
 
 
 	// Create the new dirent
-	strncpy( direntry.name, name, DIRNAMESZ );
+	strncpy( direntry.name, name, FILENAMESZ );
 
 	direntry.inum = inum;
 
@@ -1261,9 +1261,9 @@ static char* skipelem ( char* path, char* name )
 
 	len = path - s;
 
-	if ( len >= DIRNAMESZ )
+	if ( len >= FILENAMESZ )
 	{
-		memmove( name, s, DIRNAMESZ );
+		memmove( name, s, FILENAMESZ );
 	}
 	else
 	{
@@ -1284,7 +1284,7 @@ static char* skipelem ( char* path, char* name )
 
 // Look up and return the inode for a path name.
 // If parent != 0, return the inode for the parent and copy the final
-// path element into name, which must have room for DIRNAMESZ bytes.
+// path element into name, which must have room for FILENAMESZ bytes.
 // Must be called inside a transaction since it calls iput().
 //
 /* namex might take a long time to complete because it can
@@ -1363,7 +1363,7 @@ static struct inode* namex ( char* path, int nameiparent, char* name )
 */
 struct inode* namei ( char* path )
 {
-	char name [ DIRNAMESZ ];
+	char name [ FILENAMESZ ];
 
 	return namex( path, 0, name );
 }

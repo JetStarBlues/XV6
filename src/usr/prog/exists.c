@@ -10,13 +10,13 @@ void exists ( char* filename, char* dirpath )
 	      i,
 	      equal;
 	char* p;
-	char  dename [ DIRNAMESZ + 1 ];
+	char  dename [ FILENAMESZ + 1 ];
 
 	struct dirent  de;
 	struct stat    st;
 
 
-	if ( ( strlen( filename ) ) > DIRNAMESZ )
+	if ( ( strlen( filename ) ) > FILENAMESZ )
 	{
 		printf( 2, "exists: invalid filename %s\n", filename );
 
@@ -68,8 +68,8 @@ void exists ( char* filename, char* dirpath )
 			   Will be cautious and set them all to zero.
 			   In the process, let's also "null terminate" dirent->name.
 			*/
-			memset( dename, 0, DIRNAMESZ + 1 );
-			memmove( dename, de.name, DIRNAMESZ );
+			memset( dename, 0, FILENAMESZ + 1 );
+			memmove( dename, de.name, FILENAMESZ );
 
 			// Compare the filename against dirent->name
 			/* The two are equal if all characters up to the null terminal

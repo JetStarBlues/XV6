@@ -229,7 +229,7 @@ void addDirectoryEntry ( int dir_inum, char* name, int file_inum )
 
 	de.inum = xshort( file_inum );
 
-	strncpy( de.name, name, DIRNAMESZ );
+	strncpy( de.name, name, FILENAMESZ );
 
 	iappend( dir_inum, &de, sizeof( de ) );
 }

@@ -1,3 +1,38 @@
+/*
+Startup process:
+	. BIOS on motherboard prepares CPU's hardware
+
+	. The BIOS then loads the first 512 byte sector
+	  from the "boot sector" into memory
+
+	. xv6's boot sector is the first 512 byte sector
+	  in "xv6.img". This corresponds to the binary
+	  "bootblock" generated from "bootasm.S" and "bootmain.c".
+	  See Makefile.
+
+	. The code in bootblock sets up the CPU to run xv6 by
+	  among other things:
+	    . switching to 32bit mode
+	    . loading the "kernel" binary into memory.
+	      The "kernel" is the remaining sectors in "xv6.img"
+	      (see Makefile).
+	    . jumping to the "kernel" ELF's entry point, which
+	      corresponds to label "_start" in "entry.S"
+
+	. entry.S among other things:
+		. turns on paging
+		. sets up the (temporary) stack pointer ??
+		. calls "main"
+
+	. "main" initializes a bunch of OS things.
+	  Eventually it calls "userinit" which loads the
+	  "initcode" binary into the first process
+
+	. The code in initcode calls sys_exec( fs/bin/init )
+
+	. The code in fs/bin/init starts the shell
+*/
+
 #include "types.h"
 #include "defs.h"
 #include "param.h"

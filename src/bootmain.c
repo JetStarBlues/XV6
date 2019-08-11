@@ -65,9 +65,9 @@ void bootmain ( void )
 	void ( *entry ) ( void );
 
 
-	elf = ( struct elfhdr* ) 0x10000;  // scratch space
+	elf = ( struct elfhdr* ) 0x10000;  // scratch space ??
 
-	// Read 1st page off disk
+	// Read 1st page off disk (first sector of kernel?)
 	readseg( ( uchar* ) elf, 4096, 0 );
 
 	// Is this an ELF executable?

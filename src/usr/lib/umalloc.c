@@ -251,6 +251,11 @@ static int morecore ( uint nunits )
 /* Scans the free list, starting at freelistPtr, looking
    for a place to insert the free block.
 */
+/* Note that when adding a block to the free list,
+   'free' does not zero its contents.
+   Thus blocks returned by malloc should be treated as
+   containing garbage data.
+*/
 void free ( void* blockFreeSpacePtr )
 {
 	Header* blockPtr;

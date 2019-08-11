@@ -53,12 +53,12 @@ struct dinode
 #define BBLOCK( bnum, sb ) ( bnum / BITS_PER_BLOCK + sb.bmapstart )
 
 // Directory is a file containing a sequence of dirent structures.
-#define DIRNAMESZ 14
+#define FILENAMESZ 14
 
 // Directory entry
 struct dirent
 {
-	ushort inum;                // inode number
-	char   name [ DIRNAMESZ ];  /* If the name is shorter than DIRNAMESZ,
+	ushort inum;                 // inode number
+	char   name [ FILENAMESZ ];  /* If the name is shorter than FILENAMESZ,
 	                               it is terminated by a null byte */
 };

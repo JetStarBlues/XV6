@@ -96,7 +96,7 @@ UPROGS =            \
 # JK... stackoverflow.com/a/4481931
 KERNOBJS_BINS = $(addprefix $(KERNBINDIR), $(KERNOBJS))
 ULIB_BINS     = $(addprefix $(USERBINDIR), $(ULIB))
-UPROGS_BINS   = $(addprefix $(USERBINDIR), $(UPROGS))
+UPROG_BINS    = $(addprefix $(USERBINDIR), $(UPROGS))
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -202,10 +202,25 @@ initcode: $(SRCDIR)initcode.S
 	$(OBJCOPY) -S -O binary $(KERNBINDIR)initcode.out $(IMGDIR)initcode
 	$(OBJDUMP) -S $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
 
+# The kernel ELF is a composite of:
+#    entry.o
+#    $(KERNOBJS_BINS)
+#    initcode
+#    entryother
+# 
+# Because of -b flag, the initcode and entryother binaries are
+# placed (as is) in the .data section of the kernel ELF.
+# Their contents can be found in the kernel ELF under the
+# following labels:
+#    _binary_img_initcode_start   .. _binary_img_initcode_end
+#    _binary_img_entryother_start .. _binary_img_entryother_end
+#
 kernel: $(KERNOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld
 	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERNOBJS_BINS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
 	$(OBJDUMP) -S $(IMGDIR)kernel > $(DEBUGDIR)kernel.asm
+	$(OBJDUMP) -D $(IMGDIR)kernel > $(DEBUGDIR)kernel_all.asm
 	$(OBJDUMP) -t $(IMGDIR)kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernel.sym
+	$(OBJDUMP) -t $(IMGDIR)kernel | sort > $(DEBUGDIR)kernel_sorted.sym
 
 # kernelmemfs is a copy of kernel that maintains the
 # disk image in memory instead of writing to a disk.
@@ -288,7 +303,7 @@ mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 # .PRECIOUS: %.o
 
 # fs.img: mkfs README $(ULIB) $(UPROGS)
-# 	$(BINDIR)mkfs $(IMGDIR)fs.img README $(UPROGS_BINS)
+# 	$(BINDIR)mkfs $(IMGDIR)fs.img README $(UPROG_BINS)
 
 # mkfs will clone an exisiting directory (fs). Based on,
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile

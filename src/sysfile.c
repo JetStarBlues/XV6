@@ -173,7 +173,7 @@ int sys_link ( void )
 {
 	struct inode* dir;
 	struct inode* ip;
-	char          name [ DIRNAMESZ ];
+	char          name [ FILENAMESZ ];
 	char*         newpath;
 	char*         oldpath;
 
@@ -284,7 +284,7 @@ int sys_unlink ( void )
 	struct inode*  ip;
 	struct inode*  parentdir;
 	struct dirent  direntry;
-	char           name [ DIRNAMESZ ];
+	char           name [ FILENAMESZ ];
 	char*          path;
 	uint           off;
 	int            nbytes;
@@ -396,7 +396,7 @@ static struct inode* create ( char* path, short type, short major, short minor )
 	struct inode* ip;
 	struct inode* parentdir;
 	uint          off;
-	char          name [ DIRNAMESZ ];
+	char          name [ FILENAMESZ ];
 
 	// Get parent directory
 	if ( ( parentdir = nameiparent( path, name ) ) == 0 )

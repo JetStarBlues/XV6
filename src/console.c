@@ -421,6 +421,11 @@ int consoleread ( struct inode* ip, char* dst, int n )
 
 	acquire( &cons.lock );
 
+	/* Read input.buf until either:
+	     . n bytes have been read
+	     . encounter 'ctrl-D'
+	     . encounter '\n'
+	*/
 	while ( n > 0 )
 	{
 		while ( input.rdIdx == input.wrIdx )
@@ -445,8 +450,9 @@ int consoleread ( struct inode* ip, char* dst, int n )
 		{
 			if ( n < target )
 			{
-				// Save Ctrl+D for next time, to make sure
-				// caller gets a 0-byte result.
+				/* Save Ctrl+D for next time, to make sure
+				   caller gets a 0-byte result.
+				*/
 				input.rdIdx -= 1;
 			}
 

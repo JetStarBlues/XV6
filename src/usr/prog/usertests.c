@@ -1920,7 +1920,7 @@ void fourteen_test ( void )
 {
 	int fd;
 
-	// DIRNAMESZ is 14.
+	// FILENAMESZ is 14.
 	printf( stdout, "fourteen test\n" );
 
 	if ( mkdir( "12345678901234" ) != 0 )
