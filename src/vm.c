@@ -462,7 +462,15 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 		*/
 		memset( mem, 0, PGSIZE );
 
-		if ( mappages( pgdir, ( char* ) a, PGSIZE, V2P( mem ), PTE_W | PTE_U ) < 0 )
+		if (
+			mappages(
+
+				pgdir,
+				( char* ) a,   // virtual start address
+				PGSIZE,        // size
+				V2P( mem ),    // physical start address
+				PTE_W | PTE_U
+			) < 0 )
 		{
 			cprintf( "allocuvm: out of memory (2)\n" );
 
@@ -602,7 +610,15 @@ pde_t* copyuvm ( pde_t* pgdir, uint sz )
 
 		memmove( mem, ( char* ) P2V( pa ), PGSIZE );
 
-		if ( mappages( d, ( void* ) i, PGSIZE, V2P( mem ), flags ) < 0 )
+		if (
+			mappages(
+
+				d,
+				( void* ) i,  // virtual start address
+				PGSIZE,       // size
+				V2P( mem ),   // physical start address
+				flags
+			) < 0 )
 		{
 			kfree( mem );
 

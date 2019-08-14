@@ -1,3 +1,36 @@
+/*
+	             0xFFFF_FFFF ->  --------------------
+	                             memory mapped
+	                             IO devices 
+	  (DEVSPACE) 0xFE00_0000 ->  --------------------
+	                             ...
+	                             free memory
+	                             ...
+	             0x8040_0000 ->  --------------------  <-
+	                             kernel static data      |
+	                             --------------------    |
+	                             kernel text             |
+	             0x8010_0000 ->  --------------------    | kernel
+	                             ?                       |
+	             0x8000_7E00 ->  --------------------    |
+	                             boot sector             |
+	             0x8000_7C00 ->  --------------------    |
+	                             ?                       |
+	  (KERNBASE) 0x8000_0000 ->  --------------------  <-
+	                             ...                     |
+	                             --------------------    |
+	                             user heap               |
+	                             --------------------    |
+	              (PAGESIZE)     user stack              | user
+	                             --------------------    |
+	              (PAGESIZE)     guard page              |
+	                             --------------------    |
+	                             program static data     |
+	                             --------------------    |
+	                             program text            |
+	             0x0000_0000 ->  --------------------  <-
+*/
+
 #include "types.h"
 #include "param.h"
 #include "memlayout.h"
@@ -37,7 +70,7 @@ int exec ( char* path, char* argv [] )
 	sz      = 0;
 
 
-	// Open ...?
+	// Open ELF file
 	begin_op();
 
 	if ( ( ip = namei( path ) ) == 0 )
@@ -87,7 +120,16 @@ int exec ( char* path, char* argv [] )
 			continue;
 		}
 
-		// We expect ph.filesz <= ph.memsz
+		// We expect ph.memsz >= ph.filesz
+		/*
+		   stackoverflow.com/a/31011428
+		    . The BSS section contains uninitialized data.
+		    . As such it is wasteful to include it in the ELF file (ph.filesz),
+		      and instead it is allocated space when the ELF is loaded into
+		      memory (ph.memsz)
+
+		   The BSS section starts at ph.filesz and ends at ph.memsz
+		*/
 		if ( ph.filesz > ph.memsz )
 		{
 			goto bad;
@@ -130,6 +172,12 @@ int exec ( char* path, char* argv [] )
 		cprintf( "---\n\n" ); */
 
 		// Load file contents into memory
+		/* ELF program sections:
+		      .text
+		      .rodata
+		      .eh_frame
+		      .data
+		*/
 		if ( loaduvm( pgdir, ( char* ) ph.vaddr, ip, ph.off, ph.filesz ) < 0 )
 		{
 			goto bad;
@@ -153,6 +201,8 @@ int exec ( char* path, char* argv [] )
 	   used by exec to copy arguments to the stack will notice that
 	   the destination page is inaccessible and return an error.
 	*/
+	/* Stack grows toward code? but should hit guard page first... ?
+	*/
 	sz = PGROUNDUP( sz );
 
 	if ( ( sz = allocuvm( pgdir, sz, sz + 2 * PGSIZE ) ) == 0 )
@@ -163,6 +213,8 @@ int exec ( char* path, char* argv [] )
 	clearpteu( pgdir, ( char* ) ( sz - 2 * PGSIZE ) );
 
 	sp = sz;  // set stack pointer
+
+	// cprintf( "sp (%s): %d\n", path, sp );
 
 
 	/* Push argument strings received (from argv) onto stack,

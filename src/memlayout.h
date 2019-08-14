@@ -19,30 +19,39 @@
 #define P2V_WO( x ) ( ( x ) + KERNBASE )  // same as P2V, but without casts
 
 /*
+TODO:
+	. does the kernel have a stack, a heap?
+
 	__ Virtual __
 
-	                    0xFFFF_FFFF ->  -------------------
+	                    0xFFFF_FFFF ->  --------------------
 	                                    memory mapped
 	                                    IO devices 
-	         (DEVSPACE) 0xFE00_0000 ->  -------------------
+	         (DEVSPACE) 0xFE00_0000 ->  --------------------
 	                                    ...
-	                                    free memory (used to allocate pages)
+	                                    free memory (used to allocate pages??)
 	                                    ...
-	                    0x8040_0000 ->  -------------------  <-
-	                                    kernel rodata          |
-	                                    -------------------    |
-	                                    kernel text            |
-	(KERNBASE + EXTMEM) 0x8010_0000 ->  -------------------    | kernel
-	                                    bootloader, ?          |
-	         (KERNBASE) 0x8000_0000 ->  -------------------  <-
-	                                    user heap              |
-	                                    -------------------    |
-	                     (PAGESIZE)     user stack             | user
-	                                    -------------------    |
-	                                    user rodata            |
-	                                    -------------------    |
-	                                    user text              |
-	                    0x0000_0000 ->  -------------------  <-
+	                    0x8040_0000 ->  --------------------  <-
+	                                    kernel static data      |
+	                                    --------------------    |
+	                                    kernel text             |
+	(KERNBASE + EXTMEM) 0x8010_0000 ->  --------------------    | kernel
+	                                    ?                       |
+	                    0x8000_7E00 ->  --------------------    |
+	                                    boot sector             |
+	                    0x8000_7C00 ->  --------------------    |
+	                                    ?                       |
+	         (KERNBASE) 0x8000_0000 ->  --------------------  <-
+	                                    user heap               |
+	                                    --------------------    |
+	                     (PAGESIZE)     user stack              | user
+	                                    --------------------    |
+	                     (PAGESIZE)     guard page              |
+	                                    --------------------    |
+	                                    program static data     |
+	                                    --------------------    |
+	                                    program text            |
+	                    0x0000_0000 ->  --------------------  <-
 
 
 	__ Physical __
@@ -55,7 +64,7 @@
 	                             free memory
 	                             ...
 	             0x0040_0000 ->  -------------------
-	                             kernel rodata
+	                             kernel static data
 	                             -------------------
 	                             kernel text
 	    (EXTMEM) 0x0010_0000 ->  -------------------
@@ -63,12 +72,13 @@
 	             0x000A_0000 ->  -------------------
 	                             ?
 	             0x0000_7E00 ->  -------------------
-	                             boot loader (512 bytes)
+	                             boot sector (512 bytes)
 	             0x0000_7C00 ->  -------------------
 	                             ?
 	             0x0000_0000 ->  -------------------
 
 
-	. Boot loader loads xv6 kernel code at 0x0010_0000 to accomodate machines
-	  that might have small physical memory (ex. less than 2GB)
+	. Boot loader (bootmain.S/c) loads xv6 kernel code at 0x0010_0000
+	  to accomodate machines that might have small physical memory
+	  (ex. less than 2GB)
 */

@@ -169,11 +169,62 @@ void trap ( struct trapframe *tf )
 
 			break;
 
+
+		// Page fault
+		/* Lazy page allocation
+		     https://pdos.csail.mit.edu/6.828/2018/lec/l-usingvm.pdf
+		     http://panda.moyix.net/~moyix/cs3224/fall16/hw5/hw5.html
+		     http://pages.cs.wisc.edu/~cs537-3/Projects/p3b.html
+
+		   For heap and stack...
+		*/
 		/*
 		case T_PGFLT:
 
-			// Grow stack by one page
-			...
+			uint vaddr = PGROUNDDOWN( rcr2() );
+			
+			cprintf( "page fault - attempted to access virtual address %x\n", vaddr );
+
+			if ( vaddr < myproc()->sz )
+			{
+				//
+				char* newpage = kalloc();
+
+				if ( newpage == 0 )
+				{
+					cprintf( "lazy page allocation - out of memory\n" );
+
+					exit();  // to where?
+				}
+
+				//
+				memset( newpage, 0, PGSIZE );
+
+				//
+				if (
+					mappages(
+
+						myproc()->pgdir,
+						( char* ) vaddr,  // virtual start address
+						PGSIZE,           // size
+						V2P( newpage ),   // physical start address
+						PTE_W | PTE_U
+					) < 0 )
+				{
+					kfree( newpage );
+
+					cprintf( "lazy page allocation - mappages error\n" );
+
+					exit();  // to where?
+				}
+
+				//
+				cprintf( "page fault - successful lazy page allocation for virtual address %x\n", vaddr );
+
+				return;
+			}
+
+			break;
 		*/
 
 
@@ -184,10 +235,10 @@ void trap ( struct trapframe *tf )
 			if ( myproc() == 0 || ( tf->cs & 3 ) == DPL_KERN )
 			{
 				cprintf( "Unexpected kernel trap\n" );
-				cprintf( "    trapno : %d\n",     tf->trapno );
-				cprintf( "    cpu    : %d\n",     cpuid()    );
-				cprintf( "    eip    : 0x%x\n",   tf->eip    );
-				cprintf( "    cr2    : 0x%x\n\n", rcr2()     );
+				cprintf( "    trapno      : %d\n",     tf->trapno );
+				cprintf( "    cpu         : %d\n",     cpuid()    );
+				cprintf( "    eip         : 0x%x\n",   tf->eip    );
+				cprintf( "    cr2 (vaddr) : 0x%x\n\n", rcr2()     );
 
 				panic( "trap" );
 			}
@@ -196,13 +247,13 @@ void trap ( struct trapframe *tf )
 			else
 			{
 				cprintf( "Kill misbehaved user process:\n" );
-				cprintf( "    pid     : %d\n",     myproc()->pid  );
-				cprintf( "    name    : %s\n",     myproc()->name );
-				cprintf( "    trapno  : %d\n",     tf->trapno     );
-				cprintf( "    errno   : %d\n",     tf->err        );
-				cprintf( "    cpu     : %d\n",     cpuid()        );
-				cprintf( "    eip     : 0x%x\n",   tf->eip        );
-				cprintf( "    cr2     : 0x%x\n\n", rcr2()         );
+				cprintf( "    pid         : %d\n",     myproc()->pid  );
+				cprintf( "    name        : %s\n",     myproc()->name );
+				cprintf( "    trapno      : %d\n",     tf->trapno     );
+				cprintf( "    errno       : %d\n",     tf->err        );
+				cprintf( "    cpu         : %d\n",     cpuid()        );
+				cprintf( "    eip         : 0x%x\n",   tf->eip        );
+				cprintf( "    cr2 (vaddr) : 0x%x\n\n", rcr2()         );
 
 				// Kill the process
 				myproc()->killed = 1;

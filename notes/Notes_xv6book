@@ -774,28 +774,36 @@ Process overview
 	. Xv6 maintains a separate page table for each process that
 	  defines the process's address space
 
-	             0xFFFF_FFFF ->  -------------------
+	             0xFFFF_FFFF ->  --------------------
 	                             memory mapped
 	                             IO devices 
-	  (DEVSPACE) 0xFE00_0000 ->  -------------------
+	  (DEVSPACE) 0xFE00_0000 ->  --------------------
 	                             ...
 	                             free memory
 	                             ...
-	             0x8040_0000 ->  -------------------  <-
-	                             kernel rodata          |
-	                             -------------------    |
-	                             kernel text            |
-	             0x8010_0000 ->  -------------------    | kernel
-	                             bootloader, ?          |
-	  (KERNBASE) 0x8000_0000 ->  -------------------  <-
-	                             program data & heap    |
-	                             -------------------    |
-	              (PAGESIZE)     user stack             | user
-	                             -------------------    |
-	                             user rodata            |
-	                             -------------------    |
-	                             user text              |
-	             0x0000_0000 ->  -------------------  <-
+	             0x8040_0000 ->  --------------------  <-
+	                             kernel static data      |
+	                             --------------------    |
+	                             kernel text             |
+	             0x8010_0000 ->  --------------------    | kernel
+	                             ?                       |
+	             0x8000_7E00 ->  --------------------    |
+	                             boot sector             |
+	             0x8000_7C00 ->  --------------------    |
+	                             ?                       |
+	  (KERNBASE) 0x8000_0000 ->  --------------------  <-
+	                             ...                     |
+	                             --------------------    |
+	                             user heap               |
+	                             --------------------    |
+	              (PAGESIZE)     user stack              | user
+	                             --------------------    |
+	              (PAGESIZE)     guard page              |
+	                             --------------------    |
+	                             program static data     |
+	                             --------------------    |
+	                             program text            |
+	             0x0000_0000 ->  --------------------  <-
 
 	. The address space includes the process's user memory
 	  starting at virtual address zero
@@ -1887,28 +1895,34 @@ Process address space
 
 	. Virtual
 
-	             0xFFFF_FFFF ->  -------------------
-	                             memory mapped
-	                             IO devices 
-	  (DEVSPACE) 0xFE00_0000 ->  -------------------
-	                             ...
-	                             free memory
-	                             ...
-	             0x8040_0000 ->  -------------------  <-
-	                             kernel rodata          |
-	                             -------------------    |
-	                             kernel text            |
-	             0x8010_0000 ->  -------------------    | kernel
-	                             bootloader, ?          |
-	  (KERNBASE) 0x8000_0000 ->  -------------------  <-
-	                             program data & heap    |
-	                             -------------------    |
-	              (PAGESIZE)     user stack             | user
-	                             -------------------    |
-	                             user rodata            |
-	                             -------------------    |
-	                             user text              |
-	             0x0000_0000 ->  -------------------  <-
+	                    0xFFFF_FFFF ->  --------------------
+	                                    memory mapped
+	                                    IO devices 
+	         (DEVSPACE) 0xFE00_0000 ->  --------------------
+	                                    ...
+	                                    free memory
+	                                    ...
+	                    0x8040_0000 ->  --------------------  <-
+	                                    kernel static data      |
+	                                    --------------------    |
+	                                    kernel text             |
+	(KERNBASE + EXTMEM) 0x8010_0000 ->  --------------------    | kernel
+	                                    ?                       |
+	                    0x8000_7E00 ->  --------------------    |
+	                                    boot sector             |
+	                    0x8000_7C00 ->  --------------------    |
+	                                    ?                       |
+	         (KERNBASE) 0x8000_0000 ->  --------------------  <-
+	                                    user heap               |
+	                                    --------------------    |
+	                     (PAGESIZE)     user stack              | user
+	                                    --------------------    |
+	                     (PAGESIZE)     guard page              |
+	                                    --------------------    |
+	                                    program static data     |
+	                                    --------------------    |
+	                                    program text            |
+	                    0x0000_0000 ->  --------------------  <-
 
 	. Physical
 
@@ -1920,13 +1934,15 @@ Process address space
 	                             free memory
 	                             ...
 	             0x0040_0000 ->  -------------------
-	                             kernel rodata
+	                             kernel static data
 	                             -------------------
 	                             kernel text
 	    (EXTMEM) 0x0010_0000 ->  -------------------
 	                             IO devices
-	                       ? ->  -------------------
-	                             boot loader (512 bytes)
+	             0x000A_0000 ->  -------------------
+	                             ?
+	             0x0000_7E00 ->  -------------------
+	                             boot sector (512 bytes)
 	             0x0000_7C00 ->  -------------------
 	                             ?
 	             0x0000_0000 ->  -------------------
@@ -8188,7 +8204,7 @@ Assembly bootstrap
 		0x000A_0000 -> --------------
 		               ?
 		0x0000_7E00 -> --------------
-		               boot loader (512 bytes)
+		               boot sector (512 bytes)
 		0x0000_7C00 -> --------------
 		               stack
 		0x0000_0000 -> --------------

@@ -77,6 +77,8 @@ UPROGS =            \
 	graphics_test   \
 	gets_test       \
 	gets_test2      \
+	hexdump         \
+	stackoverflow   \
 	stressfs        \
 	time            \
 	temptest        \
@@ -187,20 +189,20 @@ bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
 	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(SRCDIR)bootasm.S -o $(KERNBINDIR)bootasm.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o $(KERNBINDIR)bootblock.o $(KERNBINDIR)bootasm.o $(KERNBINDIR)bootmain.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblock.o $(IMGDIR)bootblock
-	$(OBJDUMP) -S $(KERNBINDIR)bootblock.o > $(DEBUGDIR)bootblock.asm
+	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblock.o > $(DEBUGDIR)bootblock.asm
 	$(SRCDIR)sign.pl $(IMGDIR)bootblock
 
 entryother: $(SRCDIR)entryother.S
 	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(SRCDIR)entryother.S -o $(KERNBINDIR)entryother.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o $(KERNBINDIR)bootblockother.o $(KERNBINDIR)entryother.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblockother.o $(IMGDIR)entryother
-	$(OBJDUMP) -S $(KERNBINDIR)bootblockother.o > $(DEBUGDIR)entryother.asm
+	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblockother.o > $(DEBUGDIR)entryother.asm
 
 initcode: $(SRCDIR)initcode.S
 	$(CC) $(CFLAGS) -nostdinc -I. -c $(SRCDIR)initcode.S -o $(KERNBINDIR)initcode.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $(KERNBINDIR)initcode.out $(KERNBINDIR)initcode.o
 	$(OBJCOPY) -S -O binary $(KERNBINDIR)initcode.out $(IMGDIR)initcode
-	$(OBJDUMP) -S $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
+	$(OBJDUMP) -S -M intel $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
 
 # The kernel ELF is a composite of:
 #    entry.o
@@ -217,8 +219,8 @@ initcode: $(SRCDIR)initcode.S
 #
 kernel: $(KERNOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld
 	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERNOBJS_BINS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
-	$(OBJDUMP) -S $(IMGDIR)kernel > $(DEBUGDIR)kernel.asm
-	$(OBJDUMP) -D $(IMGDIR)kernel > $(DEBUGDIR)kernel_all.asm
+	$(OBJDUMP) -S -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel.asm
+	$(OBJDUMP) -D -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel_all.asm
 	$(OBJDUMP) -t $(IMGDIR)kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernel.sym
 	$(OBJDUMP) -t $(IMGDIR)kernel | sort > $(DEBUGDIR)kernel_sorted.sym
 
@@ -233,7 +235,7 @@ MEMFSOBJS_BINDIR = $(addprefix $(KERNBINDIR), $(MEMFSOBJS))  # JK
 
 kernelmemfs: $(MEMFSOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld fs.img
 	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernelmemfs $(KERNBINDIR)entry.o $(MEMFSOBJS_BINDIR) -b binary $(IMGDIR)initcode $(IMGDIR)entryother $(IMGDIR)fs.img
-	$(OBJDUMP) -S $(IMGDIR)kernelmemfs > $(DEBUGDIR)kernelmemfs.asm
+	$(OBJDUMP) -S -M intel $(IMGDIR)kernelmemfs > $(DEBUGDIR)kernelmemfs.asm
 	$(OBJDUMP) -t $(IMGDIR)kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernelmemfs.sym
 
 tags: $(KERNOBJS) entryother.S _init
@@ -271,13 +273,13 @@ vectors.o: vectors.S
 %: $(UPROGCOREDIR)%.c
 	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$*.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINS)
-	$(OBJDUMP) -S $(FSBINDIR)$@ > $(DEBUGDIR)$*.asm
+	$(OBJDUMP) -S -M intel $(FSBINDIR)$@ > $(DEBUGDIR)$*.asm
 	$(OBJDUMP) -t $(FSBINDIR)$@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$*.sym
 
 %: $(UPROGDIR)%.c
 	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$*.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINS)
-	$(OBJDUMP) -S $(FSUSRBINDIR)$@ > $(DEBUGDIR)$*.asm
+	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$@ > $(DEBUGDIR)$*.asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$*.sym
 
 forktest: $(UPROGDIR)forktest.c
@@ -285,7 +287,7 @@ forktest: $(UPROGDIR)forktest.c
 	# Needs to be small in order to be able to max out the proc table.
 	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)ulib.o $(USERBINDIR)usys.o
-	$(OBJDUMP) -S $(FSUSRBINDIR)forktest > $(DEBUGDIR)forktest.asm
+	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)forktest > $(DEBUGDIR)forktest.asm
 
 
 # --- fs --------------------------------------------------------------------

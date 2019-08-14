@@ -54,7 +54,7 @@ int main ( void )
 {
 	kinit1( end, P2V( 4 * 1024 * 1024 ) );  // ?..4MB  ?? phys page allocator
 
-	kvmalloc();      // kernel page table
+	kvmalloc();      // create kernel page table
 	mpinit();        // detect other CPUs
 	lapicinit();     // interrupt controller
 	seginit();       // segment descriptors

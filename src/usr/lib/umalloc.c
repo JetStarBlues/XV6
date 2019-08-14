@@ -5,6 +5,7 @@
 #include "stat.h"
 #include "user.h"
 #include "param.h"
+#include "mmu.h"
 
 /*
 	. The space malloc manages may not be contiguous. Thus its
@@ -94,8 +95,8 @@ static Header base;  // initial block of the free list
 static Header* freelistPtr = NULL;  // pointer to a block in the free list
 
 
-static int  morecore ( uint );
-void        free     ( void* );
+static int morecore ( uint );
+void       free     ( void* );
 
 /* Return ceiling of x/y integer division
    stackoverflow.com/a/503201
@@ -216,9 +217,9 @@ static int morecore ( uint nunits )
 	   for memory is comparatively slower, than dolling
 	   it out from our free list...
 	*/
-	if ( nunits < 4096 )
+	if ( nunits < PGSIZE )
 	{
-		nunits = 4096;
+		nunits = PGSIZE;
 	}
 
 	//

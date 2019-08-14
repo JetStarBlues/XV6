@@ -120,7 +120,7 @@ int match ( char* re, char* text )
 }
 
 // matchhere: search for re at beginning of text
-int matchhere( char* re, char* text )
+int matchhere ( char* re, char* text )
 {
 	if ( re[ 0 ] == '\0' )
 	{
@@ -146,7 +146,7 @@ int matchhere( char* re, char* text )
 }
 
 // matchstar: search for c*re at beginning of text
-int matchstar( int c, char* re, char* text )
+int matchstar ( int c, char* re, char* text )
 {
 	do  // a * matches zero or more instances
 	{
