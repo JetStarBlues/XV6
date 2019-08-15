@@ -158,6 +158,8 @@ void cprintf ( char* fmt, ... )
 
 
 		// Print formatted
+
+		// Skip '%' and get next char
 		i += 1;
 
 		c = fmt[ i ] & 0xff;
@@ -167,6 +169,7 @@ void cprintf ( char* fmt, ... )
 			break;
 		}
 
+		// ...
 		switch ( c )
 		{
 			case 'd':

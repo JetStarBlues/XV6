@@ -3,16 +3,17 @@
 #include "fcntl.h"
 
 
+#define INPUTBUFSZ   512
 #define BYTESPERLINE 16
 
 
 /* getbyte code from:
-     The C programming Language, Kernighan & Ritchie,
+     The C Programming Language, Kernighan & Ritchie,
      2nd ed. Section 8.2
 */
 int getbyte ( int fd )
 {
-	static char  buf [ 512 ];
+	static char  buf [ INPUTBUFSZ ];
 	static char* bufp;
 	static int   n = 0;
 
@@ -23,7 +24,7 @@ int getbyte ( int fd )
 	{
 		n = read( fd, buf, sizeof( buf ) );
 
-		printf( 1, "hexdump: getbyte: read %d bytes\n", n );
+		// printf( 1, "hexdump: getbyte: read %d bytes\n", n );
 
 		bufp = buf;
 	}
@@ -181,7 +182,7 @@ int hexdump ( int fd, int start, int nbytes )
 	}
 
 	// Print last address
-	printf( 1, "%x\n", addr );
+	printf( 1, "%x:\n", addr );
 
 	return 0;
 }

@@ -177,6 +177,7 @@ int stat ( const char* path, struct stat* st )
 // _________________________________________________________________
 
 /* Converts the initial portion of the string to an int
+   Aka "ascii-to-integer"
 */
 int atoi ( const char* s )
 {

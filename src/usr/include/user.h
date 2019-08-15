@@ -42,3 +42,6 @@ uint  strlen  ( const char* );
 void  free    ( void* );
 void* malloc  ( uint );
 
+
+// ctype...
+#define ISDIGIT( c ) ( ( ( c ) >= '0' ) && ( ( c ) <= '9' ) )

@@ -1,5 +1,7 @@
-// Memory allocator by Kernighan and Ritchie,
-// The C programming Language, 2nd ed. Section 8.7.
+/* Code from:
+     The C Programming Language, Kernighan & Ritchie,
+     2nd ed. Section 8.7
+*/
 
 #include "types.h"
 #include "stat.h"
