@@ -401,8 +401,8 @@ void printf ( int fd, const char* fmt, ... )
 	// int  sprecisionIdx;
 	// char sprecision [ MAXNDIGITS + 1 ];
 
-	int  padLeft;
-	int  padRight;
+	int padLeft;
+	int padRight;
 
 
 	// Create pointer to variable args...

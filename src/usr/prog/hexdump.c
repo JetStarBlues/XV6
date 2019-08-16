@@ -2,9 +2,23 @@
 #include "user.h"
 #include "fcntl.h"
 
-
 #define INPUTBUFSZ   512
 #define BYTESPERLINE 16
+
+/*
+Usage:
+	hexdump filemane start nbytes
+
+Usage with pipe input:
+	hexdump start nbytes
+
+Args:
+	start  - offset (in bytes) from start of input.
+	         Currently only supports zero
+
+	nbytes - number of bytes to read.
+	         If zero, dumps until end of input
+*/
 
 
 /* getbyte code from:
@@ -63,15 +77,18 @@ int hexdump ( int fd, int start, int nbytes )
 	int           addr;
 	int           isEOF;
 
-	// TODO - if nbytes 0, read till EOF
+	printf( 1, "hexdump: fd %d, start %d, nbytes %d\n", fd, start, nbytes );
 
-	// TODO - check start and nbytes are valid...
-	if ( start < 0 )
+
+	// Check that start is valid
+	if ( start < 0 )  // upper bound?
 	{
 		printf( 2, "hexdump: invalid start (%d)", start );
 
 		return - 1;
 	}
+
+	// Check that nbytes is valid
 	if ( nbytes < 0 )
 	{
 		printf( 2, "hexdump: invalid nbytes (%d)", nbytes );
@@ -79,7 +96,10 @@ int hexdump ( int fd, int start, int nbytes )
 		return - 1;
 	}
 
-	// TODO - for start > 0, need lseek =/
+
+	/* TODO:
+	   for start > 0, lseek? or do we just read (consume input) without printing?
+	*/
 	if ( start > 0 )
 	{
 		printf( 2, "hexdump: non-zero start currently unsupported\n" );
@@ -88,8 +108,7 @@ int hexdump ( int fd, int start, int nbytes )
 	}
 
 
-	// addr = ( char* ) start;
-
+	// Initialize
 	addr  = start;
 	isEOF = 0;
 	i     = 0;
@@ -101,20 +120,28 @@ int hexdump ( int fd, int start, int nbytes )
 		bpl[ k ] = 0;
 	}
 
-	while ( ( i < nbytes ) && ( ! isEOF ) )
+
+	// Print bytes
+	while ( ! isEOF )
 	{
 		// Get byte
 		b = getbyte( fd );
 
-		if ( b < 0 )
+		/* If reached end of input, or have read nbytes,
+		   we are done collecting bytes
+		*/
+		if ( ( b < 0 ) ||
+		     ( nbytes && ( i == nbytes ) )
+		   )
 		{
 			isEOF = 1;
 		}
+		// Otherwise add byte to buffer
 		else
 		{
-			bpl[ j ] = ( unsigned char ) b;
-
 			// printf( 1, "addr:%d i:%d j:%d b:%x\n", addr, i, j, b );
+
+			bpl[ j ] = ( unsigned char ) b;
 
 			j += 1;
 			i += 1;
@@ -127,7 +154,7 @@ int hexdump ( int fd, int start, int nbytes )
 		if ( ( j == BYTESPERLINE ) || ( i == nbytes ) || isEOF )
 		{
 			// Print address
-			printf( 1, "%08x:.", addr - j );
+			printf( 1, "%08x: ", addr - j );
 
 
 			// Print bytes in hexadecimal
@@ -136,32 +163,36 @@ int hexdump ( int fd, int start, int nbytes )
 				// Add space after 8 bytes for legibility
 				if ( k == 8 )
 				{
-					printf( 1, "$" );
+					printf( 1, " " );
 				}
 
-				printf( 1, ".%02x", bpl[ k ] );
+				// Print byte
+				printf( 1, " %02x", bpl[ k ] );
 			}
 			for ( k = j; k < BYTESPERLINE; k += 1 )
 			{
 				// Add space after 8 bytes for legibility
 				if ( k == 8 )
 				{
-					printf( 1, "$" );
+					printf( 1, " " );
 				}
 
-				printf( 1, ".&" );
+				// Print byte placeholder
+				printf( 1, "   " );
 			}
 
 
 			// Print bytes in ASCII
-			printf( 1, "..|" );
+			printf( 1, "  |" );
 
 			for ( k = 0; k < j; k += 1 )
 			{
-				if ( ( bpl[ k ] >= 32 ) && ( bpl[ k ] <= 126 ) )  // printable range
+				// Print char if in printable range
+				if ( ( bpl[ k ] >= 32 ) && ( bpl[ k ] <= 126 ) )
 				{
 					printf( 1, "%c", bpl[ k ] );
 				}
+				// Otherwise print placeholder
 				else
 				{
 					printf( 1, "." );
@@ -191,22 +222,30 @@ int main ( int argc, char* argv [] )
 {
 	int fd;
 
-	// Use stdin as input (ex. from pipe)
-	if ( argc != 4 )
+	// Use stdin as input
+	if ( argc == 3 )
+	{
+		hexdump( 0, atoi( argv[ 1 ] ), atoi( argv[ 2 ] ) );
+	}
+
+	// Use specified file as input
+	else if ( argc == 4 )
+	{
+		fd = open( argv[ 1 ], O_RDONLY );
+
+		if ( fd < 0 )
+		{
+			printf( 2, "hexdump: cannot open %s\n", argv[ 1 ] );
+		}
+
+		hexdump( fd, atoi( argv[ 2 ] ), atoi( argv[ 3 ] ) );
+	}
+
+	//
+	else
 	{
 		printf( 2, "Usage: hexdump filename start nbytes\n" );
-
-		exit();
 	}
-
-	fd = open( argv[ 1 ], O_RDONLY );
-
-	if ( fd < 0 )
-	{
-		printf( 2, "hexdump: cannot open %s\n", argv[ 1 ] );
-	}
-
-	hexdump( fd, atoi( argv[ 2 ] ), atoi( argv[ 3 ] ) );
 
 	exit();
 }
