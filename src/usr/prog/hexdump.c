@@ -55,7 +55,7 @@ int getbyte ( int fd )
 		return ret;
 	}
 
-	// Call to read returned 0, reached EOF
+	// Call to read returned 0, reached EOI
 	else if ( n == - 1 )
 	{
 		return - 1;  // (int) -1 falls outside char range...
@@ -75,7 +75,7 @@ int hexdump ( int fd, int start, int nbytes )
 	unsigned char bpl [ BYTESPERLINE ];
 	int           i, j, k;
 	int           addr;
-	int           isEOF;
+	int           isEOI;
 
 	printf( 1, "hexdump: fd %d, start %d, nbytes %d\n", fd, start, nbytes );
 
@@ -110,7 +110,7 @@ int hexdump ( int fd, int start, int nbytes )
 
 	// Initialize
 	addr  = start;
-	isEOF = 0;
+	isEOI = 0;
 	i     = 0;
 	j     = 0;
 
@@ -122,19 +122,21 @@ int hexdump ( int fd, int start, int nbytes )
 
 
 	// Print bytes
-	while ( ! isEOF )
+	while ( ! isEOI )
 	{
+		// If have read nbytes, done
+		if ( nbytes && ( i == nbytes ) )
+		{
+			break;
+		}
+
 		// Get byte
 		b = getbyte( fd );
 
-		/* If reached end of input, or have read nbytes,
-		   we are done collecting bytes
-		*/
-		if ( ( b < 0 ) ||
-		     ( nbytes && ( i == nbytes ) )
-		   )
+		// If reached end of input, done collecting bytes
+		if ( b < 0 )
 		{
-			isEOF = 1;
+			isEOI = 1;
 		}
 		// Otherwise add byte to buffer
 		else
@@ -151,7 +153,7 @@ int hexdump ( int fd, int start, int nbytes )
 
 
 		// Print a line
-		if ( ( j == BYTESPERLINE ) || ( i == nbytes ) || isEOF )
+		if ( ( j == BYTESPERLINE ) || ( i == nbytes ) || isEOI )
 		{
 			// Print address
 			printf( 1, "%08x: ", addr - j );
@@ -223,13 +225,17 @@ int main ( int argc, char* argv [] )
 	int fd;
 
 	// Use stdin as input
-	if ( argc == 3 )
+	if ( argc == 1 )       // " | hexdump"
+	{
+		hexdump( 0, 0, 0 );
+	}
+	else if ( argc == 3 )  // " | hexdump start nbytes"
 	{
 		hexdump( 0, atoi( argv[ 1 ] ), atoi( argv[ 2 ] ) );
 	}
 
 	// Use specified file as input
-	else if ( argc == 4 )
+	else if ( ( argc == 2 ) || ( argc == 4 ) )
 	{
 		fd = open( argv[ 1 ], O_RDONLY );
 
@@ -238,7 +244,14 @@ int main ( int argc, char* argv [] )
 			printf( 2, "hexdump: cannot open %s\n", argv[ 1 ] );
 		}
 
-		hexdump( fd, atoi( argv[ 2 ] ), atoi( argv[ 3 ] ) );
+		if ( argc == 2 )   // "hexdump filename"
+		{
+			hexdump( fd, 0, 0 );
+		}
+		else               // "hexdump filename start nbytes"
+		{
+			hexdump( fd, atoi( argv[ 2 ] ), atoi( argv[ 3 ] ) );
+		}
 	}
 
 	//
