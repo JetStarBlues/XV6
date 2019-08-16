@@ -127,7 +127,7 @@ int hexdump ( int fd, int start, int nbytes )
 		if ( ( j == BYTESPERLINE ) || ( i == nbytes ) || isEOF )
 		{
 			// Print address
-			printf( 1, "%x:.", addr - j );
+			printf( 1, "%08x:.", addr - j );
 
 
 			// Print bytes in hexadecimal
@@ -139,7 +139,7 @@ int hexdump ( int fd, int start, int nbytes )
 					printf( 1, "$" );
 				}
 
-				printf( 1, ".%x", bpl[ k ] );
+				printf( 1, ".%02x", bpl[ k ] );
 			}
 			for ( k = j; k < BYTESPERLINE; k += 1 )
 			{
@@ -182,7 +182,7 @@ int hexdump ( int fd, int start, int nbytes )
 	}
 
 	// Print last address
-	printf( 1, "%x:\n", addr );
+	printf( 1, "%08x:\n", addr );
 
 	return 0;
 }

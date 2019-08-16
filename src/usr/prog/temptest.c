@@ -33,5 +33,9 @@ int main ( int argc, char* argv [] )
 	printf( 1, "%05d\n", 123 );
 	printf( 1, "%06d\n", 123 );
 
+	// printf( 1, "...\n" );
+	// printf( 1, "%06d\n", - 123 );
+	// printf( 1, "%6d\n",  - 123 );
+
 	exit();
 }

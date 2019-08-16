@@ -82,6 +82,7 @@ UPROGS =            \
 	stressfs        \
 	time            \
 	temptest        \
+	testprintf      \
 	usertests       \
 	wisc_exec       \
 	wisc_fault      \
