@@ -19,8 +19,8 @@ void            bwrite ( struct buf* );
 // console.c
 void            consoleinit ( void );
 void            consoleintr ( int ( * ) ( void ) );
-void            cprintf     ( char*, ... );
 void            panic       ( char* ) __attribute__( ( noreturn ) );
+void            cprintf     ( char*, ... );
 
 // display.c
 void            displayinit ( void );
@@ -75,6 +75,9 @@ void            kinit2 ( void*, void* );
 
 // kbd.c
 void            kbdintr ( void );
+
+// kprintf.c
+void kprintf ( void ( * ) ( int ), const char*, uint* );
 
 // lapic.c
 extern volatile uint *lapic;

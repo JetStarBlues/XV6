@@ -1,27 +1,93 @@
 #include "types.h"
-#include "user.h"
 
-/* Format specification retrieved from:
-     The C Programming Language, Kernighan & Ritchie,
-     2nd ed. Appendix B 1.2
+/*
+	Mirrors "printf.c"
+		. The code in "printf.c" will always be the
+		  reference (authoritative) code, and the one here a copy.
+		. Duplication only because of kernel vs user space distinction...
+
+	Differences (minor):
+		. no fd parameter
+			. instead pointer to putc function
+
+		. "printf" is called "kprintf" and has the following parameters:
+			. "void ( *putc ) ( int )" - pointer to putc function
+			. "char* fmt"              - pointer to string format
+			. "uint* argp"             - pointer to variable args
+
+			. Thus:
+				. 'putc' is now an argument instead of a static function
+				. 'argp' is now an argument instead of a local variable
+
+	The following functions from "ulib.c" and "user.h" also copied:
+		. ISDIGIT
+		. strlen
+		. strchr
+		. atoi
 */
 
-/* Currently understands:
 
-	. the flags:
+// _____________________________________________________________________________
 
-		'-' - pad with trailing whitespace.
-		      Default is to pad with leading whitespace.
+/* Below is copy and paste of needed functions from
+   "ulib.c" and "user.h"
+*/
 
-		'0' - pad with leading zeros
+// user.h -----------------------------------------------------------
 
-	. the conversion characters:
+#define ISDIGIT( c ) ( ( ( c ) >= '0' ) && ( ( c ) <= '9' ) )
 
-		'd' - print as signed integer with decimal notation
-		'x' - print as unsigned integer with hexadecimal notation
-		'p' - treated the same as 'x'
-		'c' - print as unsigned character with ASCII notation
-		's' - print as ASCII string
+
+// ulib.c -----------------------------------------------------------
+
+static uint strlen ( const char* s )
+{
+	int n;
+
+	for ( n = 0; s[ n ]; n += 1 )
+	{
+		//
+	}
+
+	return n;
+}
+
+static char* strchr ( const char* s, char c )
+{
+	for ( ; *s; s += 1 )
+	{
+		if ( *s == c )
+		{
+			return ( char* ) s;
+		}
+	}
+
+	return 0;
+}
+
+static int atoi ( const char* s )
+{
+	int n;
+
+	n = 0;
+
+	while ( '0' <= *s && *s <= '9' )
+	{
+		n *= 10;
+
+		n += *s - '0';
+
+		s += 1;
+	}
+
+	return n;
+}
+
+
+// _____________________________________________________________________________
+
+/* Below is slightly modified contents of "printf.c".
+   See notes at top of page.
 */
 
 #define MAXNDIGITS 16
@@ -30,18 +96,6 @@ static char* flags       = "-0";
 static char* conversions = "dxpcs";
 
 
-static void putc ( int fd, char c )
-{
-	write( fd, &c, 1 );
-}
-
-/* For itoa explanation, see:
-     The C Programming Language, Kernighan & Ritchie,
-     2nd ed. Section 3.6
-*/
-/* Returns string version of int 'xx' in 'sint',
-   and sign in 'sign'
-*/
 static void itoa ( int xx, int base, int issigned, char* sign, char sint [] )
 {
 	static char digits [] = "0123456789ABCDEF";
@@ -119,24 +173,24 @@ static void itoa ( int xx, int base, int issigned, char* sign, char sint [] )
 	}
 }
 
-static void printPadding ( int fd, int n, int padWithZero )
+static void printPadding ( void ( *putc ) ( int ), int n, int padWithZero )
 {
 	while ( n )
 	{
 		if ( padWithZero )
 		{
-			putc( fd, '0' );
+			putc( '0' );
 		}
 		else
 		{
-			putc( fd, ' ' );
+			putc( ' ' );
 		}
 
 		n -= 1;
 	}
 }
 
-static void print_d ( int fd, uint** argpp, int width, int padLeft, int padRight, int padWithZero )
+static void print_d ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight, int padWithZero )
 {
 	uint* argp;
 	char  sint [ MAXNDIGITS + 1 ];
@@ -192,19 +246,19 @@ static void print_d ( int fd, uint** argpp, int width, int padLeft, int padRight
 	{
 		if ( printSign )
 		{
-			putc( fd, sign );
+			putc( sign );
 		}
 
-		printPadding( fd, npad, 1 );
+		printPadding( putc, npad, 1 );
 	}
 	// If padding with spaces, padding comes first
 	else
 	{
-		printPadding( fd, npad, 0 );
+		printPadding( putc, npad, 0 );
 
 		if ( printSign )
 		{
-			putc( fd, sign );
+			putc( sign );
 		}
 	}
 
@@ -213,7 +267,7 @@ static void print_d ( int fd, uint** argpp, int width, int padLeft, int padRight
 
 	while ( sint[ i ] )
 	{
-		putc( fd, sint[ i ] );
+		putc( sint[ i ] );
 
 		i += 1;
 	}
@@ -221,11 +275,11 @@ static void print_d ( int fd, uint** argpp, int width, int padLeft, int padRight
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( fd, npad, 0 );
+		printPadding( putc, npad, 0 );
 	}
 }
 
-static void print_x ( int fd, uint** argpp, int width, int padLeft, int padRight, int padWithZero )
+static void print_x ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight, int padWithZero )
 {
 	uint* argp;
 	char  sint [ MAXNDIGITS + 1 ];
@@ -265,7 +319,7 @@ static void print_x ( int fd, uint** argpp, int width, int padLeft, int padRight
 	// Print leading spaces or zeros
 	if ( padLeft )
 	{
-		printPadding( fd, npad, padWithZero );
+		printPadding( putc, npad, padWithZero );
 	}
 
 	// Print integer string
@@ -273,7 +327,7 @@ static void print_x ( int fd, uint** argpp, int width, int padLeft, int padRight
 
 	while ( sint[ i ] )
 	{
-		putc( fd, sint[ i ] );
+		putc( sint[ i ] );
 
 		i += 1;
 	}
@@ -281,11 +335,11 @@ static void print_x ( int fd, uint** argpp, int width, int padLeft, int padRight
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( fd, npad, 0 );
+		printPadding( putc, npad, 0 );
 	}
 }
 
-static void print_c ( int fd, uint** argpp, int width, int padLeft, int padRight )
+static void print_c ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight )
 {
 	uint* argp;
 	char  c;
@@ -313,20 +367,20 @@ static void print_c ( int fd, uint** argpp, int width, int padLeft, int padRight
 	// Print leading spaces
 	if ( padLeft )
 	{
-		printPadding( fd, npad, 0 );
+		printPadding( putc, npad, 0 );
 	}
 
 	// Print char
-	putc( fd, c );
+	putc( c );
 
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( fd, npad, 0 );
+		printPadding( putc, npad, 0 );
 	}
 }
 
-static void print_s ( int fd, uint** argpp, int width, int padLeft, int padRight )
+static void print_s ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight )
 {
 	uint* argp;
 	char* s;
@@ -360,13 +414,13 @@ static void print_s ( int fd, uint** argpp, int width, int padLeft, int padRight
 	// Print leading spaces
 	if ( padLeft )
 	{
-		printPadding( fd, npad, 0 );
+		printPadding( putc, npad, 0 );
 	}
 
 	// Print string
 	while ( *s != 0 )
 	{
-		putc( fd, *s );
+		putc( *s );
 
 		s += 1;
 	}
@@ -374,17 +428,19 @@ static void print_s ( int fd, uint** argpp, int width, int padLeft, int padRight
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( fd, npad, 0 );
+		printPadding( putc, npad, 0 );
 	}
 }
 
 
 // _____________________________________________________________________________
 
-// Print to the given fd
-void printf ( int fd, const char* fmt, ... )
+/* Tweaked printf function.
+   See notes at top of page.
+*/
+
+void kprintf ( void ( *putc ) ( int ), const char* fmt, uint* argp )
 {
-	uint* argp;
 	char  c;
 	int   i;
 
@@ -401,10 +457,6 @@ void printf ( int fd, const char* fmt, ... )
 
 	int padLeft;
 	int padRight;
-
-
-	// Create pointer to variable args...
-	argp = ( ( uint* ) ( void* ) &fmt ) + 1;
 
 
 	// Parse format
@@ -424,7 +476,7 @@ void printf ( int fd, const char* fmt, ... )
 		*/
 		if ( c != '%' )
 		{
-			putc( fd, c );
+			putc( c );
 
 			continue;
 		}		
@@ -528,33 +580,33 @@ void printf ( int fd, const char* fmt, ... )
 			// Print conversion
 			if ( c == 'd' )
 			{
-				print_d( fd, &argp, width, padLeft, padRight, flag_padWithZero );
+				print_d( putc, &argp, width, padLeft, padRight, flag_padWithZero );
 			}
 			else if ( c == 'x' || c == 'p' )
 			{
-				print_x( fd, &argp, width, padLeft, padRight, flag_padWithZero );
+				print_x( putc, &argp, width, padLeft, padRight, flag_padWithZero );
 			}
 			else if ( c == 'c' )
 			{
-				print_c( fd, &argp, width, padLeft, padRight );
+				print_c( putc, &argp, width, padLeft, padRight );
 			}
 			else if ( c == 's' )
 			{
-				print_s( fd, &argp, width, padLeft, padRight );
+				print_s( putc, &argp, width, padLeft, padRight );
 			}
 		}
 
 		// An escaped '%'
 		else if ( c == '%' )
 		{
-			putc( fd, c );
+			putc( c );
 		}
 
 		// Unknown % sequence. Print it to draw attention.
 		else
 		{
-			putc( fd, '%' );
-			putc( fd, c );
+			putc( '%' );
+			putc( c );
 		}
 	}
 }

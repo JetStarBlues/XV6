@@ -257,7 +257,12 @@ int main ( int argc, char* argv [] )
 	//
 	else
 	{
-		printf( 2, "Usage: hexdump filename start nbytes\n" );
+		printf( 2,
+
+			"Usage:\n"
+			"   hexdump filename\n"
+			"   hexdump filename start nbytes\n"
+		);
 	}
 
 	exit();

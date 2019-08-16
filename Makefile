@@ -29,6 +29,7 @@ KERNOBJS =      \
 	ioapic.o    \
 	kalloc.o    \
 	kbd.o       \
+	kprintf.o   \
 	lapic.o     \
 	log.o       \
 	main.o      \

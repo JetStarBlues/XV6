@@ -40,7 +40,7 @@ static struct
 
 } cons;
 
-struct {
+static struct {
 
 	char buf [ INPUTBUFSZ ];
 	uint rdIdx;  // Read index
@@ -51,9 +51,9 @@ struct {
 
 static int panicked = 0;
 
-static void consputc     ( int );
-int         consoleread  ( struct inode*, char*, int );
-int         consolewrite ( struct inode*, char*, int );
+void       cprintf      ( char*, ... );
+static int consoleread  ( struct inode*, char*, int );
+static int consolewrite ( struct inode*, char*, int );
 
 
 void consoleinit ( void )
@@ -67,176 +67,6 @@ void consoleinit ( void )
 	cons.locking = 1;  // Why distinguish ??
 
 	ioapicenable( IRQ_KBD, 0 );
-}
-
-
-// _____________________________________________________________________________
-
-static void printint ( int xx, int base, int sign )
-{
-	static char digits [] = "0123456789abcdef";
-	char        buf [ 16 ];
-	int         i;
-	uint        x;
-
-	if ( sign && ( sign = xx < 0 ) )
-	{
-		x = - xx;
-	}
-	else
-	{
-		x = xx;
-	}
-
-	i = 0;
-	do
-	{
-		buf[ i ] = digits[ x % base ];
-
-		i += 1;
-	}
-	while ( ( x /= base ) != 0 );
-
-	if ( sign )
-	{
-		buf[ i ] = '-';
-
-		i += 1;
-	}
-
-	/*while ( --i >= 0 )
-	{
-		consputc( buf[ i ] );
-	}*/
-
-	i -= 1;
-
-	while ( i >= 0 )
-	{
-		consputc( buf[ i ] );
-
-		i -= 1;
-	}
-}
-
-// Print to the console
-// Only understands %d, %x, %p, %c, %s,
-void cprintf ( char* fmt, ... )
-{
-	int   i,
-	      c,
-	      locking;
-	uint* argp;
-	char* s;
-
-	locking = cons.locking;
-
-	if ( locking )
-	{
-		acquire( &cons.lock );
-	}
-
-	if ( fmt == 0 )
-	{
-		panic( "cprintf: null fmt" );
-	}
-
-	// Create pointer to variable args...
-	argp = ( ( uint* ) ( void* ) &fmt ) + 1;
-
-	for ( i = 0; fmt[ i ]; i += 1 )
-	{
-		c = fmt[ i ] & 0xff;
-
-		// Print as is
-		if ( c != '%' )
-		{
-			consputc( c );
-
-			continue;
-		}
-
-
-		// Print formatted
-
-		// Skip '%' and get next char
-		i += 1;
-
-		c = fmt[ i ] & 0xff;
-
-		if ( c == 0 )
-		{
-			break;
-		}
-
-		// ...
-		switch ( c )
-		{
-			case 'd':
-
-				printint( *argp, 10, 1 );
-
-				argp += 1;
-
-				break;
-
-			case 'x':
-			case 'p':
-
-				printint( *argp, 16, 0 );
-
-				argp += 1;
-
-				break;
-
-			case 'c':
-
-				consputc( *argp );
-
-				argp += 1;
-
-				break;
-
-			case 's':
-
-				s = ( char* ) *argp;
-
-				argp += 1;
-
-				if ( s == 0 )
-				{
-					s = "(null)";
-				}
-
-				while ( *s != 0 )
-				{
-					consputc( *s );
-
-					s += 1;
-				}
-
-				break;
-
-			case '%':
-
-				consputc( '%' );
-
-				break;
-
-			default:
-
-				// Unknown % sequence. Print it to draw attention.
-				consputc( '%' );
-				consputc( c );
-
-				break;
-		}
-	}
-
-	if ( locking )
-	{
-		release( &cons.lock );
-	}
 }
 
 
@@ -278,7 +108,7 @@ void panic ( char* s )
 
 // _____________________________________________________________________________
 
-void consputc ( int c )
+static void consputc ( int c )
 {
 	// If panicked, freeze this CPU
 	if ( panicked )
@@ -413,7 +243,7 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 // _____________________________________________________________________________
 
-int consoleread ( struct inode* ip, char* dst, int n )
+static int consoleread ( struct inode* ip, char* dst, int n )
 {
 	uint target;
 	int  c;
@@ -481,7 +311,7 @@ int consoleread ( struct inode* ip, char* dst, int n )
 	return target - n;
 }
 
-int consolewrite ( struct inode* ip, char* buf, int n )
+static int consolewrite ( struct inode* ip, char* buf, int n )
 {
 	int i;
 
@@ -499,4 +329,39 @@ int consolewrite ( struct inode* ip, char* buf, int n )
 	ilock( ip );
 
 	return n;
+}
+
+
+// _____________________________________________________________________________
+
+// Print to the console
+void cprintf ( char* fmt, ... )
+{
+	int   locking;
+	uint* argp;
+
+	locking = cons.locking;
+
+	if ( locking )
+	{
+		acquire( &cons.lock );
+	}
+
+	if ( fmt == 0 )
+	{
+		panic( "cprintf: null fmt" );
+	}
+
+	// Create pointer to variable args...
+	argp = ( ( uint* ) ( void* ) &fmt ) + 1;
+
+
+	// Call kprintf to do the real work
+	kprintf( &consputc, fmt, argp );
+
+
+	if ( locking )
+	{
+		release( &cons.lock );
+	}
 }
