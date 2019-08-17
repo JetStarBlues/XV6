@@ -14,7 +14,6 @@ Usage with pipe input:
 
 Args:
 	start  - offset (in bytes) from start of input.
-	         Currently only supports zero
 
 	nbytes - number of bytes to read.
 	         If zero, dumps until end of input
@@ -25,7 +24,7 @@ Args:
      The C Programming Language, Kernighan & Ritchie,
      2nd ed. Section 8.2
 */
-int getbyte ( int fd )
+static int getbyte ( int fd )
 {
 	static char  buf [ INPUTBUFSZ ];
 	static char* bufp;
@@ -36,7 +35,7 @@ int getbyte ( int fd )
 	// Buffer is empty
 	if ( n == 0 )
 	{
-		n = read( fd, buf, sizeof( buf ) );
+		n = read( fd, buf, INPUTBUFSZ );
 
 		// printf( 1, "hexdump: getbyte: read %d bytes\n", n );
 
@@ -63,10 +62,95 @@ int getbyte ( int fd )
 	// Call to read returned a negative value
 	else
 	{
-		printf( 2, "hexdump: read error\n" );
+		printf( 2, "hexdump: getbyte: read error\n" );
 
 		exit();
 	}
+}
+
+/* TODO:
+     For pipe, no choice but to read and discard (I think).
+     However for file, it is probably worthwhile to use lseek
+*/
+static int skipbytes ( int fd, int nbytes )
+{
+	char buf [ INPUTBUFSZ ];
+
+	int n;
+	int nToRead;
+	int nSkipped;
+
+	// TODO, check if fd is file and use lseek
+	/*if ( fstat( fd, &st ) )
+	{
+		if ( st.type == T_FILE )
+		{
+			lseek
+
+			return;
+		}
+	}*/
+
+	// Read all the bytes at once
+	if ( nbytes <= INPUTBUFSZ )
+	{
+		n = read( fd, buf, nbytes );
+
+		if ( n < 0 )
+		{
+			printf( 2, "hexdump: skipbytes: read error\n" );
+
+			exit();
+		}
+
+		// printf( 1, "hexdump: skipbytes: skipped %d bytes\n", n );
+
+		nSkipped = n;
+	}
+	// Read chunks at a time
+	else
+	{
+		nToRead  = nbytes;
+		nSkipped = 0;
+
+		while ( nToRead > 0 )
+		{
+			if ( nToRead <= INPUTBUFSZ )
+			{
+				n = read( fd, buf, nToRead );
+
+				if ( n < 0 )
+				{
+					printf( 2, "hexdump: skipbytes: read error\n" );
+
+					exit();
+				}
+
+				// printf( 1, "hexdump: skipbytes: skipped %d bytes\n", n );
+
+				nToRead  -= n;
+				nSkipped += n;
+			}
+			else
+			{
+				n = read( fd, buf, INPUTBUFSZ );
+
+				if ( n < 0 )
+				{
+					printf( 2, "hexdump: skipbytes: read error\n" );
+
+					exit();
+				}
+
+				// printf( 1, "hexdump: skipbytes: skipped %d bytes\n", n );
+
+				nToRead  -= n;
+				nSkipped += n;
+			}
+		}
+	}
+
+	return nSkipped;
 }
 
 int hexdump ( int fd, int start, int nbytes )
@@ -97,14 +181,14 @@ int hexdump ( int fd, int start, int nbytes )
 	}
 
 
-	/* TODO:
-	   for start > 0, lseek? or do we just read (consume input) without printing?
-	*/
+	// Skip to start...
 	if ( start > 0 )
 	{
-		printf( 2, "hexdump: non-zero start currently unsupported\n" );
-
-		return - 1;
+		/* Number of bytes skipped might be less
+		   than requested (ex. EOI reached), so we
+		   set start to actual number skipped...
+		*/
+		start = skipbytes( fd, start );
 	}
 
 

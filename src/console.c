@@ -356,7 +356,7 @@ void cprintf ( char* fmt, ... )
 	argp = ( ( uint* ) ( void* ) &fmt ) + 1;
 
 
-	// Call kprintf to do the real work
+	// Call kprintf to do the actual printing
 	kprintf( &consputc, fmt, argp );
 
 
