@@ -20,9 +20,14 @@ Args:
 */
 
 
-/* getbyte code from:
+/* getbyte based on:
      The C Programming Language, Kernighan & Ritchie,
      2nd ed. Section 8.2
+*/
+/* Returns:
+     byte on successful read
+     (-1) on EOF
+     (-2) on error
 */
 static int getbyte ( int fd )
 {
@@ -32,40 +37,39 @@ static int getbyte ( int fd )
 
 	int ret;
 
-	// Buffer is empty
+	// Buffer is empty, fill it
 	if ( n == 0 )
 	{
+		// Read bytes from fd
 		n = read( fd, buf, INPUTBUFSZ );
 
-		// printf( 1, "hexdump: getbyte: read %d bytes\n", n );
+		// Reached EOI, alert caller
+		if ( n == 0 )
+		{
+			return - 1;  // (int) -1 falls outside char range...
+		}
+		// Error
+		else if ( n < 0 )
+		{
+			// printf( 2, "getbyte: read error\n" );
+
+			return - 2;
+		}
+
+		// printf( 1, "getbyte: read %d bytes\n", n );
 
 		bufp = buf;
 	}
 
+
 	// Read from buffer
+	ret = ( int ) ( ( unsigned char ) *bufp );
+
+	bufp += 1;
+
 	n -= 1;
 
-	if ( n >= 0 )
-	{
-		ret = ( int ) ( ( unsigned char ) *bufp );
-
-		bufp += 1;
-
-		return ret;
-	}
-
-	// Call to read returned 0, reached EOI
-	else if ( n == - 1 )
-	{
-		return - 1;  // (int) -1 falls outside char range...
-	}
-	// Call to read returned a negative value
-	else
-	{
-		printf( 2, "hexdump: getbyte: read error\n" );
-
-		exit();
-	}
+	return ret;
 }
 
 /* TODO:
@@ -214,11 +218,20 @@ int hexdump ( int fd, int start, int nbytes )
 			break;
 		}
 
+
 		// Get byte
 		b = getbyte( fd );
 
+		if ( b < - 1 )
+		{
+			printf( 2, "getbyte error\n" );
+
+			exit();
+		}
+
+
 		// If reached end of input, done collecting bytes
-		if ( b < 0 )
+		if ( b == - 1 )
 		{
 			isEOI = 1;
 		}

@@ -179,6 +179,7 @@ void trap ( struct trapframe *tf )
 		   For heap and stack...
 		*/
 		/*
+		// TODO - distinguish between stack overflow and other causes
 		case T_PGFLT:
 
 			uint vaddr = PGROUNDDOWN( rcr2() );

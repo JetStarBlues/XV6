@@ -6,28 +6,66 @@
 
 char* fmtname ( char* path )
 {
-	static char  buf [ FILENAMESZ + 1 ];
-	char*        p;
+	static char buf [ FILENAMESZ + 1 ];
+	char*       p;
+	int         slen;
 
 	// Find first character after last slash.
-	for ( p = path + strlen( path ); p >= path && *p != '/'; p -= 1 )
+	p = path + strlen( path );
+
+	while ( ( p >= path ) && ( *p != '/' ) )
 	{
-		//
+		p -= 1;
 	}
 
 	p += 1;
 
-	// Return blank-padded name.
-	if ( strlen( p ) >= FILENAMESZ )
+
+	/* Possible at this point to just return p, and use
+	   printf's format to add padding.
+	   Assuming the printf implementation supports using
+	   a variable (FILENAMESZ) in the format specifier:
+	   https://www.geeksforgeeks.org/using-variable-format-specifier-c/
+	*/
+
+
+	slen = strlen( p );
+
+	/* Return name */
+	if ( slen == FILENAMESZ )
 	{
-		return p;
+		return p;  // already null-terminated...
 	}
 
-	memmove( buf, p, strlen( p ) );
+	/* Return blank-padded name */
+	else if ( slen < FILENAMESZ )
+	{
+		// Copy name to buffer
+		memmove( buf, p, slen );
 
-	memset( buf + strlen( p ), ' ', FILENAMESZ - strlen( p ) );  // pad with spaces to align
+		// Add trailing spaces to align
+		memset( buf + slen, ' ', FILENAMESZ - slen );
 
-	return buf;
+		// Null terminate
+		/* Since buf is static, its contents are assumed
+		   to have been intialized to zero. Further since
+		   the last char in buf is never updated, it is
+		   assumed that it holds its initial value of zero.
+
+		   TLDR - unnecessary to explicitly set null terminal
+		*/
+		// buf[ FILENAMESZ ] = 0;
+
+		return buf;
+	}
+
+	/* Shouldn't be possible. 'open' would have failed */
+	else
+	{
+		printf( 2, "ls: fmtname: unexpected filename %s\n", p );
+
+		exit();
+	}
 }
 
 void ls ( char* path )

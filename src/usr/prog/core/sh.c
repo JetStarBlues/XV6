@@ -31,6 +31,21 @@
 	bourne shell commands : https://unix.stackexchange.com/a/159514
 */
 
+/*
+	TODO
+		. Do we currently remove wrapper quotes before
+		  passing as argument? For ex:
+
+			echo "hello world"
+
+			Does echo receive:
+				"hello world"\0  or
+				hello world\0
+
+		. Standard behaviour seems to be to remove wrapper quotes...
+		  and treat \" as literal
+*/
+
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
