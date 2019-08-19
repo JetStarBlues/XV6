@@ -91,7 +91,8 @@ int cpuid ()
 // rescheduled between reading lapicid and running through the loop.
 struct cpu* mycpu ( void )
 {
-	int apicid, i;
+	int apicid;
+	int i;
 
 	if ( readeflags() & FL_IF )
 	{
@@ -102,7 +103,7 @@ struct cpu* mycpu ( void )
 
 	// APIC IDs are not guaranteed to be contiguous. Maybe we should have
 	// a reverse map, or reserve a register to store &cpus[i].
-	for ( i = 0; i < ncpu; ++i )
+	for ( i = 0; i < ncpu; i += 1 )
 	{
 		if ( cpus[ i ].apicid == apicid )
 		{
@@ -172,7 +173,9 @@ found:
 
 
 	// Allocate kernel stack
-	if( ( p->kstack = kalloc() ) == 0 )
+	p->kstack = kalloc();
+
+	if ( p->kstack == 0 )
 	{
 		p->state = UNUSED;
 
@@ -188,7 +191,7 @@ found:
 	*/
 
 	// Leave room for trap frame
-	sp -= sizeof *p->tf;
+	sp -= sizeof( struct trapframe );
 
 	p->tf = ( struct trapframe* ) sp;
 
@@ -201,16 +204,16 @@ found:
 	// kernel stack ("struct trapframe", p->tf)
 	sp -= 4;
 
-	*( uint* ) sp = ( uint ) trapret;
+	*( ( uint* ) sp ) = ( uint ) trapret;
 
 
 	// The process will start executing with the register values found
 	// in p->context
-	sp -= sizeof *p->context;
+	sp -= sizeof( struct context );
 
 	p->context = ( struct context* ) sp;
 
-	memset( p->context, 0, sizeof *p->context );  // set all registers in context to 0
+	memset( p->context, 0, sizeof( struct context ) );  // set all registers in context to 0
 
 	p->context->eip = ( uint ) forkret;
 
@@ -252,16 +255,20 @@ found:
 // Return 0 on success, -1 on failure.
 int growproc ( int n )
 {
-	uint sz;
+	struct proc* curproc;
+	uint         sz;
 
-	struct proc* curproc = myproc();
+	//
+	curproc = myproc();
 
 	sz = curproc->sz;
 
 	// Allocate n pages and add mappings
 	if ( n > 0 )
 	{
-		if ( ( sz = allocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
+		sz = allocuvm( curproc->pgdir, sz, sz + n );
+
+		if ( sz == 0 )
 		{
 			return - 1;
 		}
@@ -270,7 +277,9 @@ int growproc ( int n )
 	// Deallocate abs(n) pages and remove mappings
 	else if ( n < 0 )
 	{
-		if ( ( sz = deallocuvm( curproc->pgdir, sz, sz + n ) ) == 0 )
+		sz = deallocuvm( curproc->pgdir, sz, sz + n );
+
+		if ( sz == 0 )
 		{
 			return - 1;
 		}
@@ -372,19 +381,26 @@ void userinit ( void )
 // How does a pid of zero (child) get returned ??
 int fork ( void )
 {
+	struct proc* curproc;
+	struct proc* np;
 	int          i,
 	             pid;
-	struct proc* np;
-	struct proc* curproc = myproc();
 
-	// Allocate process.
-	if ( ( np = allocproc() ) == 0 )
+	//
+	curproc = myproc();
+
+	// Allocate process
+	np = allocproc();
+
+	if ( np == 0 )
 	{
 		return - 1;
 	}
 
-	// Copy process state from proc.
-	if ( ( np->pgdir = copyuvm( curproc->pgdir, curproc->sz ) ) == 0 )
+	// Copy process state from proc
+	np->pgdir = copyuvm( curproc->pgdir, curproc->sz );
+
+	if ( np->pgdir == 0 )
 	{
 		kfree( np->kstack );
 
@@ -402,7 +418,7 @@ int fork ( void )
 	   same point (tf->eip) as the parent.
 	   This corresponds to the point after the parent's call to fork.
 	*/
-	*np->tf    = *curproc->tf;
+	*np->tf = *curproc->tf;
 
 	// Clear %eax so that fork returns 0 in the child.
 	np->tf->eax = 0;
@@ -447,11 +463,15 @@ int fork ( void )
 */
 int wait ( void )
 {
+	struct proc* curproc;
 	struct proc* p;
 	int          havekids,
 	             pid;
-	struct proc* curproc = myproc();
 
+	//
+	curproc = myproc();
+
+	//
 	acquire( &ptable.lock );
 
 	for ( ;; )
@@ -513,10 +533,14 @@ int wait ( void )
 // until its parent calls wait() to find out it exited.
 void exit ( void )
 {
-	struct proc* curproc = myproc();
+	struct proc* curproc;
 	struct proc* p;
 	int          fd;
 
+	//
+	curproc = myproc();
+
+	//
 	if ( curproc == initproc )
 	{
 		panic( "exit: init exiting" );
@@ -649,10 +673,14 @@ int kill ( int pid )
 void scheduler ( void )
 {
 	struct proc* p;
-	struct cpu*  c = mycpu();
+	struct cpu*  c;
+
+	//
+	c = mycpu();
 
 	c->proc = 0;
 
+	//
 	for ( ;; )
 	{
 		// Enable interrupts on this processor.
@@ -675,7 +703,10 @@ void scheduler ( void )
 			*/
 			c->proc = p;
 
-			// switch to the process's page table...
+			// cprintf( "scheduler: switching to process %s\n", p->name );
+
+
+			// Switch to the process's page table...
 			switchuvm( p );
 
 			p->state = RUNNING;
@@ -703,7 +734,7 @@ void scheduler ( void )
 			     swtch( &p->context, mycpu()->scheduler )
 			*/
 
-			// switch to the kernel-only page table...
+			// Switch to the kernel-only page table...
 			switchkvm();
 
 			// Process is done running for now.
@@ -729,8 +760,10 @@ void scheduler ( void )
 */
 void sched ( void )
 {
+	struct proc* p;
 	int          intena;
-	struct proc* p = myproc();
+
+	p = myproc();
 
 	if ( ! holding( &ptable.lock ) )
 	{
@@ -886,7 +919,9 @@ void yield ( void )
 */
 void sleep ( void* chan, struct spinlock* lk )
 {
-	struct proc* p = myproc();
+	struct proc* p;
+
+	p = myproc();
 
 	if ( p == 0 )
 	{

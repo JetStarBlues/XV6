@@ -645,8 +645,8 @@ void iunlockput ( struct inode* ip )
 */
 void ilock ( struct inode* ip )
 {
-	struct buf    *buffer;
-	struct dinode *diskinode;
+	struct buf*    buffer;
+	struct dinode* diskinode;
 
 	if ( ip == 0 || ip->ref < 1 )
 	{
@@ -1145,7 +1145,9 @@ int dirlink ( struct inode* dir, char* name, uint inum )
 	struct inode* ip;
 
 	// Check that name is not already present
-	if ( ( ip = dirlookup( dir, name, 0 ) ) != 0 )
+	ip = dirlookup( dir, name, 0 );
+
+	if ( ip != 0 )
 	{
 		iput( ip );
 
@@ -1311,8 +1313,15 @@ static struct inode* namex ( char* path, int nameiparent, char* name )
 	}
 
 	// For each element in the path
-	while ( ( path = skipelem( path, name ) ) != 0 )
+	while ( 1 )
 	{
+		path = skipelem( path, name );
+
+		if ( path == 0 )
+		{
+			break;
+		}
+
 		ilock( ip );
 
 		// If current inode (parent) is not a directory, fail

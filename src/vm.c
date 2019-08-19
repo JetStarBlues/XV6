@@ -55,7 +55,14 @@ static pte_t* walkpgdir ( pde_t* pgdir, const void* va, int alloc )
 	else
 	{
 		// If the alloc argument is set, allocate a page table
-		if ( ! alloc || ( pgtab = ( pte_t* ) kalloc() ) == 0 )
+		if ( ! alloc )
+		{
+			return 0;
+		}
+
+		pgtab = ( pte_t* ) kalloc();
+
+		if ( pgtab == 0 )
 		{
 			return 0;
 		}
@@ -91,7 +98,9 @@ static int mappages ( pde_t* pgdir, void* va, uint size, uint pa, int permission
 	for ( ;; )
 	{
 		// Retrieve the virtual address's page table entry
-		if ( ( pte = walkpgdir( pgdir, a, 1 ) ) == 0 )
+		pte = walkpgdir( pgdir, a, 1 );
+
+		if ( pte == 0 )
 		{
 			return - 1;
 		}
@@ -206,7 +215,9 @@ pde_t* setupkvm ( void )
 	pde_t*       pgdir;
 
 	// Allocate a page of memory to hold the page directory
-	if ( ( pgdir = ( pde_t* ) kalloc() ) == 0 )
+	pgdir = ( pde_t* ) kalloc();
+
+	if ( pgdir == 0 )
 	{
 		return 0;
 	}
@@ -393,7 +404,9 @@ int loaduvm ( pde_t* pgdir, char* addr, struct inode* ip, uint offset, uint sz )
 	for ( i = 0; i < sz; i += PGSIZE )
 	{
 		// Get PTE of ?
-		if ( ( pte = walkpgdir( pgdir, addr + i, 0 ) ) == 0 )
+		pte = walkpgdir( pgdir, addr + i, 0 );
+
+		if ( pte == 0 )
 		{
 			panic( "loaduvm: address should exist" );
 		}
@@ -430,11 +443,13 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 	char* mem;
 	uint  a;
 
+	// Upper limit
 	if ( newsz >= KERNBASE )
 	{
 		return 0;
 	}
 
+	// To shrink, should call deallocuvm
 	if ( newsz < oldsz )
 	{
 		return oldsz;
@@ -462,6 +477,7 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 		*/
 		memset( mem, 0, PGSIZE );
 
+		// ...
 		if (
 			mappages(
 
@@ -495,6 +511,7 @@ int deallocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 	uint   a,
 	       pa;
 
+	// To grow, should call allocuvm
 	if ( newsz >= oldsz )
 	{
 		return oldsz;
@@ -543,7 +560,7 @@ void freevm ( pde_t* pgdir )
 
 	deallocuvm( pgdir, KERNBASE, 0 );
 
-	for( i = 0; i < NPDENTRIES; i += 1 )
+	for ( i = 0; i < NPDENTRIES; i += 1 )
 	{
 		if ( pgdir[ i ] & PTE_P )
 		{
@@ -583,14 +600,18 @@ pde_t* copyuvm ( pde_t* pgdir, uint sz )
 	       flags;
 	char*  mem;
 
-	if ( ( d = setupkvm() ) == 0 )
+	d = setupkvm();
+
+	if ( d == 0 )
 	{
 		return 0;
 	}
 
 	for ( i = 0; i < sz; i += PGSIZE )
 	{
-		if ( ( pte = walkpgdir( pgdir, ( void* ) i, 0 ) ) == 0 )
+		pte = walkpgdir( pgdir, ( void* ) i, 0 );
+
+		if ( pte == 0 )
 		{
 			panic( "copyuvm: pte should exist" );
 		}
@@ -600,10 +621,12 @@ pde_t* copyuvm ( pde_t* pgdir, uint sz )
 			panic( "copyuvm: page not present" );
 		}
 
-		pa    = PTE_ADDR( *pte );
+		pa    = PTE_ADDR(  *pte );
 		flags = PTE_FLAGS( *pte );
 
-		if ( ( mem = kalloc() ) == 0 )
+		mem = kalloc();
+
+		if ( mem == 0 )
 		{
 			goto bad;
 		}

@@ -19,7 +19,10 @@
 // Fetch the int at addr from the current process.
 int fetchint ( uint addr, int* ip )
 {
-	struct proc* curproc = myproc();
+	struct proc* curproc;
+
+	//
+	curproc = myproc();
 
 	// Check that the address lies within the user address space
 	// Why not just check (addr + 4) ??
@@ -40,9 +43,12 @@ int fetchint ( uint addr, int* ip )
 // Returns length of string, not including nul.
 int fetchstr ( uint addr, char** pp )
 {
+	struct proc* curproc;
 	char*        s;
 	char*        ep;
-	struct proc* curproc = myproc();
+
+	//
+	curproc = myproc();
 
 	// Check that points to address within user address space
 	if ( addr >= curproc->sz )
@@ -82,8 +88,11 @@ int argint ( int n, int* ip )
 // lies within the process address space.
 int argptr ( int n, char** pp, int size )
 {
+	struct proc* curproc;
 	int          i;
-	struct proc* curproc = myproc();
+
+	//
+	curproc = myproc();
  
 	if ( argint( n, &i ) < 0 )
 	{
@@ -173,8 +182,11 @@ static int ( *syscalls[] )( void ) = {
 
 void syscall ( void )
 {
+	struct proc* curproc;
 	int          num;
-	struct proc* curproc = myproc();
+
+	//
+	curproc = myproc();
 
 	num = curproc->tf->eax;
 

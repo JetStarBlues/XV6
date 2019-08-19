@@ -86,8 +86,15 @@ int main ( void )
 		   exec never returns if successful. If it fails, the child
 		   calls 'exit', so it still won't reach here.
 		*/
-		while ( ( wpid = wait() ) >= 0 && wpid != pid )
+		while ( 1 )
 		{
+			wpid = wait();
+
+			if ( ( wpid < 0 ) || ( wpid == pid ) )
+			{
+				break;  // ? To where?
+			}
+
 			printf( 1, "init: zombie!\n" );
 
 			/* Why does init handle processes abandoned indirectly by child?

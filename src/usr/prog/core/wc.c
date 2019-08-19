@@ -15,8 +15,15 @@ void wc ( int fd, char* name )
 	l = w = c = 0;
 	inword = 0;
 
-	while ( ( n = read( fd, buf, sizeof( buf ) ) ) > 0 )
+	while ( 1 )
 	{
+		n = read( fd, buf, sizeof( buf ) );
+
+		if ( n <= 0 )
+		{
+			break;
+		}
+
 		for ( i = 0; i < n; i += 1 )
 		{
 			// Count bytes
@@ -29,7 +36,7 @@ void wc ( int fd, char* name )
 			}
 
 			// Count words
-			if ( strchr( " \r\t\n\v", buf[i] ) )
+			if ( strchr( " \r\t\n\v", buf[ i ] ) )
 			{
 				inword = 0;
 			}

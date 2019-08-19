@@ -76,7 +76,9 @@ void ls ( char* path )
 	struct dirent  de;
 	struct stat    st;
 
-	if ( ( fd = open( path, O_RDONLY ) ) < 0 )
+	fd = open( path, O_RDONLY );
+
+	if ( fd < 0 )
 	{
 		printf( 2, "ls: cannot open %s\n", path );
 

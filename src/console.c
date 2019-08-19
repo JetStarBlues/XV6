@@ -147,8 +147,15 @@ void consoleintr ( int ( *getc ) ( void ) )
 
 	acquire( &cons.lock );
 
-	while ( ( c = getc() ) >= 0 )
+	while ( 1 )
 	{
+		c = getc();
+
+		if ( c < 0 )
+		{
+			break;
+		}
+
 		switch ( c )
 		{
 			// DELETE ME! Temporary for testing

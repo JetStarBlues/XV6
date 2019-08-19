@@ -220,7 +220,7 @@ static void grep ( char* regexp, int fd, char* filename )
 	nmatch = 0;
 
 	// For each line
-	while ( fgets ( buf, MAXLINESZ + 1, fd ) != NULL )
+	while ( fgets( buf, MAXLINESZ + 1, fd ) != NULL )
 	{
 		slen = strlen( buf );
 

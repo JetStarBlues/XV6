@@ -44,16 +44,28 @@ int pipealloc ( struct file** f0, struct file** f1 )
 	*f1 = 0;
 
 	// Allocate file structures f0, f1
-	if ( ( *f0 = filealloc() ) == 0 || ( *f1 = filealloc() ) == 0 )
+	*f0 = filealloc();
+
+	if ( *f0 == 0 )
 	{
 		goto bad;
 	}
+
+	*f1 = filealloc();
+
+	if ( *f1 == 0 )
+	{
+		goto bad;
+	}
+
 
 	// Allocate space to hold the pipe
 	/* Note: allocates one page regardless of
 	   sizeof( struct pipe ) including PIPESIZE
 	*/
-	if ( ( p = ( struct pipe* ) kalloc() ) == 0 )
+	p = ( struct pipe* ) kalloc();
+
+	if ( p == 0 )
 	{
 		goto bad;
 	}

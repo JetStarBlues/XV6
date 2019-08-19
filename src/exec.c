@@ -73,7 +73,9 @@ int exec ( char* path, char* argv [] )
 	// Open ELF file
 	begin_op();
 
-	if ( ( ip = namei( path ) ) == 0 )
+	ip = namei( path );
+
+	if ( ip == 0 )
 	{
 		end_op();
 
@@ -97,7 +99,9 @@ int exec ( char* path, char* argv [] )
 
 
 	// Allocate a ??
-	if ( ( pgdir = setupkvm() ) == 0 )
+	pgdir = setupkvm();
+
+	if ( pgdir == 0 )
 	{
 		goto bad;
 	}
@@ -106,7 +110,9 @@ int exec ( char* path, char* argv [] )
 	// Load program into memory
 
 	// For each program section header
-	for ( i = 0, off = elf.phoff; i < elf.phnum; i += 1, off += sizeof( ph ) )
+	off = elf.phoff;
+
+	for ( i = 0; i < elf.phnum; i += 1 )
 	{
 		// Read the ph
 		if ( readi( ip, ( char* ) &ph, off, sizeof( ph ) ) != sizeof( ph ) )
@@ -151,7 +157,9 @@ int exec ( char* path, char* argv [] )
 		}
 
 		// Allocate space in memory
-		if ( ( sz = allocuvm( pgdir, sz, ph.vaddr + ph.memsz ) ) == 0 )
+		sz = allocuvm( pgdir, sz, ph.vaddr + ph.memsz );
+
+		if ( sz == 0 )
 		{
 			goto bad;
 		}
@@ -182,6 +190,9 @@ int exec ( char* path, char* argv [] )
 		{
 			goto bad;
 		}
+
+		//
+		off += sizeof( ph );
 	}
 
 	iunlockput( ip );
@@ -205,7 +216,9 @@ int exec ( char* path, char* argv [] )
 	*/
 	sz = PGROUNDUP( sz );
 
-	if ( ( sz = allocuvm( pgdir, sz, sz + 2 * PGSIZE ) ) == 0 )
+	sz = allocuvm( pgdir, sz, sz + 2 * PGSIZE );
+
+	if ( sz == 0 )
 	{
 		goto bad;
 	}

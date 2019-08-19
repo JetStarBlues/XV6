@@ -130,6 +130,7 @@ void exitiput_test ( void )
 void openiput_test ( void )
 {
 	int pid;
+	int fd;
 
 	printf( stdout, "open iput test\n" );
 
@@ -151,8 +152,7 @@ void openiput_test ( void )
 
 	if ( pid == 0 )
 	{
-
-		int fd = open( "oidir", O_RDWR );
+		fd = open( "oidir", O_RDWR );
 
 		if ( fd >= 0 )
 		{
@@ -705,12 +705,21 @@ void mem_test ( void )
 
 	ppid = getpid();
 
-	if ( ( pid = fork() ) == 0 )
+	pid = fork();
+
+	if ( pid == 0 )
 	{
 		m1 = 0;
 
-		while ( ( m2 = malloc( 10001 ) ) != 0 )
+		while ( 1 )
 		{
+			m2 = malloc( 10001 );
+
+			if ( m2 == 0 )
+			{
+				break;
+			}
+
 			// *( char** ) m2 = m1;
 
 			tmp = ( char** ) m2;
@@ -819,8 +828,15 @@ void sharedfd_test ( void )
 
 	nc = np = 0;
 
-	while ( ( n = read( fd, buf, sizeof( buf ) ) ) > 0 )
+	while ( 1 )
 	{
+		n = read( fd, buf, sizeof( buf ) );
+
+		if ( n <= 0 )
+		{
+			break;
+		}
+
 		for ( i = 0; i < sizeof( buf ); i += 1 )
 		{
 			if ( buf[ i ] == 'c' )
@@ -896,7 +912,9 @@ void fourfiles_test ( void )
 
 			for ( i = 0; i < 12; i += 1 )
 			{
-				if ( ( n = write( fd, buf, 500 ) ) != 500 )
+				n = write( fd, buf, 500 );
+
+				if ( n != 500 )
 				{
 					printf( stdout, "fourfiles test: write failed %d\n", n );
 
@@ -921,8 +939,15 @@ void fourfiles_test ( void )
 
 		total = 0;
 
-		while ( ( n = read( fd, buf, sizeof( buf ) ) ) > 0 )
+		while ( 1 )
 		{
+			n = read( fd, buf, sizeof( buf ) );
+
+			if ( n <= 0 )
+			{
+				break;
+			}
+
 			for ( j = 0; j < n; j += 1 )
 			{
 				if ( buf[ j ] != '0' + i )
@@ -938,7 +963,7 @@ void fourfiles_test ( void )
 
 		close( fd );
 
-		if ( total != 12 * 500 )
+		if ( total != ( 12 * 500 ) )
 		{
 			printf( stdout, "fourfiles test: wrong length %d\n", total );
 
@@ -954,16 +979,14 @@ void fourfiles_test ( void )
 // four processes create and delete different files in same directory
 void createdelete_test ( void )
 {
-	enum {
-
-		N = 20
-	};
-
-	int  pid,
+	int  N,
+	     pid,
 	     i,
 	     fd,
 	     pi;
 	char name [ 32 ];
+
+	N = 20;
 
 	printf( stdout, "create delete test\n" );
 
@@ -1553,7 +1576,7 @@ void subdir_test ( void )
 
 	cc = read( fd, buf, sizeof( buf ) );
 
-	if ( cc != 2 || buf[ 0 ] != 'f' )
+	if ( ( cc != 2 ) || ( buf[ 0 ] != 'f' ) )
 	{
 		printf( stdout, "subdir test: dd/dd/../ff wrong content\n" );
 
@@ -1789,7 +1812,7 @@ void bigwrite_test ( void )
 
 	unlink( "bigwrite" );
 
-	for ( sz = 499; sz < 12 * BLOCKSIZE; sz += 471 )
+	for ( sz = 499; sz < ( 12 * BLOCKSIZE ); sz += 471 )
 	{
 		fd = open( "bigwrite", O_CREATE | O_RDWR );
 
@@ -1891,7 +1914,8 @@ void bigfile_test2 ( void )
 			exit();
 		}
 
-		if ( buf[ 0 ] != i / 2 || buf[ 299 ] != i / 2 )
+		if ( ( buf[ 0 ]   != i / 2 ) ||
+		     ( buf[ 299 ] != i / 2 ) )
 		{
 			printf( stdout, "big file test 2: read bigfile wrong data\n" );
 
@@ -2493,7 +2517,9 @@ void validate_test ( void )
 
 	for ( p = 0; p <= ( uint )hi; p += PGSIZE )
 	{
-		if ( ( pid = fork() ) == 0 )
+		pid = fork();
+
+		if ( pid == 0 )
 		{
 			// try to crash the kernel by passing in a badly placed integer
 			validateint( ( int* ) p );

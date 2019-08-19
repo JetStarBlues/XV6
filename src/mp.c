@@ -65,20 +65,24 @@ static struct mp* mpsearch ( void )
 
 	bda = ( uchar * ) P2V( 0x400 );
 
-	if ( ( p = ( ( bda[ 0x0F ] << 8 )| bda[ 0x0E ] ) << 4 ) )
-	{
+	p = ( ( bda[ 0x0F ] << 8 ) | bda[ 0x0E ] ) << 4;
 
-		if ( ( mp = mpsearch1( p, 1024 ) ) )
+	if ( p )
+	{
+		mp = mpsearch1( p, 1024 );
+
+		if ( mp )
 		{
 			return mp;
 		}
 	}
 	else
 	{
-
 		p = ( ( bda[ 0x14 ] << 8 ) | bda[ 0x13 ] ) * 1024;
 
-		if ( ( mp = mpsearch1( p - 1024, 1024 ) ) )
+		mp = mpsearch1( p - 1024, 1024 );
+
+		if ( mp )
 		{
 			return mp;
 		}
@@ -97,7 +101,9 @@ static struct mpconf* mpconfig ( struct mp** pmp )
 	struct mpconf* conf;
 	struct mp*     mp;
 
-	if ( ( mp = mpsearch() ) == 0 || mp->physaddr == 0 )
+	mp = mpsearch();
+
+	if ( mp == 0 || mp->physaddr == 0 )
 	{
 		return 0;
 	}
@@ -134,7 +140,9 @@ void mpinit ( void )
 	struct mpproc*   proc;
 	struct mpioapic* ioapic;
 
-	if ( ( conf = mpconfig( &mp ) ) == 0 )
+	conf = mpconfig( &mp );
+
+	if ( conf == 0 )
 	{
 		panic( "mpinit: Expect to run on an SMP" );
 	}
@@ -143,7 +151,10 @@ void mpinit ( void )
 
 	lapic = ( uint* ) conf->lapicaddr;
 
-	for ( p = ( uchar* ) ( conf + 1 ), e = ( uchar* ) conf + conf->length; p < e;  )
+	p = ( uchar* ) ( conf + 1 );
+	e = ( ( uchar* ) conf ) + conf->length;
+
+	while ( p < e )
 	{
 		switch ( *p )
 		{

@@ -9,8 +9,15 @@ void cat ( int fd )
 {
 	int n;
 
-	while ( ( n = read( fd, buf, sizeof( buf ) ) ) > 0 )
+	while ( 1 )
 	{
+		n = read( fd, buf, sizeof( buf ) );
+
+		if ( n <= 0 )
+		{
+			break;
+		}
+
 		if ( write( 1, buf, n ) != n )
 		{
 			printf( 2, "cat: write error\n" );
@@ -41,7 +48,9 @@ int main ( int argc, char* argv [] )
 
 	for ( i = 1; i < argc; i += 1 )
 	{
-		if ( ( fd = open( argv[ i ], O_RDONLY ) ) < 0 )
+		fd = open( argv[ i ], O_RDONLY );
+
+		if ( fd < 0 )
 		{
 			printf( 2, "cat: cannot open %s\n", argv[ i ] );
 

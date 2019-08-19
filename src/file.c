@@ -197,7 +197,9 @@ int fileread ( struct file* f, char* addr, int n )
 	{
 		ilock( f->ip );
 
-		if ( ( nRead = readi( f->ip, addr, f->off, n ) ) > 0 )
+		nRead = readi( f->ip, addr, f->off, n );
+
+		if ( nRead > 0 )
 		{
 			f->off += nRead;
 		}
@@ -263,7 +265,9 @@ int filewrite ( struct file* f, char* addr, int n )
 
 			ilock( f->ip );
 
-			if ( ( nWritten = writei( f->ip, addr + nWrittenTotal, f->off, nToWrite ) ) > 0 )
+			nWritten = writei( f->ip, addr + nWrittenTotal, f->off, nToWrite );
+
+			if ( nWritten > 0 )
 			{
 				f->off += nWritten;
 			}

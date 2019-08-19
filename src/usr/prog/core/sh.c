@@ -337,8 +337,10 @@ int main ( void )
 	static char buf [ 100 ];
 	int         fd;
 
-	// Ensure that three file descriptors are open.
-	while ( ( fd = open( "/dev/console", O_RDWR ) ) >= 0 )
+	// Ensure that three file descriptors are open
+	fd = open( "/dev/console", O_RDWR );
+
+	while ( fd >= 0 )
 	{
 		if ( fd >= 3 )
 		{
@@ -856,14 +858,16 @@ int exists ( char* filename, char* dirpath )
 	struct stat    st;
 
 
-	if ( ( strlen( filename ) ) > FILENAMESZ )
+	if ( strlen( filename ) > FILENAMESZ )
 	{
 		printf( 2, "exists: invalid filename %s\n", filename );
 
 		return 0;
 	}
 
-	if ( ( fd = open( dirpath, O_RDONLY ) ) < 0 )
+	fd = open( dirpath, O_RDONLY );
+
+	if ( fd < 0 )
 	{
 		printf( 2, "exists: cannot open %s\n", dirpath );
 

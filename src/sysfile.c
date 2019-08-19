@@ -35,10 +35,19 @@ static int argfd ( int n, int* pfd, struct file** pf )
 	}
 
 	// Check that valid file descriptor
-	if ( fd < 0 || fd >= NOPENFILE_PROC || ( f = myproc()->ofile[ fd ] ) == 0 )
+	if ( fd < 0 || fd >= NOPENFILE_PROC )
 	{
 		return - 1;
 	}
+
+
+	f = myproc()->ofile[ fd ];
+
+	if ( f == 0 )
+	{
+		return - 1;
+	}
+
 
 	// Return the fd
 	if ( pfd )
@@ -63,8 +72,11 @@ static int argfd ( int n, int* pfd, struct file** pf )
 */
 static int fdalloc ( struct file* f )
 {
-	struct proc* curproc = myproc();
+	struct proc* curproc;
 	int          fd;
+
+	//
+	curproc = myproc();
 
 	for ( fd = 0; fd < NOPENFILE_PROC; fd += 1 )
 	{
@@ -92,7 +104,9 @@ int sys_dup ( void )
 		return - 1;
 	}
 
-	if ( ( fd = fdalloc( f ) ) < 0 )
+	fd = fdalloc( f );
+
+	if ( fd < 0 )
 	{
 		return - 1;
 	}
@@ -185,7 +199,9 @@ int sys_link ( void )
 
 	begin_op();
 
-	if ( ( ip = namei( oldpath ) ) == 0 )
+	ip = namei( oldpath );
+
+	if ( ip == 0 )
 	{
 		end_op();
 
@@ -212,7 +228,9 @@ int sys_link ( void )
 
 
 	// Create a new directory entry for it in directory newpath
-	if ( ( dir = nameiparent( newpath, name ) ) == 0 )
+	dir = nameiparent( newpath, name );
+
+	if ( dir == 0 )
 	{
 		goto bad;  // newpath does not exist
 	}
@@ -296,7 +314,9 @@ int sys_unlink ( void )
 
 	begin_op();
 
-	if ( ( parentdir = nameiparent( path, name ) ) == 0 )
+	parentdir = nameiparent( path, name );
+
+	if ( parentdir == 0 )
 	{
 		end_op();
 
@@ -313,7 +333,9 @@ int sys_unlink ( void )
 
 
 	// Get inode associated with 'name'
-	if ( ( ip = dirlookup( parentdir, name, &off ) ) == 0 )
+	ip = dirlookup( parentdir, name, &off );
+
+	if ( ip == 0 )
 	{
 		goto bad;
 	}
@@ -399,15 +421,20 @@ static struct inode* create ( char* path, short type, short major, short minor )
 	char          name [ FILENAMESZ ];
 
 	// Get parent directory
-	if ( ( parentdir = nameiparent( path, name ) ) == 0 )
+	parentdir = nameiparent( path, name );
+
+	if ( parentdir == 0 )
 	{
 		return 0;
 	}
 
 	ilock( parentdir );
 
+
 	// Check if name is already present in parent directory
-	if ( ( ip = dirlookup( parentdir, name, &off ) ) != 0 )
+	ip = dirlookup( parentdir, name, &off );
+
+	if ( ip != 0 )
 	{
 		iunlockput( parentdir );
 
@@ -429,7 +456,9 @@ static struct inode* create ( char* path, short type, short major, short minor )
 	// Does not exist, so let's create it
 
 	// Allocate an inode
-	if ( ( ip = ialloc( parentdir->dev, type ) ) == 0 )
+	ip = ialloc( parentdir->dev, type );
+
+	if ( ip == 0 )
 	{
 		panic( "create: ialloc" );
 	}
@@ -511,7 +540,9 @@ int sys_open ( void )
 	else
 	{
 		// If doesn't exist, fail
-		if ( ( ip = namei( path ) ) == 0 )
+		ip = namei( path );
+
+		if ( ip == 0 )
 		{
 			end_op();
 			
@@ -553,7 +584,11 @@ int sys_open ( void )
 	}
 
 	// Allocate a file structure and file descriptor
-	if ( ( f = filealloc() ) == 0 || ( fd = fdalloc( f ) ) < 0 )
+	f = filealloc();
+
+	fd = fdalloc( f );
+
+	if ( ( f == 0 ) || ( fd < 0 ) )
 	{
 		if ( f )
 		{
@@ -591,12 +626,21 @@ int sys_mknod ( void )
 	int           major,
 	              minor;
 
+	// Get args
+	if ( argstr( 0, &path )  < 0   ||
+		 argint( 1, &major ) < 0   ||
+		 argint( 2, &minor ) < 0 )
+	{
+		return - 1;
+	}
+
+
+	//
 	begin_op();
 
-	if ( argstr( 0, &path )  < 0                             ||
-		 argint( 1, &major ) < 0                             ||
-		 argint( 2, &minor ) < 0                             ||
-		 ( ip = create( path, T_DEV, major, minor ) ) == 0 )
+	ip = create( path, T_DEV, major, minor );
+
+	if ( ip == 0 )
 	{
 		end_op();
 
@@ -615,10 +659,19 @@ int sys_mkdir ( void )
 	struct inode* ip;
 	char*         path;
 
+	// Get args
+	if ( argstr( 0, &path ) < 0 )
+	{
+		return - 1;
+	}
+
+
+	//
 	begin_op();
 
-	if ( argstr( 0, &path ) < 0                      ||
-		 ( ip = create( path, T_DIR, 0, 0 ) ) == 0 )
+	ip = create( path, T_DIR, 0, 0 );
+
+	if ( ip == 0 )
 	{
 		end_op();
 
@@ -636,17 +689,29 @@ int sys_chdir ( void )
 {
 	char*         path;
 	struct inode* ip;
-	struct proc*  curproc = myproc();
+	struct proc*  curproc;
+
+	curproc = myproc();
+
+	// Get args
+	if ( argstr( 0, &path ) < 0 )
+	{
+		return - 1;
+	}
+
 	
+	//
 	begin_op();
 
-	if ( argstr( 0, &path ) < 0        ||
-		 ( ip = namei( path ) ) == 0 )
+	ip = namei( path );
+
+	if ( ip == 0 )
 	{
 		end_op();
 
 		return - 1;
 	}
+
 
 	ilock( ip );
 
@@ -660,6 +725,7 @@ int sys_chdir ( void )
 	}
 
 	iunlock( ip );
+
 
 	iput( curproc->cwd );
 

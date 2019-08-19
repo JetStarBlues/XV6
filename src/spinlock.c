@@ -184,7 +184,7 @@ int holding ( struct spinlock* lock )
 
 	pushcli();
 
-	r = lock->locked && lock->cpu == mycpu();
+	r = lock->locked && ( lock->cpu == mycpu() );
 
 	popcli();
 
@@ -250,7 +250,7 @@ void getcallerpcs ( void* v, uint pcs [] )
 	uint* ebp;
 	int   i;
 
-	ebp = ( uint* ) v - 2;  // What is v? Why -2?
+	ebp = ( ( uint* ) v ) - 2;  // What is v? Why -2?
 
 	for ( i = 0; i < 10; i += 1 )
 	{

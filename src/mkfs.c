@@ -263,7 +263,9 @@ void addFile ( int dir_inum, char* filename )
 	     file_inum;
 
 	// Open the file
-	if ( ( fd = open( filename, 0 ) ) < 0 )
+	fd = open( filename, 0 );
+
+	if ( fd < 0 )
 	{
 		perror( "open" );
 
@@ -277,8 +279,15 @@ void addFile ( int dir_inum, char* filename )
 	addDirectoryEntry( dir_inum, filename, file_inum );
 
 	// Write the file's contents to the inode's data blocks
-	while ( ( cc = read( fd, buf, sizeof( buf ) ) ) > 0 )
+	while ( 1 )
 	{
+		cc = read( fd, buf, sizeof( buf ) );
+
+		if ( cc <= 0 )
+		{
+			break;
+		}
+
 		iappend( file_inum, buf, cc );
 	}
 
@@ -307,8 +316,15 @@ void addDirectory ( int dir_inum, char* localdirname )
 
 	chdir( localdirname );
 
-	while ( ( dent = readdir( dir ) ) != NULL )
+	while ( 1 )
 	{
+		dent = readdir( dir );
+
+		if ( dent == NULL )
+		{
+			break;
+		}
+
 		// Skip the "." entry
 		if ( ! strcmp( dent->d_name, "." ) )
 		{

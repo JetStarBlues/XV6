@@ -46,9 +46,14 @@ static int idewait ( int checkerr )
 
 	// Poll status bits until the busy bit (IDE_BSY) is clear
 	// and the ready bit (IDE_DRDY) is set
-	while ( ( ( r = inb( 0x1f7 ) ) & ( IDE_BSY | IDE_DRDY ) ) != IDE_DRDY )
+	while ( 1 )
 	{
-		//
+		r = inb( 0x1f7 );
+
+		if ( ( r & ( IDE_BSY | IDE_DRDY ) ) == IDE_DRDY )
+		{
+			break;
+		}
 	}
 
 	if ( checkerr && ( r & ( IDE_DF | IDE_ERR ) ) != 0 )
@@ -220,12 +225,16 @@ void iderw ( struct buf* b )
 	acquire( &idelock );
 
 
-	// Append buffer to the end of idequeue.
+	// Append buffer to the end of idequeue
 	b->qnext = 0;
 
-	for ( pp = &idequeue; *pp != 0; pp = &( *pp )->qnext )
+
+	// Find last element in queue...
+	pp = &idequeue;
+
+	while ( *pp != 0 )
 	{
-		// Find last element in queue...
+		pp = &( ( *pp )->qnext );  // TODO, break this down with temp var
 	}
 
 	*pp = b;

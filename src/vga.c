@@ -758,6 +758,8 @@ void demoGraphics ( void )
 }
 
 
+// Mouse selection (text mode) _______________________________________________________
+
 // http://panda.moyix.net/~moyix/cs3224/fall16/bonus_hw/bonus_hw.html
 #define COPYBUFSZ 100
 static uchar copypastebuffer [ COPYBUFSZ ];
