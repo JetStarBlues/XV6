@@ -173,7 +173,7 @@ found:
 
 
 	// Allocate kernel stack
-	p->kstack = kalloc();
+	p->kstack = kalloc();  // one page
 
 	if ( p->kstack == 0 )
 	{
@@ -494,7 +494,7 @@ int wait ( void )
 				pid = p->pid;
 
 				// Free associated memory
-				/* The parent fres p->kstack and p->pgdir because the
+				/* The parent frees p->kstack and p->pgdir because the
 				   child uses them one last time when running 'exit'
 				*/
 				kfree( p->kstack );
@@ -669,6 +669,9 @@ int kill ( int pid )
    idling CPU out of its scheduling loop...
    Interrupts are periodically enabled because on an idling CPU,
    perharps some of the processes are actually waiting for IO (lapic...)
+
+   Changing page tables while executing in the kernel works because
+   all processes have identical mappings for kernel code and data.
 */
 void scheduler ( void )
 {

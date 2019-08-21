@@ -11,6 +11,9 @@
 
 #define CR4_PSE 0x00000010  // Page size extension
 
+
+// ____________________________________________________________________________
+
 // various segment selectors.
 #define SEG_KCODE 1  // kernel code
 #define SEG_KDATA 2  // kernel data+stack
@@ -91,6 +94,9 @@ struct segdesc
 #define STS_IG32 0xE  // 32-bit Interrupt Gate
 #define STS_TG32 0xF  // 32-bit Trap Gate
 
+
+// ____________________________________________________________________________
+
 // A virtual address 'la' has a three-part structure as follows:
 //
 // +--------10------+-------10-------+---------12----------+
@@ -132,6 +138,13 @@ struct segdesc
 #ifndef __ASSEMBLER__
 
 typedef uint pte_t;
+
+#endif
+
+
+// ____________________________________________________________________________
+
+#ifndef __ASSEMBLER__
 
 // Task state segment format
 /* TSS originally intended to support hardware task switching

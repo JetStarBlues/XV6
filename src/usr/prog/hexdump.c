@@ -324,6 +324,13 @@ int main ( int argc, char* argv [] )
 	// Use stdin as input
 	if ( argc == 1 )       // " | hexdump"
 	{
+		/* TODO: Some way to detect whether called with
+		    no args because pipe or because typed in
+		    terminal.
+		    If typed in terminal, want to instead
+		    show usage message...
+		*/
+
 		hexdump( 0, 0, 0 );
 	}
 	else if ( argc == 3 )  // " | hexdump start nbytes"

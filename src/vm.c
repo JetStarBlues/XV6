@@ -30,10 +30,12 @@ void seginit ( void )
 	lgdt( c->gdt, sizeof( c->gdt ) );
 }
 
-// Return the address of the PTE in page table pgdir
-// that corresponds to virtual address va. If alloc != 0,
-// create any required page table pages.
-// Mimics actions of x86 paging hardware
+/* Return the address of the PTE in page table pgdir
+   that corresponds to virtual address va.
+   If alloc != 0, create any required page table pages.
+
+   Mimics actions of x86 paging hardware
+*/
 static pte_t* walkpgdir ( pde_t* pgdir, const void* va, int alloc )
 {
 	pde_t* pde;
@@ -83,15 +85,18 @@ static pte_t* walkpgdir ( pde_t* pgdir, const void* va, int alloc )
 	return &pgtab[ PTX( va ) ];
 }
 
-// Create PTEs for virtual addresses starting at va that refer to
-// physical addresses starting at pa. va and size might not
-// be page-aligned.
-static int mappages ( pde_t* pgdir, void* va, uint size, uint pa, int permissions )
+/* Create PTEs for virtual addresses starting at va that refer to
+   physical addresses starting at pa.
+
+   va and size might not be page-aligned.
+*/
+static int mappages ( pde_t* pgdir, void* va, uint pa, uint size, int permissions )
 {
 	char*  a;
 	char*  last;
 	pte_t* pte;
 
+	// Page align va start and va end
 	a    = ( char* ) PGROUNDDOWN(   ( uint ) va );
 	last = ( char* ) PGROUNDDOWN( ( ( uint ) va ) + size - 1 );
 
@@ -105,6 +110,7 @@ static int mappages ( pde_t* pgdir, void* va, uint size, uint pa, int permission
 			return - 1;
 		}
 
+		// Check if already mapped to a physical page
 		if ( *pte & PTE_P )
 		{
 			panic( "remap" );
@@ -141,23 +147,20 @@ static int mappages ( pde_t* pgdir, void* va, uint size, uint pa, int permission
      0 .. KERNBASE:
          . user memory (text, data, stack, heap)
          . mapped to physical memory allocated to user by the kernel
- 
+
      KERNBASE .. KERNBASE + EXTMEM:
          . "I/O space"
-         . mapped to 0 .. EXTMEM
- 
+
      KERNBASE + EXTMEM .. data:
          . kernel's instructions and kernel's r/o data
-         . mapped to EXTMEM .. V2P( data )
- 
-     data .. KERNBASE + PHYSTOP:
-         . kernel's r/w data and free physical memory
-         . mapped to V2P( data ) .. PHYSTOP
 
-     DEVSPACE .. 0:
+     data .. KERNBASE + ( PHYSTOP - ( EXTMEM + sizeof( kernel text and rodata ) ) )
+         . kernel's r/w data and free physical memory
+
+     DEVSPACE .. 0xFFFF_FFFF:
          . memory-mapped devices such as ioapic
          . mapped directly (virtual address == physical address)
-  
+
    The kernel allocates physical memory for its heap and for user memory
    between V2P( end ) and the end of physical memory (PHYSTOP)
    (directly addressable from end..P2V( PHYSTOP )).
@@ -175,36 +178,74 @@ static struct kmap
 } kmap [] = {
 
 	// "I/O space"
+	/*
+		Physical range :
+			start : 0
+			end   : 0 + EXTMEM
+		Virtual range :
+			start : KERNBASE
+			end   : KERNBASE + EXTMEM
+	*/
 	{
 		( void* ) KERNBASE,
 		0,
 		EXTMEM,
 		PTE_W
 	},
+
 	// Kernel text and kernel rodata
+	/*
+		Physical range :
+			start : 0 + EXTMEM
+			end   : 0 + EXTMEM + sizeof( kernel text and rodata )
+		Virtual range :
+			start : KERNBASE + EXTMEM
+			end   : KERNBASE + EXTMEM + sizeof( kernel text and rodata )
+	*/
 	{
 		( void* ) KERNLINK,
 		V2P( KERNLINK ),
 		V2P( data ),
 		0
 	},
+
 	// Kernel rwdata and free memory
+	/*
+		Physical range :
+			start : 0 + EXTMEM + sizeof( kernel text and rodata )
+			end   : PHYSTOP
+		Virtual range :
+		   start : KERNBASE + EXTMEM + sizeof( kernel text and rodata )
+		   end   : KERNBASE + EXTMEM + sizeof( kernel text and rodata ) + ( PHYSTOP - ( 0 + EXTMEM + sizeof( kernel text and rodata ) ) )
+	*/
 	{
 		( void* ) data,
 		V2P( data ),
 		PHYSTOP,
 		PTE_W
 	},
+
 	// Memory mapped devices
+	/*
+		Physical range :
+			start : DEVSPACE
+			end   : 0xFFFF_FFFF
+		Virtual range :
+			start : DEVSPACE
+			end   : 0xFFFF_FFFF
+	*/
 	{
 		( void* ) DEVSPACE,
-		DEVSPACE,
-		0,          // why phys_end of zero ??
+		DEVSPACE,  /* DEVSPACE and not V2P( DEVSPACE ) because
+		              doesn't actually go to physical RAM.
+		              Instead goes to a device.
+		           */
+		0,         // why phys_end of zero? 0xFFFF_FFFF + 1 ?
 		PTE_W
 	}
 };
 
-// Set up kernel part of a page table.
+// Create a page table? and map the kernel part.
 /* Causes all processes' page tables to have identical mappings
    for kernel code and rodata... 
    ??
@@ -225,13 +266,15 @@ pde_t* setupkvm ( void )
 	// Clear junk
 	memset( pgdir, 0, PGSIZE );
 
-	// ?
+
+	// Check if using region reserved for memory mapped IO
 	if ( P2V( PHYSTOP ) > ( void* ) DEVSPACE )
 	{
 		panic( "setupkvm: PHYSTOP too high" );
 	}
 
-	// ?
+
+	// Map kernel virtual addresses (KERNBASE..0xFFFF_FFFF)
 	for ( k = kmap; k < &kmap[ NELEM( kmap ) ]; k += 1 )
 	{
 		if (
@@ -239,8 +282,8 @@ pde_t* setupkvm ( void )
 
 				pgdir,
 				k->virt,                      // virtual start address
-				k->phys_end - k->phys_start,  // size
 				( uint ) k->phys_start,       // physical start address
+				k->phys_end - k->phys_start,  // size
 				k->perm
 			) < 0 )
 		{
@@ -342,7 +385,7 @@ void switchuvm ( struct proc* p )
 	ltr( SEG_TSS << 3 );
 
 
-	// switch to the process's page table...
+	// Switch to the process's page table...
 	lcr3( V2P( p->pgdir ) );
 
 
@@ -375,8 +418,8 @@ void inituvm ( pde_t* pgdir, char* init, uint sz )
 
 		pgdir,
 		0,             // virtual start address
-		PGSIZE,        // size
 		V2P( mem ),    // physical start address
+		PGSIZE,        // size
 		PTE_W | PTE_U
 	);
 
@@ -403,7 +446,9 @@ int loaduvm ( pde_t* pgdir, char* addr, struct inode* ip, uint offset, uint sz )
 
 	for ( i = 0; i < sz; i += PGSIZE )
 	{
-		// Get PTE of ?
+		/* Get physical address of the allocated memory
+		   at which to write...
+		*/
 		pte = walkpgdir( pgdir, addr + i, 0 );
 
 		if ( pte == 0 )
@@ -411,8 +456,7 @@ int loaduvm ( pde_t* pgdir, char* addr, struct inode* ip, uint offset, uint sz )
 			panic( "loaduvm: address should exist" );
 		}
 
-		// Get physical address of ?
-		pa = PTE_ADDR( *pte );
+		pa = PTE_ADDR( *pte );  // physical address
 
 
 		//
@@ -426,7 +470,7 @@ int loaduvm ( pde_t* pgdir, char* addr, struct inode* ip, uint offset, uint sz )
 		}
 
 
-		// Read from file...
+		// Read from file into memory...
 		if ( readi( ip, P2V( pa ), offset + i, n ) != n )
 		{
 			return - 1;
@@ -436,8 +480,14 @@ int loaduvm ( pde_t* pgdir, char* addr, struct inode* ip, uint offset, uint sz )
 	return 0;
 }
 
-// Allocate page tables and physical memory to grow process from oldsz to
-// newsz, which need not be page aligned. Returns new size or 0 on error.
+/* Allocate page tables and physical memory to grow process from oldsz to
+   newsz, which need not be page aligned.
+   Returns new size or 0 on error.
+*/
+/*
+   Allocate physical pages and map them to the process's
+   address space.
+*/
 int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 {
 	char* mem;
@@ -471,9 +521,10 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 		}
 
 		// Zero the memory
-		/* Security and clean garbage...
-		   Also of minor note, C assumes that unitialized statics (BSS section)
-		   have a value of zero...
+		/* Why?
+		    . clean garbage
+		    . C assumes that unitialized statics (BSS section)
+		      have a value of zero...
 		*/
 		memset( mem, 0, PGSIZE );
 
@@ -483,8 +534,8 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 
 				pgdir,
 				( char* ) a,   // virtual start address
-				PGSIZE,        // size
 				V2P( mem ),    // physical start address
+				PGSIZE,        // size
 				PTE_W | PTE_U
 			) < 0 )
 		{
@@ -501,15 +552,23 @@ int allocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 	return newsz;
 }
 
-// Deallocate user pages to bring the process size from oldsz to
-// newsz. oldsz and newsz need not be page-aligned, nor does newsz
-// need to be less than oldsz. oldsz can be larger than the actual
-// process size. Returns the new process size.
+/* Deallocate user pages to bring the process size from
+   oldsz to newsz.
+   . oldsz and newsz need not be page-aligned, nor does newsz
+     need to be less than oldsz.
+   . oldsz can be larger than the actual process size.
+   Returns the new process size.
+*/
+/*
+   Unmap pages from the process's address space and free
+   underlying physical memory.
+*/
 int deallocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 {
 	pte_t* pte;
 	uint   a,
 	       pa;
+	char*  va;
 
 	// To grow, should call allocuvm
 	if ( newsz >= oldsz )
@@ -519,14 +578,16 @@ int deallocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 
 	a = PGROUNDUP( newsz );
 
-	for ( ; a  < oldsz; a += PGSIZE )
+	for ( ; a < oldsz; a += PGSIZE )
 	{
 		pte = walkpgdir( pgdir, ( char* ) a, 0 );
 
+		// ?
 		if ( ! pte )
 		{
 			a = PGADDR( PDX( a ) + 1, 0, 0 ) - PGSIZE;
 		}
+		// Free corresponding physical page...
 		else if ( ( *pte & PTE_P ) != 0 )
 		{
 			pa = PTE_ADDR( *pte );
@@ -536,9 +597,9 @@ int deallocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 				panic( "kfree" );
 			}
 
-			char* v = P2V( pa );
+			va = P2V( pa );
 
-			kfree( v );
+			kfree( va );
 
 			*pte = 0;
 		}
@@ -551,26 +612,31 @@ int deallocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 // in the user part.
 void freevm ( pde_t* pgdir )
 {
-	uint i;
+	uint  i;
+	char* va;
 
 	if ( pgdir == 0 )
 	{
 		panic( "freevm: no pgdir" );
 	}
 
+
+	// Free memory pointed to by page table
 	deallocuvm( pgdir, KERNBASE, 0 );
 
+
+	// Free memory used by page table
 	for ( i = 0; i < NPDENTRIES; i += 1 )
 	{
 		if ( pgdir[ i ] & PTE_P )
 		{
-			char* v = P2V( PTE_ADDR( pgdir[ i ] ) );
+			va = P2V( PTE_ADDR( pgdir[ i ] ) );
 
-			kfree( v );
+			kfree( va );
 		}
 	}
 
-	kfree( ( char* )pgdir );
+	kfree( ( char* ) pgdir );
 }
 
 // Clear PTE_U on a page. Used to create an inaccessible
@@ -638,8 +704,8 @@ pde_t* copyuvm ( pde_t* pgdir, uint sz )
 
 				d,
 				( void* ) i,  // virtual start address
-				PGSIZE,       // size
 				V2P( mem ),   // physical start address
+				PGSIZE,       // size
 				flags
 			) < 0 )
 		{
@@ -662,6 +728,9 @@ bad:
 // _________________________________________________________________________________
 
 // Map user virtual address to kernel address.
+/* Check that virtual address is mapped to user space.
+   If it is, return address of the associated physical page.
+*/
 char* uva2ka ( pde_t* pgdir, char* uva )
 {
 	pte_t* pte;
@@ -684,7 +753,7 @@ char* uva2ka ( pde_t* pgdir, char* uva )
 // Copy len bytes from p to user address va in page table pgdir.
 // Most useful when pgdir is not the current page table.
 // uva2ka ensures this only works for PTE_U pages.
-// Used by exec to copy arguments to the stack...
+// Used by exec to copy arguments to the user stack...
 int copyout ( pde_t* pgdir, uint va, void* p, uint len )
 {
 	char* buf;

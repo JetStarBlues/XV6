@@ -774,36 +774,40 @@ Process overview
 	. Xv6 maintains a separate page table for each process that
 	  defines the process's address space
 
-	             0xFFFF_FFFF ->  --------------------
-	                             memory mapped
-	                             IO devices 
-	  (DEVSPACE) 0xFE00_0000 ->  --------------------
-	                             ...
-	                             free memory
-	                             ...
-	             0x8040_0000 ->  --------------------  <-
-	                             kernel static data      |
-	                             --------------------    |
-	                             kernel text             |
-	             0x8010_0000 ->  --------------------    | kernel
-	                             ?                       |
-	             0x8000_7E00 ->  --------------------    |
-	                             boot sector             |
-	             0x8000_7C00 ->  --------------------    |
-	                             ?                       |
-	  (KERNBASE) 0x8000_0000 ->  --------------------  <-
-	                             ...                     |
-	                             --------------------    |
-	                             user heap               |
-	                             --------------------    |
-	              (PAGESIZE)     user stack              | user
-	                             --------------------    |
-	              (PAGESIZE)     guard page              |
-	                             --------------------    |
-	                             program static data     |
-	                             --------------------    |
-	                             program text            |
-	             0x0000_0000 ->  --------------------  <-
+	                    0xFFFF_FFFF ->  -------------------------
+	                                    memory mapped
+	                                    IO devices 
+	         (DEVSPACE) 0xFE00_0000 ->  -------------------------
+	                                    ...
+	                                    free memory
+	                                    (used to ?)
+	                                    ...
+	                    kernel.end ->   -------------------------  <-
+	                                    kernel static data           |
+	                                    -------------------------    |
+	                                    kernel text                  |
+	(KERNBASE + EXTMEM) 0x8010_0000 ->  -------------------------    | kernel
+	                                    ?                            |
+	                    0x8000_7E00 ->  -------------------------    |
+	                                    boot sector                  |
+	                    0x8000_7C00 ->  -------------------------    |
+	                                    ?                            |
+	         (KERNBASE) 0x8000_0000 ->  -------------------------  <-
+	                                    ...                          |
+	                                    free memory                  |
+	                                    (used to grow user heap)     |
+	                                    ...                          |
+	                                    -------------------------    |
+	                                    user heap                    |
+	                                    -------------------------    |
+	                     (PAGESIZE)     user stack                   | user
+	                                    -------------------------    |
+	                     (PAGESIZE)     guard page                   |
+	                                    -------------------------    |
+	                                    program static data          |
+	                                    -------------------------    |
+	                                    program text                 |
+	                    0x0000_0000 ->  -------------------------  <-
 
 	. The address space includes the process's user memory
 	  starting at virtual address zero
@@ -1895,45 +1899,52 @@ Process address space
 
 	. Virtual
 
-	                    0xFFFF_FFFF ->  --------------------
+	                    0xFFFF_FFFF ->  -------------------------
 	                                    memory mapped
 	                                    IO devices 
-	         (DEVSPACE) 0xFE00_0000 ->  --------------------
+	         (DEVSPACE) 0xFE00_0000 ->  -------------------------
 	                                    ...
 	                                    free memory
+	                                    (used to ?)
 	                                    ...
-	                    0x8040_0000 ->  --------------------  <-
-	                                    kernel static data      |
-	                                    --------------------    |
-	                                    kernel text             |
-	(KERNBASE + EXTMEM) 0x8010_0000 ->  --------------------    | kernel
-	                                    ?                       |
-	                    0x8000_7E00 ->  --------------------    |
-	                                    boot sector             |
-	                    0x8000_7C00 ->  --------------------    |
-	                                    ?                       |
-	         (KERNBASE) 0x8000_0000 ->  --------------------  <-
-	                                    user heap               |
-	                                    --------------------    |
-	                     (PAGESIZE)     user stack              | user
-	                                    --------------------    |
-	                     (PAGESIZE)     guard page              |
-	                                    --------------------    |
-	                                    program static data     |
-	                                    --------------------    |
-	                                    program text            |
-	                    0x0000_0000 ->  --------------------  <-
+	                    kernel.end ->   -------------------------  <-
+	                                    kernel static data           |
+	                                    -------------------------    |
+	                                    kernel text                  |
+	(KERNBASE + EXTMEM) 0x8010_0000 ->  -------------------------    | kernel
+	                                    ?                            |
+	                    0x8000_7E00 ->  -------------------------    |
+	                                    boot sector                  |
+	                    0x8000_7C00 ->  -------------------------    |
+	                                    ?                            |
+	         (KERNBASE) 0x8000_0000 ->  -------------------------  <-
+	                                    ...                          |
+	                                    free memory                  |
+	                                    (used to grow user heap)     |
+	                                    ...                          |
+	                                    -------------------------    |
+	                                    user heap                    |
+	                                    -------------------------    |
+	                     (PAGESIZE)     user stack                   | user
+	                                    -------------------------    |
+	                     (PAGESIZE)     guard page                   |
+	                                    -------------------------    |
+	                                    program static data          |
+	                                    -------------------------    |
+	                                    program text                 |
+	                    0x0000_0000 ->  -------------------------  <-
 
 	. Physical
 
 	             0xFFFF_FFFF ->  -------------------
 	                             memory mapped
 	                             IO devices 
-	             (PHYSTOP) ? ->  -------------------
+	               (PHYSTOP) ->  -------------------
 	                             ...
 	                             free memory
+	                             (used to allocate pages)
 	                             ...
-	             0x0040_0000 ->  -------------------
+	   kernel.end - KERNBASE ->  -------------------
 	                             kernel static data
 	                             -------------------
 	                             kernel text

@@ -5,8 +5,8 @@
 */
 
 #define EXTMEM   0x100000    // Start of extended memory
-#define PHYSTOP  0xE000000   // Top physical memory
-#define DEVSPACE 0xFE000000  // Other devices are at high addresses
+#define PHYSTOP  0xE000000   // Top of physical memory
+#define DEVSPACE 0xFE000000  // Addresses used by memory mapped IO
 
 // Key addresses for address space layout (see kmap in vm.c for layout)
 #define KERNBASE 0x80000000             // First kernel virtual address
@@ -24,34 +24,40 @@ TODO:
 
 	__ Virtual __
 
-	                    0xFFFF_FFFF ->  --------------------
+	                    0xFFFF_FFFF ->  -------------------------
 	                                    memory mapped
 	                                    IO devices 
-	         (DEVSPACE) 0xFE00_0000 ->  --------------------
+	         (DEVSPACE) 0xFE00_0000 ->  -------------------------
 	                                    ...
-	                                    free memory (used to allocate pages??)
+	                                    free memory
+	                                    (unused?)
 	                                    ...
-	                    0x8040_0000 ->  --------------------  <-
-	                                    kernel static data      |
-	                                    --------------------    |
-	                                    kernel text             |
-	(KERNBASE + EXTMEM) 0x8010_0000 ->  --------------------    | kernel
-	                                    ?                       |
-	                    0x8000_7E00 ->  --------------------    |
-	                                    boot sector             |
-	                    0x8000_7C00 ->  --------------------    |
-	                                    ?                       |
-	         (KERNBASE) 0x8000_0000 ->  --------------------  <-
-	                                    user heap               |
-	                                    --------------------    |
-	                     (PAGESIZE)     user stack              | user
-	                                    --------------------    |
-	                     (PAGESIZE)     guard page              |
-	                                    --------------------    |
-	                                    program static data     |
-	                                    --------------------    |
-	                                    program text            |
-	                    0x0000_0000 ->  --------------------  <-
+	                    kernel.end ->   -------------------------  <-
+	                                    kernel static data           |
+	                                    -------------------------    |
+	                                    kernel text                  |
+	(KERNBASE + EXTMEM) 0x8010_0000 ->  -------------------------    | kernel
+	                                    ?                            |
+	                    0x8000_7E00 ->  -------------------------    |
+	                                    boot sector                  |
+	                    0x8000_7C00 ->  -------------------------    |
+	                                    ?                            |
+	         (KERNBASE) 0x8000_0000 ->  -------------------------  <-
+	                                    ...                          |
+	                                    free memory                  |
+	                                    (used to grow user heap)     |
+	                                    ...                          |
+	                                    -------------------------    |
+	                                    user heap                    |
+	                                    -------------------------    |
+	                     (PAGESIZE)     user stack                   | user
+	                                    -------------------------    |
+	                     (PAGESIZE)     guard page                   |
+	                                    -------------------------    |
+	                                    program static data          |
+	                                    -------------------------    |
+	                                    program text                 |
+	                    0x0000_0000 ->  -------------------------  <-
 
 
 	__ Physical __
@@ -59,11 +65,12 @@ TODO:
 	             0xFFFF_FFFF ->  -------------------
 	                             memory mapped
 	                             IO devices 
-	             (PHYSTOP) ? ->  -------------------
+	               (PHYSTOP) ->  -------------------
 	                             ...
 	                             free memory
+	                             (used to allocate pages)
 	                             ...
-	             0x0040_0000 ->  -------------------
+	   kernel.end - KERNBASE ->  -------------------
 	                             kernel static data
 	                             -------------------
 	                             kernel text

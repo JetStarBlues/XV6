@@ -45,14 +45,17 @@ static void startothers ( void );
 static void mpmain      ( void )  __attribute__( ( noreturn ) );
 
 extern pde_t* kpgdir;
-extern char   end [];  // first address after kernel loaded from ELF file
+
+extern char end [];  /* first address after kernel text and static data.
+                        Label is created by "kernel.ld" when creating the
+                        kernel ELF */
 
 // Bootstrap CPU starts running C code here.
 // Allocate a real stack and switch to it, first
 // doing some setup required for memory allocator to work.
 int main ( void )
 {
-	kinit1( end, P2V( 4 * 1024 * 1024 ) );  // ?..4MB  ?? phys page allocator
+	kinit1( end, P2V( 4 * 1024 * 1024 ) );  // kernel_end..4MB  ?? phys page allocator
 
 	kvmalloc();      // create kernel page table
 	mpinit();        // detect other CPUs

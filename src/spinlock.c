@@ -6,6 +6,7 @@
    Concurrency may arise from:
      . multiple threads
      . multiple cores (CPUs)
+     . interrupt handler?
 
    A lock is one such strategy.
 

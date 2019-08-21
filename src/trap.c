@@ -207,8 +207,8 @@ void trap ( struct trapframe *tf )
 
 						myproc()->pgdir,
 						( char* ) vaddr,  // virtual start address
-						PGSIZE,           // size
 						V2P( newpage ),   // physical start address
+						PGSIZE,           // size
 						PTE_W | PTE_U
 					) < 0 )
 				{

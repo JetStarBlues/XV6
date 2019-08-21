@@ -1,6 +1,19 @@
-// Physical memory allocator, intended to allocate
-// memory for user processes, kernel stacks, page table pages,
-// and pipe buffers. Allocates 4096-byte pages.
+/*
+Physical memory allocator, intended to allocate memory for:
+	. user processes
+	. kernel stacks
+	. page table pages
+	. pipe buffers
+
+Allocates 4096-byte pages.
+
+Uses the physical memory between the end-of-the-kernel
+and PHYSTOP for allocation.
+*/
+
+/*
+Linked list of free pages.
+*/
 
 #include "types.h"
 #include "defs.h"
@@ -9,24 +22,30 @@
 #include "mmu.h"
 #include "spinlock.h"
 
-void freerange ( void* vstart, void* vend );
 
-extern char end [];  // first address after kernel loaded from ELF file
-                     // defined by the kernel linker script in kernel.ld
+extern char* end;  /* first address after kernel text and static data.
+                      Label is created by "kernel.ld" when creating the
+                      kernel ELF */
 
-struct run
+struct node
 {
-	struct run* next;
+	struct node* next;
 };
 
-struct
+struct _kmem
 {
 	struct spinlock lock;      // Held when modifying freelist
 	int             use_lock;
 
-	struct run*     freelist;  // Where is this initialized ?? Is it default 0?
+	struct node*    freelist;  // Where is this initialized ?? Is it default 0?
 
-} kmem;
+};
+
+static struct _kmem kmem;
+
+
+void freerange ( void* vstart, void* vend );
+
 
 /* Initialization happens in two phases.
    1. main() calls kinit1() while still using entrypgdir to place just
@@ -59,31 +78,33 @@ void freerange ( void* vstart, void* vend )
 {
 	char* p;
 
-	p = ( char* ) PGROUNDUP( ( uint ) vstart );
+	p = ( char* ) PGROUNDUP( ( uint ) vstart );  // page align
 
-	for ( ; p + PGSIZE <= ( char* ) vend; p += PGSIZE )
+	while ( p + PGSIZE <= ( char* ) vend )
 	{
 		kfree( p );
+
+		p += PGSIZE;
 	}
 }
 
-// Free the page of physical memory pointed at by v,
+// Free the page of physical memory pointed at by va,
 // which normally should have been returned by a
 // call to kalloc(). (The exception is when
 // initializing the allocator; see kinit above.)
-void kfree ( char* v )
+void kfree ( char* va )
 {
-	struct run* r;
+	struct node* np;
 
 	// Not page aligned or outside valid range
-	if ( ( uint ) v % PGSIZE || v < end || V2P( v ) >= PHYSTOP )
+	if ( ( uint ) va % PGSIZE || va < end || V2P( va ) >= PHYSTOP )
 	{
 		panic( "kfree" );
 	}
 
 
 	// Fill with junk to hopefully catch dangling refs.
-	memset( v, 1, PGSIZE );
+	memset( va, 1, PGSIZE );
 
 
 	if ( kmem.use_lock )
@@ -93,12 +114,12 @@ void kfree ( char* v )
 
 
 	// Add the page to the start of the freelist
-	r = ( struct run* ) v;  // The page's "struct run" (pointer to the next free
-	                        // page) is stored in the first bytes of the page
+	np = ( struct node* ) va;  // The page's "struct node" (pointer to the next free
+	                           // page) is stored in the first bytes of the page
 
-	r->next = kmem.freelist;  // record old start of the list in r->next
+	np->next = kmem.freelist;  // record old start of the list in np->next
 
-	kmem.freelist = r;  // set new start of list as r
+	kmem.freelist = np;        // set new start of list as np
 
 
 	if ( kmem.use_lock )
@@ -112,7 +133,7 @@ void kfree ( char* v )
 // Returns 0 if the memory cannot be allocated.
 char* kalloc ( void )
 {
-	struct run* r;
+	struct node* np;
 
 	if ( kmem.use_lock )
 	{
@@ -121,12 +142,14 @@ char* kalloc ( void )
 
 
 	// Remove and return first free element of list
-	r = kmem.freelist;
+	np = kmem.freelist;
 
-	// If not at end of freelist, update to point to next free page
-	if ( r )
+	/* If not at end of freelist, update the list's head
+	   to point to next free page
+	*/
+	if ( np )
 	{
-		kmem.freelist = r->next;
+		kmem.freelist = np->next;
 	}
 
 
@@ -135,5 +158,5 @@ char* kalloc ( void )
 		release( &kmem.lock );
 	}
 
-	return ( char* ) r;  // r can be null...
+	return ( char* ) np;  // np can be null...
 }

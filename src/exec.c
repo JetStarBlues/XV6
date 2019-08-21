@@ -1,34 +1,38 @@
 /*
-	             0xFFFF_FFFF ->  --------------------
-	                             memory mapped
-	                             IO devices 
-	  (DEVSPACE) 0xFE00_0000 ->  --------------------
-	                             ...
-	                             free memory
-	                             ...
-	             0x8040_0000 ->  --------------------  <-
-	                             kernel static data      |
-	                             --------------------    |
-	                             kernel text             |
-	             0x8010_0000 ->  --------------------    | kernel
-	                             ?                       |
-	             0x8000_7E00 ->  --------------------    |
-	                             boot sector             |
-	             0x8000_7C00 ->  --------------------    |
-	                             ?                       |
-	  (KERNBASE) 0x8000_0000 ->  --------------------  <-
-	                             ...                     |
-	                             --------------------    |
-	                             user heap               |
-	                             --------------------    |
-	              (PAGESIZE)     user stack              | user
-	                             --------------------    |
-	              (PAGESIZE)     guard page              |
-	                             --------------------    |
-	                             program static data     |
-	                             --------------------    |
-	                             program text            |
-	             0x0000_0000 ->  --------------------  <-
+	                    0xFFFF_FFFF ->  -------------------------
+	                                    memory mapped
+	                                    IO devices 
+	         (DEVSPACE) 0xFE00_0000 ->  -------------------------
+	                                    ...
+	                                    free memory
+	                                    (used to ?)
+	                                    ...
+	                    kernel.end ->   -------------------------  <-
+	                                    kernel static data           |
+	                                    -------------------------    |
+	                                    kernel text                  |
+	(KERNBASE + EXTMEM) 0x8010_0000 ->  -------------------------    | kernel
+	                                    ?                            |
+	                    0x8000_7E00 ->  -------------------------    |
+	                                    boot sector                  |
+	                    0x8000_7C00 ->  -------------------------    |
+	                                    ?                            |
+	         (KERNBASE) 0x8000_0000 ->  -------------------------  <-
+	                                    ...                          |
+	                                    free memory                  |
+	                                    (used to grow user heap)     |
+	                                    ...                          |
+	                                    -------------------------    |
+	                                    user heap                    |
+	                                    -------------------------    |
+	                     (PAGESIZE)     user stack                   | user
+	                                    -------------------------    |
+	                     (PAGESIZE)     guard page                   |
+	                                    -------------------------    |
+	                                    program static data          |
+	                                    -------------------------    |
+	                                    program text                 |
+	                    0x0000_0000 ->  -------------------------  <-
 */
 
 #include "types.h"
@@ -98,7 +102,9 @@ int exec ( char* path, char* argv [] )
 	}
 
 
-	// Allocate a ??
+	/* Create a page table? and map the kernel portion
+	   of the address space.
+	*/
 	pgdir = setupkvm();
 
 	if ( pgdir == 0 )
@@ -340,7 +346,7 @@ int exec ( char* path, char* argv [] )
 
 
 	// Commit to the new user image.
-	/* exec must wait to free the old image until it is will succeed
+	/* exec must wait to free the old image until it is sure it will succeed
 	   because if the old image is gone, it cannot return an error to it.
 	*/
 	oldpgdir = curproc->pgdir;
@@ -355,6 +361,7 @@ int exec ( char* path, char* argv [] )
 	freevm( oldpgdir );
 
 	return 0;
+
 
  bad:
 
