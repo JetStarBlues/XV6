@@ -86,7 +86,6 @@
 #include "defs.h"
 #include "param.h"
 #include "x86.h"
-#include "memlayout.h"
 #include "mmu.h"
 #include "proc.h"
 #include "spinlock.h"
@@ -141,7 +140,7 @@ void acquire ( struct spinlock* lk )
 	// Record info about lock acquisition for debugging.
 	lk->cpu = mycpu();  // CPU that holds the lock
 
-	getcallerpcs( &lk, lk->pcs );  // call stack that acquired the lock
+	getcallerpcs( &lk, lk->pcs, SPLKNPCS );  // call stack that acquired the lock
 }
 
 // Release the lock.
@@ -239,36 +238,5 @@ void popcli ( void )
 	if ( mycpu()->ncli == 0 && mycpu()->intena )
 	{
 		sti();  // enable interrupts
-	}
-}
-
-
-// __________________________________________________________________________________
-
-// Record the current call stack in pcs[] by following the %ebp chain.
-void getcallerpcs ( void* v, uint pcs [] )
-{
-	uint* ebp;
-	int   i;
-
-	ebp = ( ( uint* ) v ) - 2;  // What is v? Why -2?
-
-	for ( i = 0; i < 10; i += 1 )
-	{
-		if ( ebp == 0 ||
-			 ebp <  ( uint* ) KERNBASE ||
-			 ebp == ( uint* ) 0xffffffff )
-		{
-			break;
-		}
-
-		pcs[ i ] = ebp[ 1 ];       // saved %eip (program counter)
-
-		ebp = ( uint* ) ebp[ 0 ];  // saved %ebp
-	}
-
-	for ( ; i < 10; i += 1 )
-	{
-		pcs[ i ] = 0;
 	}
 }

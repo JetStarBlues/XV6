@@ -1006,6 +1006,8 @@ void wakeup ( void* chan )
 // Print a process listing to console. For debugging.
 // Runs when user types Ctrl+P on console.
 // No lock to avoid wedging a stuck machine further.
+#define PROCNPCS 10
+
 void procdump ( void )
 {
 	static char* states [] = {
@@ -1021,7 +1023,7 @@ void procdump ( void )
 	struct proc* p;
 	char*        state;
 	int          i;
-	uint         pc [ 10 ];
+	uint         pcs [ PROCNPCS ];
 
 	cprintf( "\nprocdump:\n" );
 	cprintf( "pid | state | name\n" );
@@ -1047,13 +1049,18 @@ void procdump ( void )
 
 		if ( p->state == SLEEPING )
 		{
-			getcallerpcs( ( uint* ) p->context->ebp + 2, pc );
+			getcallerpcs( ( uint* ) p->context->ebp + 2, pcs, PROCNPCS );
 
 			cprintf( "call stack:\n" );
 
-			for ( i = 0; i < 10 && pc[ i ] != 0; i += 1 )
+			for ( i = 0; i < PROCNPCS; i += 1 )
 			{
-				cprintf( "    %p\n", pc[ i ] );
+				if ( pcs[ i ] == 0 )
+				{
+					break;
+				}
+
+				cprintf( "    %p\n", pcs[ i ] );
 			}
 
 			cprintf( "\n" );

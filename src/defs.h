@@ -22,6 +22,9 @@ void            consoleintr ( int ( * ) ( void ) );
 void            panic       ( char* ) __attribute__( ( noreturn ) );
 void            cprintf     ( char*, ... );
 
+// debug.c
+void            getcallerpcs ( void*, uint*, uint );
+
 // display.c
 void            displayinit ( void );
 
@@ -135,13 +138,12 @@ void            yield     ( void );
 void            swtch ( struct context**, struct context* );
 
 // spinlock.c
-void            acquire      ( struct spinlock* );
-void            getcallerpcs ( void*, uint* );
-int             holding      ( struct spinlock* );
-void            initlock     ( struct spinlock*, char* );
-void            popcli       ( void );
-void            pushcli      ( void );
-void            release      ( struct spinlock* );
+void            acquire  ( struct spinlock* );
+int             holding  ( struct spinlock* );
+void            initlock ( struct spinlock*, char* );
+void            popcli   ( void );
+void            pushcli  ( void );
+void            release  ( struct spinlock* );
 
 // sleeplock.c
 void            acquiresleep  ( struct sleeplock* );

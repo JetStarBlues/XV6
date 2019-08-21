@@ -31,25 +31,30 @@
 #define C( x ) ( ( x ) - '@' )  // Control-x
 
 
-static struct
-{
+struct _cons {
+
 	/* This lock is used for ... ??
 	*/
 	struct spinlock lock;
 	int             locking;
 
-} cons;
+};
 
-static struct {
+static struct _cons   cons;
+
+struct _input {
 
 	char buf [ INPUTBUFSZ ];
 	uint rdIdx;  // Read index
 	uint wrIdx;  // Write index
 	uint edIdx;  // Edit index
 
-} input;
+};
+
+static struct _input input;
 
 static int panicked = 0;
+
 
 void       cprintf      ( char*, ... );
 static int consoleread  ( struct inode*, char*, int );
@@ -72,10 +77,12 @@ void consoleinit ( void )
 
 // _____________________________________________________________________________
 
+#define CONSNPCS 10
+
 void panic ( char* s )
 {
 	int  i;
-	uint pcs [ 10 ];
+	uint pcs [ CONSNPCS ];
 
 	// Disable interrupts
 	cli();
@@ -87,14 +94,21 @@ void panic ( char* s )
 	cprintf( "Panic!\n" );
 	cprintf( "msg       : %s\n", s );
 	cprintf( "lapicid   : %d\n", lapicid() );
-	cprintf( "callstack :\n\n" );
+	cprintf( "callstack :\n" );
 
-	getcallerpcs( &s, pcs );
+	getcallerpcs( &s, pcs, CONSNPCS );
 
-	for ( i = 0; i < 10; i += 1 )
+	for ( i = 0; i < CONSNPCS; i += 1 )
 	{
+		if ( pcs[ i ] == 0 )
+		{
+			break;
+		}
+
 		cprintf( "    %p\n", pcs[ i ] );
 	}
+
+	cprintf( "\n" );
 
 	panicked = 1;  // freeze other CPUs
 

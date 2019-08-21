@@ -21,6 +21,7 @@ FSUSRBINDIR = fs/usr/bin/
 KERNOBJS =      \
 	buf.o       \
 	console.o   \
+	debug.o     \
 	display.o   \
 	exec.o      \
 	file.o      \
