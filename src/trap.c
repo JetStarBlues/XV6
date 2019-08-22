@@ -44,24 +44,24 @@ uint            ticks;        // Where is this initialized to 0?
 
 static char* trapnames [] = {
 
-	[ T_DIVIDE   ] "T_DIVIDE",
-	[ T_DEBUG    ] "T_DEBUG",
-	[ T_NMI      ] "T_NMI",
-	[ T_BRKPT    ] "T_BRKPT",
-	[ T_OFLOW    ] "T_OFLOW",
-	[ T_BOUND    ] "T_BOUND",
-	[ T_ILLOP    ] "T_ILLOP",
-	[ T_DEVICE   ] "T_DEVICE",
-	[ T_DBLFLT   ] "T_DBLFLT",
-	[ T_TSS      ] "T_TSS",
-	[ T_SEGNP    ] "T_SEGNP",
-	[ T_STACKSEG ] "T_STACKSEG",
-	[ T_GPFLT    ] "T_GPFLT",
-	[ T_PGFLT    ] "T_PGFLT",
-	[ T_FPERR    ] "T_FPERR",
-	[ T_ALIGN    ] "T_ALIGN",
-	[ T_MCHK     ] "T_MCHK",
-	[ T_SIMDERR  ] "T_SIMDERR",
+	[ T_DIVIDE   ] "divide by zero",
+	[ T_DEBUG    ] "debug",
+	[ T_NMI      ] "non-maskable interrupt",
+	[ T_BRKPT    ] "breakpoint",
+	[ T_OFLOW    ] "overflow",
+	[ T_BOUND    ] "bound range exceeded",
+	[ T_ILLOP    ] "invalid opcode",
+	[ T_DEVICE   ] "device not available",
+	[ T_DBLFLT   ] "double fault",
+	[ T_TSS      ] "invalide TSS",
+	[ T_SEGNP    ] "segment not present",
+	[ T_STACKSEG ] "stack segment fault",
+	[ T_GPFLT    ] "general protection fault",
+	[ T_PGFLT    ] "page fault",
+	[ T_FPERR    ] "x87 floating point exception",
+	[ T_ALIGN    ] "alignment check",
+	[ T_MCHK     ] "machine check",
+	[ T_SIMDERR  ] "SIMD floating point exception",
 
 	[ T_IRQ0 + IRQ_TIMER    ] "IRQ_TIMER",
 	[ T_IRQ0 + IRQ_KBD      ] "IRQ_KBD",
@@ -73,6 +73,7 @@ static char* trapnames [] = {
 
 	[ T_SYSCALL ] "T_SYSCALL"
 };
+
 
 // __________________________________________________________________________________
 
@@ -267,13 +268,6 @@ void trap ( struct trapframe *tf )
 
 			break;
 		*/
-
-		/* For now, fall through to case default after printing message.
-		   Temporary, not good practice to fall through.
-		*/
-		// case T_PGFLT:
-
-		// 	cprintf( "Page fault!\n" );
 
 
 		// Default

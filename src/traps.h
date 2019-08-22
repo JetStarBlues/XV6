@@ -31,6 +31,9 @@
 
 
 // Hardware interrupts (32..63)
+/* 8259 PIC
+   https://en.wikipedia.org/w/index.php?title=Interrupt_request_(PC_architecture)&oldid=890197696
+*/
 #define T_IRQ0        32
 
 #define IRQ_TIMER      0
