@@ -34,11 +34,47 @@
           user stack. See 'argint'
 */
 
-struct gatedesc idt     [ 256 ];  // Interrupt descriptor table (shared by all CPUs).
-extern uint     vectors [];       // in vectors.S: array of 256 entry pointers
+extern uint vectors [];       // From vectors.S; array of 256 entry pointers
 
-struct spinlock tickslock;        // Must hold tickslock when modifying ticks
-uint            ticks;            // Where is this initialized to 0?
+struct gatedesc idt [ 256 ];  // Interrupt descriptor table (shared by all CPUs).
+
+struct spinlock tickslock;    // Must hold tickslock when modifying ticks
+uint            ticks;        // Where is this initialized to 0?
+
+
+static char* trapnames [] = {
+
+	[ T_DIVIDE   ] "T_DIVIDE",
+	[ T_DEBUG    ] "T_DEBUG",
+	[ T_NMI      ] "T_NMI",
+	[ T_BRKPT    ] "T_BRKPT",
+	[ T_OFLOW    ] "T_OFLOW",
+	[ T_BOUND    ] "T_BOUND",
+	[ T_ILLOP    ] "T_ILLOP",
+	[ T_DEVICE   ] "T_DEVICE",
+	[ T_DBLFLT   ] "T_DBLFLT",
+	[ T_TSS      ] "T_TSS",
+	[ T_SEGNP    ] "T_SEGNP",
+	[ T_STACKSEG ] "T_STACKSEG",
+	[ T_GPFLT    ] "T_GPFLT",
+	[ T_PGFLT    ] "T_PGFLT",
+	[ T_FPERR    ] "T_FPERR",
+	[ T_ALIGN    ] "T_ALIGN",
+	[ T_MCHK     ] "T_MCHK",
+	[ T_SIMDERR  ] "T_SIMDERR",
+
+	[ T_IRQ0 + IRQ_TIMER    ] "IRQ_TIMER",
+	[ T_IRQ0 + IRQ_KBD      ] "IRQ_KBD",
+	[ T_IRQ0 + IRQ_COM1     ] "IRQ_COM1",
+	[ T_IRQ0 + IRQ_MOUSE    ] "IRQ_MOUSE",
+	[ T_IRQ0 + IRQ_IDE      ] "IRQ_IDE",
+	[ T_IRQ0 + IRQ_ERROR    ] "IRQ_ERROR",
+	[ T_IRQ0 + IRQ_SPURIOUS ] "IRQ_SPURIOUS",
+
+	[ T_SYSCALL ] "T_SYSCALL"
+};
+
+// __________________________________________________________________________________
 
 // Initialize IDT
 void tvinit ( void )
@@ -59,10 +95,14 @@ void tvinit ( void )
 	initlock( &tickslock, "time" );
 }
 
+// Load IDT
 void idtinit ( void )
 {
 	lidt( idt, sizeof( idt ) );
 }
+
+
+// __________________________________________________________________________________
 
 void trap ( struct trapframe *tf )
 {
@@ -228,6 +268,13 @@ void trap ( struct trapframe *tf )
 			break;
 		*/
 
+		/* For now, fall through to case default after printing message.
+		   Temporary, not good practice to fall through.
+		*/
+		// case T_PGFLT:
+
+		// 	cprintf( "Page fault!\n" );
+
 
 		// Default
 		default:
@@ -236,7 +283,16 @@ void trap ( struct trapframe *tf )
 			if ( myproc() == 0 || ( tf->cs & 3 ) == DPL_KERN )
 			{
 				cprintf( "Unexpected kernel trap\n" );
-				cprintf( "    trapno      : %d\n",     tf->trapno );
+
+				if ( trapnames[ tf->trapno ] )
+				{
+					cprintf( "    trapno      : %s\n", trapnames[ tf->trapno ] );
+				}
+				else
+				{
+					cprintf( "    trapno      : %d\n", tf->trapno );
+				}
+
 				cprintf( "    cpu         : %d\n",     cpuid()    );
 				cprintf( "    eip         : 0x%x\n",   tf->eip    );
 				cprintf( "    cr2 (vaddr) : 0x%x\n\n", rcr2()     );
@@ -250,7 +306,16 @@ void trap ( struct trapframe *tf )
 				cprintf( "Kill misbehaved user process:\n" );
 				cprintf( "    pid         : %d\n",     myproc()->pid  );
 				cprintf( "    name        : %s\n",     myproc()->name );
-				cprintf( "    trapno      : %d\n",     tf->trapno     );
+
+				if ( trapnames[ tf->trapno ] )
+				{
+					cprintf( "    trapno      : %s\n", trapnames[ tf->trapno ] );
+				}
+				else
+				{
+					cprintf( "    trapno      : %d\n", tf->trapno );
+				}
+
 				cprintf( "    errno       : %d\n",     tf->err        );
 				cprintf( "    cpu         : %d\n",     cpuid()        );
 				cprintf( "    eip         : 0x%x\n",   tf->eip        );

@@ -14,7 +14,7 @@
 // #define T_COPROC   9  // reserved (not used since 486)
 #define T_TSS        10  // invalid task switch segment
 #define T_SEGNP      11  // segment not present
-#define T_STACK      12  // stack exception
+#define T_STACKSEG   12  // stack segment exception
 #define T_GPFLT      13  // general protection fault
 #define T_PGFLT      14  // page fault
 // #define T_RES     15  // reserved
