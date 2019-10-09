@@ -318,6 +318,8 @@ void trap ( struct trapframe *tf )
 				// Kill the process
 				myproc()->killed = 1;
 			}
+
+			break;
 	}
 
 
