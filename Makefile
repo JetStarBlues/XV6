@@ -80,6 +80,7 @@ UPROGS =            \
 	gets_test       \
 	gets_test2      \
 	hexdump         \
+	keditor         \
 	stackoverflow   \
 	stressfs        \
 	time            \

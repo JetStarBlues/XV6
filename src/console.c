@@ -10,7 +10,9 @@
    fd information has been lost
 */
 
-/* TODO - understand how input buffer works
+/* TODO:
+   - understand how input buffer works
+   - stop CTRL+D from printing a character...
 */
 
 #include "types.h"
@@ -139,7 +141,7 @@ static void consputc ( int c )
 	if ( c == BACKSPACE )
 	{
 		uartputc( '\b' );
-		uartputc( ' ' );  // overwrite character on display with space
+		uartputc( ' '  );  // overwrite character on display with space
 		uartputc( '\b' );
 	}
 	else
