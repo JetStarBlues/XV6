@@ -29,7 +29,8 @@ int   write   ( int, const void*, int );
 // ulib.c
 int   atoi    ( const char* );
 char* gets    ( char*, int );
-void* memmove ( void*, const void*, int );
+void* memcpy  ( void*, const void*, uint );
+void* memmove ( void*, const void*, uint );
 void* memset  ( void*, int, uint );
 void  printf  ( int, const char*, ... );
 int   stat    ( const char*, struct stat* );
@@ -41,6 +42,7 @@ uint  strlen  ( const char* );
 // umalloc.c
 void  free    ( void* );
 void* malloc  ( uint );
+void* realloc ( void*, uint );
 
 
 // ctype...
