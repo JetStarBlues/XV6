@@ -401,6 +401,7 @@ void vgaputc ( int c )
 			pos -= 1;
 		}
 	}
+	// Tab
 	else if ( c == '\t' )
 	{
 		for ( i = 0; i < NTABSPACES; i += 1 )

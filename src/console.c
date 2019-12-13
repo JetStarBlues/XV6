@@ -220,6 +220,7 @@ void consoleintr ( int ( *getc ) ( void ) )
 				if ( ( c != 0 ) &&
 					 ( input.edIdx - input.rdIdx < INPUTBUFSZ ) )  // ??
 				{
+					// Read carriage return '\r' as newline '\n'
 					c = ( c == '\r' ) ? '\n' : c;
 
 					input.buf[ input.edIdx % INPUTBUFSZ ] = c;
