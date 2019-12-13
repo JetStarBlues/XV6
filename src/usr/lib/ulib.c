@@ -17,13 +17,13 @@ void* memset ( void* dst, int c, uint n )
 	return dst;
 }
 
-void* memmove ( void* vdst, const void* vsrc, int n )
+void* memmove ( void* _dst, const void* _src, uint n )
 {
 	const char* src;
 	char*       dst;
 
-	dst = vdst;
-	src = vsrc;
+	dst = _dst;
+	src = _src;
 
 	while ( n > 0 )
 	{
@@ -37,8 +37,14 @@ void* memmove ( void* vdst, const void* vsrc, int n )
 		n -= 1;
 	}
 
-	return vdst;
+	return _dst;
 }
+
+void* memcpy ( void* dst, const void* src, uint n )
+{
+	return memmove( dst, src, n );
+}
+
 
 
 // _________________________________________________________________

@@ -339,3 +339,70 @@ void free ( void* blockFreeSpacePtr )
 	freelistPtr = curBlockPtr;
 }
 
+
+// ___________________________________________________________________________________
+
+/* Crude implementation of realloc based on
+   man page description.
+   TODO: write a proper test, and check works as expected.
+*/
+
+void* realloc ( void* oldPtr, uint newSize )
+{
+	void*   newPtr;
+	uint    oldSize;
+	Header* blockPtr;
+
+	// If oldPtr is NULL, the call is equivalent to malloc
+	if ( oldPtr == NULL )
+	{
+		oldPtr = malloc( newSize );
+
+		return oldPtr;
+	}
+
+	/* If oldPtr is not NULL, and newSize is zero, the
+	   call is equivalent to free.
+	*/
+	else if ( newSize == 0 )
+	{
+		free( oldPtr );
+
+		return NULL;
+	}
+
+
+	// Allocate new block of size newSize
+	newPtr = malloc( newSize );
+
+	// If failed to allocate new block, return the old block untouched
+	if ( newPtr == NULL )
+	{
+		return oldPtr;
+	}
+
+
+	// Get pointer to old block's header
+	blockPtr = ( Header* ) oldPtr - 1;
+
+	// Get size of old block
+	oldSize = blockPtr->h.size;
+
+
+	// Copy old contents (up to minimum of old size and new size)
+	memcpy(
+
+		newPtr,
+		oldPtr,
+		newSize < oldSize ? newSize : oldSize
+	);
+
+	// Free old block
+	free( oldPtr );
+
+	// Set oldPtr to point to new block
+	oldPtr = newPtr;
+
+	//
+	return oldPtr;
+}
