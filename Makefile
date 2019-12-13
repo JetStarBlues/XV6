@@ -45,6 +45,7 @@ KERNOBJS =      \
 	swtch.o     \
 	syscall.o   \
 	sysfile.o   \
+	sysmisc.o   \
 	sysproc.o   \
 	trapasm.o   \
 	trap.o      \
