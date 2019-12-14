@@ -18,7 +18,8 @@ int main ( int argc, char* argv [] )
 
 	initGFXText();
 
-	clearScreen();
+	// setTextBgColor( 64 );
+	// clearScreen();
 
 
 	//

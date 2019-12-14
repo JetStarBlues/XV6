@@ -3,6 +3,7 @@
 #include "display.h"
 #include "fonts.h"
 #include "fcntl.h"
+#include "GFXtext.h"
 
 /* Simple interface...
 
@@ -71,6 +72,10 @@ void initGFXText ( void )
 
 	// Set palette
 	ioctl( displayfd, DISP_IOCTL_DEFAULTPAL, 0 );
+
+
+	// Garbage otherwise...
+	clearScreen();
 }
 
 void exitGFXText ( void )
@@ -132,7 +137,7 @@ void setCursorColor ( uchar color )
 }
 void invertTextColors ( void )
 {
-	int tmp;
+	uchar tmp;
 
 	tmp         = textColor;
 	textColor   = textBgColor;
@@ -216,7 +221,7 @@ void printChar ( uchar ch )
 	x = cCol * FONT_WIDTH;
 	y = cRow * FONT_HEIGHT;
 
-	printf( 1, "%d -> %d, %d\n", ( uint ) ch, x, y );
+	// printf( 1, "%d -> %d, %d\n", ( uint ) ch, x, y );
 
 	// Draw rect for char bg
 	argp [ 0 ] = x;                     // x
