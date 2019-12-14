@@ -17,5 +17,5 @@
 #define LOGSIZE         ( MAXOPBLOCKS * 3 )  // number of blocks in the log
 #define NBUF            ( MAXOPBLOCKS * 3 )  // number of buffers in the buffer cache
 
-#define FSSIZE          2000                 // size of file system in blocks
+#define FSSIZE          3000                 // size of file system in blocks
 #define FSNINODE        200                  // number of inodes in file system

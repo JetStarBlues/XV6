@@ -602,11 +602,30 @@ void vgaWritePixel ( int x, int y, int colorIdx )
 
 void vgaBlit ( uchar* src )
 {
-	int i;
+	int off;
 
-	for ( i = 0; i < WIDTHxHEIGHT_GFXMODE; i += 1 )
+	for ( off = 0; off < WIDTHxHEIGHT_GFXMODE; off += 1 )
 	{
-		gfxbuffer[ i ] = src[ i ];
+		gfxbuffer[ off ] = src[ off ];
+	}
+}
+
+void vgaFillRect ( int x, int y, int w, int h, int colorIdx )
+{
+	int off;
+	int x2;
+	int y2;
+
+	for ( y2 = y; y2 < ( y + h ); y2 += 1 )
+	{
+		off = WIDTH_GFXMODE * y2 + x;
+
+		for ( x2 = x; x2 < ( x + w ); x2 += 1 )
+		{
+			gfxbuffer[ off ] = colorIdx;
+
+			off += 1;
+		}
 	}
 }
 

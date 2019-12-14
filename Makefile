@@ -55,10 +55,11 @@ KERNOBJS =      \
 	vm.o
 
 # User code
-ULIB =        \
-	printf.o  \
-	ulib.o    \
-	umalloc.o \
+ULIB =         \
+	GFXtext.o  \
+	printf.o   \
+	ulib.o     \
+	umalloc.o  \
 	usys.o
 
 UPROGSCORE =        \
@@ -80,6 +81,7 @@ UPROGS =            \
 	graphics_test   \
 	gets_test       \
 	gets_test2      \
+	gfx_text_test   \
 	hexdump         \
 	keditor         \
 	stackoverflow   \

@@ -13,13 +13,15 @@ TODO:
 
 
 #include "types.h"
-#include "fcntl.h"
 #include "user.h"
+#include "GFXtext.h"  // Render graphically
+// #include "termios.h"
 
+// Temp
 #define stdin  0
 #define stdout 1
 #define stderr 2
-
+#define NULL   0
 
 //
 #define CTRL( k ) ( ( k ) & 0x1F )  // https://en.wikipedia.org/wiki/ASCII#Control_characters
@@ -133,35 +135,57 @@ void disableRawMode ( void )
 
 // ____________________________________________________________________________________
 
-void setCursorPosition ( int row, int col )
+void initEditor ( void )
 {
-	// https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#reposition-the-cursor
-	// write( stdout, "\x1b[H", 3 );
+
+	/* Hard code dimensions for now...
+	   Dimensions based on GFXText.c
+	*/
+	editorState.nRows = 18;
+	editorState.nCols = 40;
 }
 
-void getCursorPosition ( int* row, int* col )
+
+// ____________________________________________________________________________________
+
+void drawTildeRows ( void )
 {
-	// *row = ...
-	// *col = ...
+	int y;
+
+	for ( y = 0; y < editorState.nRows; y += 1 )
+	{
+		if ( y == editorState.nRows - 1 )
+		{
+			write( stdout, "~", 1 );  // last line. Don't want to trigger scroll...
+		}
+		else
+		{
+			write( stdout, "~\n", 2 );
+		}
+	}
 }
 
-void setTextColor     ( int color ) {}
-void setTextBgColor   ( int color ) {}
-void invertTextColors ( void )      {}
-
-
-void clearScreen ( void )
+void refreshScreen ( void )
 {
-	// https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#clear-the-screen
-	// write( stdout, "\x1b[2J", 4 );
+	clearScreen();
+	setCursorPosition( 0, 0 );
+
+	drawTildeRows();
+
+	setCursorPosition( 0, 0 );
 }
+
+
+
+
+
 
 
 // ____________________________________________________________________________________
 
 void cleanup ( void )
 {
-	disableRawMode();
+	// disableRawMode();
 }
 
 
@@ -209,52 +233,7 @@ int main ( void )
 		printf( stdout, "(%d, %c)\n", c, c );
 	}
 
-	// cleanup();
+	cleanup();
 
 	exit();
 }
-
-
-
-
-// ____________________________________________________________________________________
-
-void initEditor ( void )
-{
-
-	// Hard code dimensions for now...
-	editorState.nRows = 25;
-	editorState.nCols = 80;
-}
-
-
-// ____________________________________________________________________________________
-
-void refreshScreen ( void )
-{
-	clearScreen();
-	setCursorPosition( 0, 0 );
-
-	drawTildeRows();
-
-	setCursorPosition( 0, 0 );
-}
-
-void drawTildeRows ( void )
-{
-	int y;
-
-	for ( y = 0; y < editorState.nRows; y += 1 )
-	{
-		if ( y == editorState.nRows - 1 )
-		{
-			write( stdout, "~", 1 );  // last line. Don't want to trigger scroll...
-		}
-		else
-		{
-			write( stdout, "~\n", 2 );
-		}
-	}
-}
-
-

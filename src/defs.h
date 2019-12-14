@@ -186,11 +186,12 @@ void            uartputc ( int );
 void            vgainit              ( void );
 void            vgaputc              ( int );
 
-void            vgaSetMode           ( int );
-void            vgaWritePixel        ( int, int, int );
 void            vgaBlit              ( uchar* );
-void            vgaSetPaletteColor   ( int, char, char, char );
+void            vgaFillRect          ( int, int, int, int, int );
+void            vgaSetMode           ( int );
 void            vgaSetDefaultPalette ( void );
+void            vgaSetPaletteColor   ( int, char, char, char );
+void            vgaWritePixel        ( int, int, int );
 
 void            demoGraphics ( void );
 
