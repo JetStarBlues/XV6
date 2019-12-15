@@ -4,8 +4,6 @@
 
 #define UINPUTBUFSZ 3
 
-#define NROWS 18
-#define NCOLS 40
 
 int main ( int argc, char* argv [] )
 {
@@ -15,8 +13,12 @@ int main ( int argc, char* argv [] )
 	uint row;
 	uint col;
 	uint c;
+	uint nRows;
+	uint nCols;
 
 	initGFXText();
+
+	getDimensions( &nRows, &nCols );
 
 	// setTextBgColor( 64 );
 	// clearScreen();
@@ -40,8 +42,8 @@ int main ( int argc, char* argv [] )
 	i = 0;
 	for ( c = 0; c <= 255; c += 1 )
 	{
-		row = i / NCOLS;
-		col = i % NCOLS;
+		row = i / nCols;
+		col = i % nCols;
 
 		setCursorPosition( 2 + row, col );
 		printChar( ( uchar ) c );

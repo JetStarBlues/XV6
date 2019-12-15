@@ -32,8 +32,11 @@ struct _editorState {
 
 	//struct termios origConsoleAttr;
 
-	int nRows;
-	int nCols;
+	uint nRows;
+	uint nCols;
+
+	uint cursorRow;
+	uint cursorCol;
 };
 
 static struct _editorState editorState;
@@ -83,30 +86,10 @@ void freeUnderlyingBuffer ( struct charBuffer* cBuf )
 
 // ____________________________________________________________________________________
 
-#if 0
-
-static struct termios origConsoleAttr;
+#if 10
 
 void enableRawMode ( void )
 {
-	/* Using 'termios.h' protocol, would do this by
-       clearing ICANON flag...
-
-         . https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
-
-         . https://github.com/SerenityOS/serenity/blob/04b9dc2d30cfc9b383029f6a4b02e2725108b0ae/Kernel/TTY/TTY.h
-         . https://github.com/SerenityOS/serenity/blob/04b9dc2d30cfc9b383029f6a4b02e2725108b0ae/Libraries/LibC/termios.h
-
-         . https://github.com/DoctorWkt/xv6-freebsd/blob/d2a294c2a984baed27676068b15ed9a29b06ab6f/XV6_CHANGES
-         . https://github.com/DoctorWkt/xv6-freebsd/blob/d2a294c2a984baed27676068b15ed9a29b06ab6f/kern/console.c
-	*/
-
-	/*
-	   . clear ECHO flag
-	   . clear ICANON flag
-	   . clear ...
-	*/
-
 	struct termios newConsoleAttr;
 
 	if ( getConsoleAttr( stdin, &( editorState.origConsoleAttr ) ) < 0 )
@@ -114,6 +97,7 @@ void enableRawMode ( void )
 		die( "getConsoleAttr" );
 	}
 
+	// Copy editorState.origConsoleAttr to newConsoleAttr
 	memcpy( &newConsoleAttr, &( editorState.origConsoleAttr ), sizeof( termios ) );
 
 	newConsoleAttr->echo   = 0;  // disable echoing
@@ -301,16 +285,148 @@ void printString ( char* s, int wrap )
 }
 
 
+
+
+
+
+
+
+
+
+
+
 // ____________________________________________________________________________________
 
-void initEditor ( void )
-{
+/* Key macros from 'kbd.h'
 
-	/* Hard code dimensions for now...
-	   Dimensions based on GFXText.c
-	*/
-	editorState.nRows = 18;
-	editorState.nCols = 40;
+   QEMU window has to be in focus to use the associated keys.
+
+   If the terminal/console/command-prompt that launched QEMU is
+   instead in focus, you'll get a multibyte escape sequence that
+   needs to be decoded. See explanation here:
+    . https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#arrow-keys 
+
+   I think the code in 'kbd.c' does this decoding for you...
+   TODO: confirm 
+*/
+#define KEY_HOME     0xE0  // Doesn't seem to work =(
+#define KEY_END      0xE1
+#define KEY_UP       0xE2
+#define KEY_DOWN     0xE3
+#define KEY_LEFT     0xE4
+#define KEY_RIGHT    0xE5
+#define KEY_PAGEUP   0xE6
+#define KEY_PAGEDOWN 0xE7
+#define KEY_DELETE   0xE9
+
+//
+void moveCursor ( uchar key )
+{
+	switch ( key )
+	{
+		case KEY_LEFT:
+
+			if ( editorState.cursorCol != 0 )
+			{
+				editorState.cursorCol -= 1;
+			}
+			break;
+
+		case KEY_RIGHT:
+
+			if ( editorState.cursorCol < editorState.nCols - 1 )
+			{
+				editorState.cursorCol += 1;
+			}
+			break;
+
+		case KEY_UP:
+
+			if ( editorState.cursorRow != 0 )
+			{
+				editorState.cursorRow -= 1;
+			}
+			break;
+
+		case KEY_DOWN:
+
+			if ( editorState.cursorRow < editorState.nRows - 1 )
+			{
+				editorState.cursorRow += 1;
+			}
+			break;
+	}
+}
+
+
+// ____________________________________________________________________________________
+
+char readKey ( void )
+{
+	char c;
+
+	if ( read( stdin, &c, 1 ) < 0 )
+	{
+		die( "read" );
+	}
+
+	printf( stdout, "(%d, %c)\n", c, c );
+
+	return c;
+}
+
+void processKeyPress ( void )
+{
+	uchar c;
+
+	c = ( uchar ) readKey();
+
+	switch ( c )
+	{
+		case CTRL( 'q' ):
+
+			die( NULL );
+			break;
+
+		case KEY_LEFT:
+		case KEY_RIGHT:
+		case KEY_UP:
+		case KEY_DOWN:
+
+			moveCursor( c );
+			break;
+
+		case KEY_PAGEUP:
+		case KEY_PAGEDOWN:
+		{
+			// For now, just move to vertical extremes
+			int n = editorState.nRows;
+			while ( n )
+			{
+				moveCursor( c == KEY_PAGEUP ? KEY_UP : KEY_DOWN );
+				n -= 1;
+			}
+
+			break;
+		}
+
+		case KEY_HOME:
+		case KEY_END:
+		{
+			// For now, just move to horizontal extremes
+			int n = editorState.nCols;
+			while ( n )
+			{
+				moveCursor( c == KEY_HOME ? KEY_LEFT : KEY_RIGHT );
+				n -= 1;
+			}
+
+			break;
+		}
+
+		// case KEY_DELETE:
+			// break;
+	}
 }
 
 
@@ -325,6 +441,8 @@ void drawRows ( void )
 
 	welcomeMsg    = "Kilo Editor";
 	welcomeMsgLen = 11;  // excluding null terminal
+
+	setCursorPosition( 0, 0 );  // makes more sense here...
 
 	for ( row = 0; row < editorState.nRows; row += 1 )
 	{
@@ -349,51 +467,29 @@ void drawRows ( void )
 void refreshScreen ( void )
 {
 	// clearScreen();
-	setCursorPosition( 0, 0 );
+
+	// setCursorPosition( 0, 0 );
+	// Does editor cursor mirror terminal's ???
 
 	drawRows();
 
-	setCursorPosition( 0, 0 );
+	// setCursorPosition( 0, 0 );
+	setCursorPosition( editorState.cursorRow, editorState.cursorCol );
 	drawCursor();
 }
 
 
 // ____________________________________________________________________________________
 
-char readKey ( void )
+void initEditor ( void )
 {
-	char c;
+	editorState.cursorCol = 0;
+	editorState.cursorRow = 0;
 
-	if ( read( stdin, &c, 1 ) < 0 )
-	{
-		die( "read" );
-	}
-
-	printf( stdout, "(%d, %c)\n", c, c );
-
-	return c;
+	//
+	getDimensions( &editorState.nRows, &editorState.nCols );
+	
 }
-
-void processKeyPress ( void )
-{
-	char c;
-
-	c = readKey();
-
-	switch ( c )
-	{
-		case CTRL( 'q' ):
-
-			die( NULL );
-	}
-}
-
-
-
-
-
-
-
 
 
 // ____________________________________________________________________________________

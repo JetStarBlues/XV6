@@ -1,10 +1,6 @@
 #include "types.h"
 #include "defs.h"
 #include "date.h"
-// #include "param.h"
-// #include "memlayout.h"
-// #include "mmu.h"
-// #include "proc.h"
 
 
 // Return number of clock tick interrupts since start
@@ -39,7 +35,3 @@ int sys_gettime ( void )
 
 	return 0;
 }
-
-
-// ___________________________________________________________________________
-

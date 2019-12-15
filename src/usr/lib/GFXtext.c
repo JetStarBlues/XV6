@@ -34,8 +34,8 @@ static uint nRows = 18;  // 200 / 11
 static uint nCols = 40;  // 320 / 8
 
 // Cursor position
-static uint cRow;
-static uint cCol;
+static uint cursorRow;
+static uint cursorCol;
 
 // Default colors (standard 256-color VGA palette)
 static uchar textColor   = 24;   // grey
@@ -105,19 +105,25 @@ void setCursorPosition ( uint row, uint col )
 {
 	if ( ( row >= 0 ) && ( row < nRows ) )
 	{
-		cRow = row;
+		cursorRow = row;
 	}
 
 	if ( ( col >= 0 ) && ( col < nCols ) )
 	{
-		cCol = col;
+		cursorCol = col;
 	}
 }
 
 void getCursorPosition ( uint* rowPtr, uint* colPtr )
 {
-	*rowPtr = cRow;
-	*colPtr = cCol;
+	*rowPtr = cursorRow;
+	*colPtr = cursorCol;
+}
+
+void getDimensions ( uint* nRowsPtr, uint* nColsPtr )
+{
+	*nRowsPtr = nRows;
+	*nColsPtr = nCols;
 }
 
 
@@ -218,8 +224,8 @@ void printChar ( uchar ch )
 	uint argp [ 5 ];
 
 	//
-	x = cCol * FONT_WIDTH;
-	y = cRow * FONT_HEIGHT;
+	x = cursorCol * FONT_WIDTH;
+	y = cursorRow * FONT_HEIGHT;
 
 	// printf( 1, "%d -> %d, %d\n", ( uint ) ch, x, y );
 
@@ -247,8 +253,8 @@ void drawCursor ( void )
 	uint argp [ 5 ];
 
 	//
-	x = cCol * FONT_WIDTH;
-	y = cRow * FONT_HEIGHT;
+	x = cursorCol * FONT_WIDTH;
+	y = cursorRow * FONT_HEIGHT;
 
 	// Draw rect for char bg
 	argp [ 0 ] = x;                     // x

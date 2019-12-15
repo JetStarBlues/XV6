@@ -2,7 +2,7 @@
 #include "memlayout.h"
 
 
-// Record the current call stack in pcs[] by following the %ebp chain.
+// Record the current callstack into by following the %ebp chain.
 
 /* Stack during subroutine call:
    http://www.cs.virginia.edu/~evans/cs216/guides/x86.html
@@ -26,33 +26,60 @@
       -----------------
 
    https://practicalmalwareanalysis.com/2012/04/03/all-about-ebp/
-     . "At EBP is a pointer to EBP for the previous frame"
+     "EBP is a pointer to the top of the stack when the function
+      is first called. By using a base pointer the return address
+      will always be at ebp+4, the first parameter will always be
+      at ebp+8, and the first local variable will always be at ebp-4.
+      Even as the stack size grows and shrinks those offsets do not change...
+
+      At ebp [ memory[ ebp ] ] is a pointer to ebp for the previous frame
+      (this is why push ebp; mov ebp, esp is such a common way to start a
+      function). This effectively creates a linked list of base pointers.
+      This linked list makes it very easy to trace backwards up the stack.
+     "
 */
-void getcallerpcs ( void* param0, uint pcs [], uint npcs )
+void getcallerpcs ( void* firstParam, uint callstack [], uint depth )
 {
-	uint* ebp;
+	uint* saved_ebp_ptr;
 	int   i;
 
-	ebp = ( ( uint* ) param0 ) - 2;  // point to saved %ebp
+	/* Use address of the first parameter to find the address
+	   of the saved ebp in the associated stack frame.
+	   I.e. get first ebp pointer in the call chain
+	*/
+	saved_ebp_ptr = ( ( uint* ) firstParam ) - 2;
 
-	for ( i = 0; i < npcs; i += 1 )
+
+	// Traverse "linked list" of %ebp to generate call stack
+	for ( i = 0; i < depth; i += 1 )
 	{
-		if ( ebp == 0                      ||  // ??
-			 ebp == ( uint* ) 0xffffffff   ||  // fake return ??
-			 ebp <  ( uint* ) KERNBASE   )     // user space ??
+		/* Exit early if...
+		*/
+		if ( saved_ebp_ptr == 0                      ||  // ??
+			 saved_ebp_ptr == ( uint* ) 0xffffffff   ||  // fake return ??
+			 saved_ebp_ptr <  ( uint* ) KERNBASE   )     // user space ??
 		{
 			break;
 		}
 
-		pcs[ i ] = *( ebp + 1 );   // saved return address (%eip)
 
-		ebp = ( uint* ) ( *ebp );  // point to caller's saved %ebp
+		/* Get the current stack frame's saved return address (%eip)
+		   and place it into 'callstack'
+		*/
+		callstack[ i ] = *( saved_ebp_ptr + 1 );
+
+
+		/* Evaluate the next stack frame in the call chain.
+		   I.e. go to caller's stack frame...
+		   I.e. get next ebp pointer in the call chain...
+		*/
+		saved_ebp_ptr = ( uint* ) ( *saved_ebp_ptr );
 	}
 
 	// Zero fill the rest
-	while ( i < npcs )
+	while ( i < depth )
 	{
-		pcs[ i ] = 0;
+		callstack[ i ] = 0;
 
 		i += 1;
 	}

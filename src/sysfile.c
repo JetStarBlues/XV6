@@ -119,8 +119,8 @@ int sys_dup ( void )
 int sys_read ( void )
 {
 	struct file* f;
-	int          n;
 	char*        p;
+	int          n;
 
 	if ( argfd( 0, 0, &f )  < 0   ||
 		 argint( 2, &n )    < 0   ||
@@ -135,8 +135,8 @@ int sys_read ( void )
 int sys_write ( void )
 {
 	struct file* f;
-	int          n;
 	char*        p;
+	int          n;
 
 	if ( argfd( 0, 0, &f )  < 0   ||
 		 argint( 2, &n )    < 0   ||
@@ -876,10 +876,7 @@ int sys_ioctl ( void )
 
 	if ( argfd( 0, &fd, &f ) < 0   ||
 		 argint( 1, &request ) < 0 ||
-		 argptr( 2, ( void* ) &argp, sizeof( uint ) ) < 0 )  /* size should be "nArgs * sizeof( uint )"
-		                                                        but nArgs is unknown. This introduces
-		                                                        opportunity for exploit since boundary
-		                                                        check in argptr is bypassed. */
+		 argptr( 2, ( void* ) &argp, sizeof( uint ) ) < 0 )
 	{
 		return - 1;
 	}

@@ -1,14 +1,15 @@
 #include "types.h"
 #include "x86.h"
 #include "defs.h"
+#include "ps2.h"
 #include "kbd.h"
 
 int kbdgetc ( void )
 {
-	uint          status,
-	              data,
-	              c;
-	static uint   shift;
+	// ?
+	static uint shift;
+
+	// ?
 	static uchar* charcode [ 4 ] = {
 
 		normalmap,
@@ -16,6 +17,10 @@ int kbdgetc ( void )
 		ctlmap,
 		ctlmap
 	};
+
+	uint status,
+	     data,
+	     c;
 
 	status = inb( PS2CTRL );
 
@@ -39,7 +44,8 @@ int kbdgetc ( void )
 	else if ( data & 0x80 )
 	{
 		// Key released
-		data = ( shift & E0ESC ? data : data & 0x7F );
+		// data = ( shift & E0ESC ? data : data & 0x7F );
+		data = ( shift & E0ESC ) ? data : ( data & 0x7F );  // JK... legibility
 
 		shift &= ~ ( shiftcode[ data ] | E0ESC );
 

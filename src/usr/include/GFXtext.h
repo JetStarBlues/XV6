@@ -5,6 +5,7 @@ void exitGFXText       ( void );
 void setDisplayFd      ( int );
 void setCursorPosition ( uint, uint );
 void getCursorPosition ( uint*, uint* );
+void getDimensions     ( uint*, uint* );
 void setTextColor      ( uchar );
 void setTextBgColor    ( uchar );
 void setCursorColor    ( uchar );

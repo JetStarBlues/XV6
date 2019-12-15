@@ -10,6 +10,14 @@
 #    pushl $my_path
 #    call  exec
 #
+# If we decompose the 'call' instruction, into its psuedo components
+#  (stackoverflow.com/a/523550), we get something like:
+#
+#    pushl $my_argv
+#    pushl $my_path
+#    pushl returnAddress
+#    jmp   exec
+#
 # The "call exec" goes to the following code we generate below:
 #
 #    exec:

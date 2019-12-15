@@ -17,29 +17,26 @@
 
 // __________________________________________________________________________
 
-//
-#define CONS_IOCTL_GETATTR 1
-#define CONS_IOCTL_SETATTR 2
+#include "termios.h"
 
-//
-struct termios {
+/* Used to configure the console:
+     . switch between canonical-mode and raw-mode input
+     . turn input-echoing on or off
+*/
 
-	/* If set, enables echoing of input characters.
-	*/
-	uchar echo;
 
-	/* If set, uses canonical mode input.
-	   Otherwise uses raw mode.
-	*/
-	uchar icanon;
+/* Mirrors behaviour of 'tcgetattr'.
+   Returns 0 on success, -1 on error.
+*/
+int getConsoleAttr ( int fd, struct termios* termios_p )
+{
+	return ioctl( fd, CONS_IOCT_GETATTR, ( void* termios_p ), 0 );
+}
 
-	/* If set, Ctrl+C (SIGINT), Ctrl+Z (SIGTSTOP)
-	   generate correspoinding signals.
-	   Currently does nothing, as signals not implemented.
-	*/
-	uchar isig;
-};
-
-//
-int getConsoleAttr ( int fd, struct termios* termios_p );
-int setConsoleAttr ( int fd, struct termios* termios_p );
+/* Mirrors behaviour of 'tcsetattr'.
+   Returns 0 on success, -1 on error.
+*/
+int setConsoleAttr ( int fd, struct termios* termios_p )
+{
+	return ioctl( fd, CONS_IOCT_SETATTR, ( void* termios_p ), 0 );
+}

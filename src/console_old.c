@@ -26,7 +26,6 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
-#include "termios.h"
 
 #define BACKSPACE  0x100
 #define INPUTBUFSZ 128
@@ -41,11 +40,9 @@ struct _cons {
 	struct spinlock lock;
 	int             locking;
 
-	// Used to configure console behaviour
-	struct termios termios;
 };
 
-static struct _cons cons;
+static struct _cons   cons;
 
 struct _input {
 
@@ -72,13 +69,9 @@ void consoleinit ( void )
 
 	devsw[ CONSOLE ].read  = consoleread;
 	devsw[ CONSOLE ].write = consolewrite;
-	devsw[ CONSOLE ].ioctl = consoleioctl;
+	devsw[ CONSOLE ].ioctl = 0;
 
-	cons.locking = 1;  // ??
-
-	// default as canonical-mode input with echo
-	cons.echo   = 1;
-	cons.icanon = 1;
+	cons.locking = 1;  // Why distinguish ??
 
 	ioapicenable( IRQ_KBD, 0 );
 }
@@ -162,31 +155,16 @@ static void consputc ( int c )
 
 // _____________________________________________________________________________
 
-static void console_echo ( int c )
-{
-	if ( cons.termios.echo )
-	{
-		consputc( c );
-	}
-}
-
-
-// _____________________________________________________________________________
-
 void consoleintr ( int ( *getc ) ( void ) )
 {
 	int c;
 	int doprocdump = 0;
 	int dotestthing = 0;
 
-	//
 	acquire( &cons.lock );
 
-
-	//
 	while ( 1 )
 	{
-		//
 		c = getc();
 
 		if ( c < 0 )
@@ -194,125 +172,81 @@ void consoleintr ( int ( *getc ) ( void ) )
 			break;
 		}
 
-
-		// Canonical-mode input
-		if ( cons.termios.icanon )
+		switch ( c )
 		{
-			switch ( c )
-			{
-				// DELETE ME! Temporary for testing
-				case C( 'T' ):
+			// DELETE ME! Temporary for testing
+			case C( 'T' ):
 
-					dotestthing = 1;
+				dotestthing = 1;
 
-					break;
+				break;
 
-				// Process listing
-				case C( 'P' ):
+			// Process listing
+			case C( 'P' ):
 
-					// procdump() locks cons.lock indirectly; invoke later
-					doprocdump = 1;
+				// procdump() locks cons.lock indirectly; invoke later
+				doprocdump = 1;
 
-					break;
+				break;
 
-				// Kill line
-				case C( 'U' ):
+			// Kill line
+			case C( 'U' ):
 
-					while ( input.edIdx != input.wrIdx  &&                          // Haven't reached ??
-					        input.buf[ ( input.edIdx - 1 ) % INPUTBUFSZ] != '\n' )  // Haven't reached end of previous line
+				while ( input.edIdx != input.wrIdx  &&                          // Haven't reached ??
+				        input.buf[ ( input.edIdx - 1 ) % INPUTBUFSZ] != '\n' )  // Haven't reached end of previous line
+				{
+					input.edIdx -= 1;
+
+					consputc( BACKSPACE );
+				}
+
+				break;
+
+			// Backspace
+			case C( 'H' ):
+			case '\x7f':
+
+				if ( input.edIdx != input.wrIdx )  // ??
+				{
+					input.edIdx -= 1;
+
+					consputc( BACKSPACE );
+				}
+
+				break;
+
+			default:
+
+				if ( ( c != 0 ) &&
+					 ( input.edIdx - input.rdIdx < INPUTBUFSZ ) )  // ??
+				{
+					// Read carriage return '\r' as newline '\n'
+					c = ( c == '\r' ) ? '\n' : c;
+
+					input.buf[ input.edIdx % INPUTBUFSZ ] = c;
+
+					input.edIdx += 1;
+
+					consputc( c );
+
+					// Gather until either of the following conditions met,
+					// then wakeup whoever is sleeping on input
+					if ( c == '\n'                                ||  // enter key
+					     c == C( 'D' )                            ||  // ctrl-D
+					     input.edIdx == input.rdIdx + INPUTBUFSZ )    // ?? input buffer is full
 					{
-						input.edIdx -= 1;
+						input.wrIdx = input.edIdx;
 
-						console_echo( BACKSPACE );
+						wakeup( &input.rdIdx );
 					}
+				}
 
-					break;
-
-				// Backspace
-				case C( 'H' ):
-				case '\x7f':
-
-					if ( input.edIdx != input.wrIdx )  // ??
-					{
-						input.edIdx -= 1;
-
-						console_echo( BACKSPACE );
-					}
-
-					break;
-
-				default:
-
-					if ( ( c != 0 ) &&
-						 ( input.edIdx - input.rdIdx < INPUTBUFSZ ) )  // ??
-					{
-						// Read carriage return '\r' as newline '\n'
-						c = ( c == '\r' ) ? '\n' : c;
-
-
-						//
-						input.buf[ input.edIdx % INPUTBUFSZ ] = c;
-
-						input.edIdx += 1;
-
-
-						//
-						console_echo( c );
-
-
-						// Gather until either of the following conditions met,
-						// then wakeup whoever is sleeping on input
-						if ( c == '\n'                                ||  // enter key
-						     c == C( 'D' )                            ||  // ctrl-D
-						     input.edIdx == input.rdIdx + INPUTBUFSZ )    // ?? input buffer is full
-						{
-							input.wrIdx = input.edIdx;
-
-							wakeup( &input.rdIdx );
-						}
-					}
-
-					break;
-			}
-		}
-
-
-		// Raw-mode input
-		else
-		{
-			if ( ( c != 0 ) &&
-				 ( input.edIdx - input.rdIdx < INPUTBUFSZ ) )  // ??
-			{
-				// Read carriage return '\r' as newline '\n'
-				/* Pure raw-mode would return the '\r' as is...
-				*/
-				c = ( c == '\r' ) ? '\n' : c;
-
-
-				//
-				input.buf[ input.edIdx % INPUTBUFSZ ] = c;
-
-				input.edIdx += 1;
-
-
-				//
-				console_echo( c );
-
-
-				// Wakeup whoever is sleeping on input
-				input.wrIdx = input.edIdx;
-
-				wakeup( &input.rdIdx );
-			}
+				break;
 		}
 	}
 
-
-	//
 	release( &cons.lock );
 
-
-	//
 	if ( doprocdump )
 	{
 		procdump();  // now call procdump() without cons.lock held
@@ -369,8 +303,7 @@ static int consoleread ( struct inode* ip, char* dst, int n )
 
 		input.rdIdx += 1;
 
-		// If receive EOF, while in canonical-mode input...
-		if ( ( c == C( 'D' ) ) && cons.termios.icanon )
+		if ( c == C( 'D' ) )  // EOF
 		{
 			if ( n < target )
 			{
@@ -389,8 +322,7 @@ static int consoleread ( struct inode* ip, char* dst, int n )
 
 		n -= 1;
 
-		// If receive newline, while in canonical-mode input...
-		if ( ( c == '\n' ) && cons.termios.icanon )
+		if ( c == '\n' )
 		{
 			break;
 		}
@@ -421,40 +353,6 @@ static int consolewrite ( struct inode* ip, char* buf, int n )
 	ilock( ip );
 
 	return n;
-}
-
-
-// _____________________________________________________________________________
-
-static int consoleioctl ( struct inode* ip, int request, uint* argp )
-{
-	if ( request == CONS_IOCTL_GETATTR )
-	{
-		struct termios* termios_p;
-
-		termios_p = ( struct termios* ) *argp;
-
-		// Copy cons.termios to *termios_p
-		memcpy( termios_p, &( cons.termios ), sizeof( termios ) );
-
-	}
-	else if ( request == CONS_IOCTL_SETATTR )
-	{
-		struct termios* termios_p;
-
-		termios_p = ( struct termios* ) *argp;
-
-		// Copy *termios_p to cons.termios
-		memcpy( &( cons.termios ), termios_p, sizeof( termios ) );
-	}
-	else
-	{
-		cprintf( "consoleioctl: unknown request - %d\n", request );
-
-		return - 1;
-	}
-
-	return 0;
 }
 
 
