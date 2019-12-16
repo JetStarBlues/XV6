@@ -95,9 +95,9 @@ void enableRawMode ( void )
 		die( "getConsoleAttr" );
 	}
 
-	// Copy editorState.origConsoleAttr to newConsoleAttr
-	// memcpy( &newConsoleAttr, &( editorState.origConsoleAttr ), sizeof( struct termios ) );
-	newConsoleAttr = editorState.origConsoleAttr;
+	/* Copy editorState.origConsoleAttr to newConsoleAttr */
+	// newConsoleAttr = editorState.origConsoleAttr;
+	memcpy( &newConsoleAttr, &( editorState.origConsoleAttr ), sizeof( struct termios ) );
 
 	// newConsoleAttr.echo   = 0;  // disable echoing
 	newConsoleAttr.icanon = 0;  // disiable canonical mode input

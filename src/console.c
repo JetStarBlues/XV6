@@ -432,20 +432,20 @@ static int consolewrite ( struct inode* ip, char* buf, int n )
 
 static int _getAttribute ( struct termios* termios_p )
 {
-	// Copy cons.termios to *termios_p
-	*termios_p = cons.termios;
-	// memcpy( termios_p, &( cons.termios ), sizeof( struct termios ) );
+	/* Copy cons.termios to *termios_p */
+	// *termios_p = cons.termios;
+	memcpy( termios_p, &( cons.termios ), sizeof( struct termios ) );
 
 	return 0;
 }
 
 static int _setAttribute ( struct termios* termios_p )
 {
-	// Copy *termios_p to cons.termios
-	cons.termios = *termios_p;
-	// memcpy( &( cons.termios ), termios_p, sizeof( struct termios ) );
+	/* Copy *termios_p to cons.termios */
+	// cons.termios = *termios_p;
+	memcpy( &( cons.termios ), termios_p, sizeof( struct termios ) );
 
-	cprintf( "SETATTR: %d\n", cons.termios.icanon );
+	// cprintf( "SETATTR: %d\n", cons.termios.icanon );
 
 	return 0;
 }
