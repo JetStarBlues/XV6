@@ -21,7 +21,6 @@ int main ( int argc, char* argv [] )
 	int   imagefd;
 	int   bytesRead;
 	char* imgbuf;
-	uint  argp [ 3 ];
 	char  uinputbuf [ UINPUTBUFSZ ];
 
 
@@ -68,15 +67,13 @@ int main ( int argc, char* argv [] )
 	printf( 1, "Drawing image...\n" );
 
 	// Switch to graphics mode
-	argp[ 0 ] = GFXMODE;
-	ioctl( displayfd, DISP_IOCTL_SETMODE, argp );
+	ioctl( displayfd, DISP_IOCTL_SETMODE, GFXMODE );
 
 	// Set palette
-	ioctl( displayfd, DISP_IOCTL_DEFAULTPAL, 0 );
+	ioctl( displayfd, DISP_IOCTL_DEFAULTPAL );
 
 	// Blit the image
-	argp[ 0 ] = ( uint ) imgbuf;
-	ioctl( displayfd, DISP_IOCTL_BLIT, argp );
+	ioctl( displayfd, DISP_IOCTL_BLIT, imgbuf );
 
 
 	/* When user enters "q", switch back to text mode.
@@ -99,8 +96,7 @@ int main ( int argc, char* argv [] )
 
 
 	// Switch to text mode
-	argp[ 0 ] = TXTMODE;
-	ioctl( displayfd, DISP_IOCTL_SETMODE, argp );
+	ioctl( displayfd, DISP_IOCTL_SETMODE, TXTMODE );
 
 	printf( 1, "Hasta luego!\n" );
 

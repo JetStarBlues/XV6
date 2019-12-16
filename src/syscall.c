@@ -40,7 +40,7 @@ int fetchint ( uint addr, int* ip )
 
 // Fetch the null-terminated string at addr from the current process.
 // Doesn't actually copy the string - just sets *pp to point at it.
-// Returns length of string, not including nul.
+// Returns length of string, not including null.
 int fetchstr ( uint addr, char** pp )
 {
 	struct proc* curproc;

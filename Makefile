@@ -58,6 +58,7 @@ KERNOBJS =      \
 ULIB =         \
 	GFXtext.o  \
 	printf.o   \
+	termios.o  \
 	ulib.o     \
 	umalloc.o  \
 	usys.o

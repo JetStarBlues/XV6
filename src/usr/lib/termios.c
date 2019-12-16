@@ -17,6 +17,8 @@
 
 // __________________________________________________________________________
 
+#include "types.h"
+#include "user.h"
 #include "termios.h"
 
 /* Used to configure the console:
@@ -30,7 +32,7 @@
 */
 int getConsoleAttr ( int fd, struct termios* termios_p )
 {
-	return ioctl( fd, CONS_IOCT_GETATTR, ( void* termios_p ), 0 );
+	return ioctl( fd, CONS_IOCTL_GETATTR, termios_p );
 }
 
 /* Mirrors behaviour of 'tcsetattr'.
@@ -38,5 +40,5 @@ int getConsoleAttr ( int fd, struct termios* termios_p )
 */
 int setConsoleAttr ( int fd, struct termios* termios_p )
 {
-	return ioctl( fd, CONS_IOCT_SETATTR, ( void* termios_p ), 0 );
+	return ioctl( fd, CONS_IOCTL_SETATTR, termios_p );
 }

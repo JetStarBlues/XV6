@@ -865,18 +865,15 @@ int sys_pipe ( void )
    https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
 
    int ioctl ( int fd, int request, ... );
-   int ioctl ( int fd, int request, uint* argp );  // Make life simpler...
 */
 int sys_ioctl ( void )
 {
 	int          fd;
 	int          request;
-	uint*        argp;
 	struct file* f;
 
-	if ( argfd( 0, &fd, &f ) < 0   ||
-		 argint( 1, &request ) < 0 ||
-		 argptr( 2, ( void* ) &argp, sizeof( uint ) ) < 0 )
+	if ( argfd( 0, &fd, &f ) < 0    ||
+		 argint( 1, &request ) < 0 )
 	{
 		return - 1;
 	}
@@ -891,5 +888,5 @@ int sys_ioctl ( void )
 		return - 1;
 	}
 
-	return devsw[ f->ip->major ].ioctl( f->ip, request, argp );
+	return devsw[ f->ip->major ].ioctl( f->ip, request );
 }

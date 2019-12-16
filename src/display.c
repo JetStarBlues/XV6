@@ -12,7 +12,7 @@ Based on:
 	. https://github.com/DoctorWkt/xv6-freebsd/blob/master/include/xv6/file.h
 */
 
-static int displayioctl ( struct inode*, int, uint* );
+static int displayioctl ( struct inode*, int, ... );
 
 
 void displayinit ( void )
@@ -23,43 +23,52 @@ void displayinit ( void )
 }
 
 
-// int displayread ( struct inode* ip, char* dst, int n ) {}
-// int displaywrite ( struct inode* ip, char* src, int n ) {}
+// static int displayread ( struct inode* ip, char* dst, int n ) {}
+// static int displaywrite ( struct inode* ip, char* src, int n ) {}
 
 
-static int displayioctl ( struct inode* ip, int request, uint* argp )
+static int displayioctl ( struct inode* ip, int request, ... )
 {
 	if ( request == DISP_IOCTL_SETMODE )
 	{
-		uint sel;
+		int sel;
 
-		sel = *argp;
+		if ( argint( 2, &sel ) < 0 )
+		{
+			return - 1;
+		}
 
 		vgaSetMode( sel );
 	}
 
 	else if ( request == DISP_IOCTL_SETPALCOLOR )
 	{
-		int  index;
-		char r;
-		char g;
-		char b;
+		int colorIdx;
+		int r;
+		int g;
+		int b;
 
-		index = ( int ) *argp;
-		argp += 1;
+		if ( argint( 2, &colorIdx ) < 0 )
+		{
+			return - 1;
+		}
 
-		// We assume r,g,b passed as ints
-		r = ( char ) *argp;
-		argp += 1;
+		if ( argint( 3, &r ) < 0 )
+		{
+			return - 1;
+		}
 
-		g = ( char ) *argp;
-		argp += 1;
+		if ( argint( 4, &g ) < 0 )
+		{
+			return - 1;
+		}
 
-		b = ( char ) *argp;
-		argp += 1;
+		if ( argint( 5, &b ) < 0 )
+		{
+			return - 1;
+		}
 
-
-		vgaSetPaletteColor( index, r, g, b );
+		vgaSetPaletteColor( colorIdx, ( char ) r, ( char ) g, ( char ) b );
 	}
 
 	else if ( request == DISP_IOCTL_DEFAULTPAL )
@@ -73,25 +82,34 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 		int y;
 		int colorIdx;
 
-		x = ( int ) *argp;
-		argp += 1;
+		if ( argint( 2, &x ) < 0 )
+		{
+			return - 1;
+		}
 
-		y = ( int ) *argp;
-		argp += 1;
+		if ( argint( 3, &y ) < 0 )
+		{
+			return - 1;
+		}
 
-		colorIdx = ( int ) *argp;
-		argp += 1;
+		if ( argint( 4, &colorIdx ) < 0 )
+		{
+			return - 1;
+		}
 
 		vgaWritePixel( x, y, colorIdx );
 	}
 
 	else if ( request == DISP_IOCTL_BLIT )
 	{
-		uchar* src;
+		char* src;
 
-		src = ( uchar* ) *argp;
+		if ( argptr( 2, &src, sizeof( uchar ) ) < 0 )
+		{
+			return - 1;
+		}
 
-		vgaBlit( src );
+		vgaBlit( ( uchar* ) src );
 	}
 
 	else if ( request == DISP_IOCTL_DRAWFILLRECT )
@@ -102,20 +120,30 @@ static int displayioctl ( struct inode* ip, int request, uint* argp )
 		int h;
 		int colorIdx;
 
-		x = ( int ) *argp;
-		argp += 1;
+		if ( argint( 2, &x ) < 0 )
+		{
+			return - 1;
+		}
 
-		y = ( int ) *argp;
-		argp += 1;
+		if ( argint( 3, &y ) < 0 )
+		{
+			return - 1;
+		}
 
-		w = ( int ) *argp;
-		argp += 1;
+		if ( argint( 4, &w ) < 0 )
+		{
+			return - 1;
+		}
 
-		h = ( int ) *argp;
-		argp += 1;
+		if ( argint( 5, &h ) < 0 )
+		{
+			return - 1;
+		}
 
-		colorIdx = ( int ) *argp;
-		argp += 1;
+		if ( argint( 6, &colorIdx ) < 0 )
+		{
+			return - 1;
+		}
 
 		vgaFillRect( x, y, w, h, colorIdx );
 	}

@@ -51,8 +51,6 @@ static int displayfd = 0;
 
 void initGFXText ( void )
 {
-	uint argp [ 1 ];
-
 	//
 	displayfd = open( "/dev/display", O_RDWR );
 
@@ -67,11 +65,10 @@ void initGFXText ( void )
 	printf( 1, "Switching to graphics mode...\n" );
 
 	// Switch to graphics mode
-	argp[ 0 ] = GFXMODE;
-	ioctl( displayfd, DISP_IOCTL_SETMODE, argp );
+	ioctl( displayfd, DISP_IOCTL_SETMODE, GFXMODE );
 
 	// Set palette
-	ioctl( displayfd, DISP_IOCTL_DEFAULTPAL, 0 );
+	ioctl( displayfd, DISP_IOCTL_DEFAULTPAL );
 
 
 	// Garbage otherwise...
@@ -80,11 +77,8 @@ void initGFXText ( void )
 
 void exitGFXText ( void )
 {
-	uint argp [ 1 ];
-
 	// Switch to text mode
-	argp[ 0 ] = TXTMODE;
-	ioctl( displayfd, DISP_IOCTL_SETMODE, argp );
+	ioctl( displayfd, DISP_IOCTL_SETMODE, TXTMODE );
 
 	printf( 1, "Switched to text mode\n" );
 
@@ -155,15 +149,16 @@ void invertTextColors ( void )
 
 void clearScreen ( void )
 {
-	uint argp [ 5 ];
+	ioctl(
 
-	argp [ 0 ] = 0;                     // x
-	argp [ 1 ] = 0;                     // y
-	argp [ 2 ] = SCREEN_WIDTH;          // w
-	argp [ 3 ] = SCREEN_HEIGHT;         // h
-	argp [ 4 ] = ( uint ) textBgColor;  // color
-
-	ioctl( displayfd, DISP_IOCTL_DRAWFILLRECT, argp );
+		displayfd,
+		DISP_IOCTL_DRAWFILLRECT,
+		0,                        // x
+		0,                        // y
+		SCREEN_WIDTH,             // w
+		SCREEN_HEIGHT,            // h
+		textBgColor               // color
+	);
 }
 
 
@@ -178,12 +173,12 @@ static void drawFontChar ( uchar ch, uint x, uint y )
 	int   i;
 	uint  j;
 	uint  baseAddress;
-	uint  argp [ 3 ];
+	uint x2;
+	uint y2;
 
 	//
-	argp[ 0 ] = x;
-	argp[ 1 ] = y;
-	argp[ 2 ] = ( uint ) textColor;
+	x2 = x;
+	y2 = y;
 
 	// Base location of character's pixel info
 	baseAddress = ch * FONT_HEIGHT;
@@ -202,18 +197,25 @@ static void drawFontChar ( uchar ch, uint x, uint y )
 
 			if ( ( chRow & pixelMask ) != 0 )
 			{
-				ioctl( displayfd, DISP_IOCTL_DRAWPIXEL, argp );
+				ioctl(
+
+					displayfd,
+					DISP_IOCTL_DRAWPIXEL,
+					x2,                    // x
+					y2,                    // y
+					textColor              // color
+				);
 			}
 
 			// Update x
-			argp[ 0 ] += 1;
+			x2 += 1;
 		}
 
 		// Reset x
-		argp[ 0 ] = x;
+		x2 = x;
 
 		// Update y
-		argp[ 1 ] += 1;
+		y2 += 1;
 	}
 }
 
@@ -221,7 +223,6 @@ void printChar ( uchar ch )
 {
 	uint x;
 	uint y;
-	uint argp [ 5 ];
 
 	//
 	x = cursorCol * FONT_WIDTH;
@@ -230,13 +231,16 @@ void printChar ( uchar ch )
 	// printf( 1, "%d -> %d, %d\n", ( uint ) ch, x, y );
 
 	// Draw rect for char bg
-	argp [ 0 ] = x;                     // x
-	argp [ 1 ] = y;                     // y
-	argp [ 2 ] = FONT_WIDTH;            // w
-	argp [ 3 ] = FONT_HEIGHT;           // h
-	argp [ 4 ] = ( uint ) textBgColor;  // color
+	ioctl(
 
-	ioctl( displayfd, DISP_IOCTL_DRAWFILLRECT, argp );
+		displayfd,
+		DISP_IOCTL_DRAWFILLRECT,
+		x,                        // x
+		y,                        // y
+		FONT_WIDTH,               // w
+		FONT_HEIGHT,              // h
+		textBgColor               // color
+	);
 
 
 	// Draw char
@@ -250,18 +254,20 @@ void drawCursor ( void )
 {
 	uint x;
 	uint y;
-	uint argp [ 5 ];
 
 	//
 	x = cursorCol * FONT_WIDTH;
 	y = cursorRow * FONT_HEIGHT;
 
-	// Draw rect for char bg
-	argp [ 0 ] = x;                     // x
-	argp [ 1 ] = y;                     // y
-	argp [ 2 ] = 1;                     // w
-	argp [ 3 ] = FONT_HEIGHT;           // h
-	argp [ 4 ] = ( uint ) cursorColor;  // color
+	//
+	ioctl(
 
-	ioctl( displayfd, DISP_IOCTL_DRAWFILLRECT, argp );
+		displayfd,
+		DISP_IOCTL_DRAWFILLRECT,
+		x,                        // x
+		y,                        // y
+		1,                        // w
+		FONT_HEIGHT,              // h
+		cursorColor               // color
+	);
 }

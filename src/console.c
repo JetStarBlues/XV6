@@ -64,6 +64,7 @@ static int panicked = 0;
 void       cprintf      ( char*, ... );
 static int consoleread  ( struct inode*, char*, int );
 static int consolewrite ( struct inode*, char*, int );
+static int consoleioctl ( struct inode*, int, ... );
 
 
 void consoleinit ( void )
@@ -77,8 +78,8 @@ void consoleinit ( void )
 	cons.locking = 1;  // ??
 
 	// default as canonical-mode input with echo
-	cons.echo   = 1;
-	cons.icanon = 1;
+	cons.termios.echo   = 1;
+	cons.termios.icanon = 1;
 
 	ioapicenable( IRQ_KBD, 0 );
 }
@@ -403,6 +404,9 @@ static int consoleread ( struct inode* ip, char* dst, int n )
 	return target - n;
 }
 
+
+// _____________________________________________________________________________
+
 static int consolewrite ( struct inode* ip, char* buf, int n )
 {
 	int i;
@@ -426,26 +430,50 @@ static int consolewrite ( struct inode* ip, char* buf, int n )
 
 // _____________________________________________________________________________
 
-static int consoleioctl ( struct inode* ip, int request, uint* argp )
+static int _getAttribute ( struct termios* termios_p )
+{
+	// Copy cons.termios to *termios_p
+	*termios_p = cons.termios;
+	// memcpy( termios_p, &( cons.termios ), sizeof( struct termios ) );
+
+	return 0;
+}
+
+static int _setAttribute ( struct termios* termios_p )
+{
+	// Copy *termios_p to cons.termios
+	cons.termios = *termios_p;
+	// memcpy( &( cons.termios ), termios_p, sizeof( struct termios ) );
+
+	cprintf( "SETATTR: %d\n", cons.termios.icanon );
+
+	return 0;
+}
+
+static int consoleioctl ( struct inode* ip, int request, ... )
 {
 	if ( request == CONS_IOCTL_GETATTR )
 	{
-		struct termios* termios_p;
+		char* termios_p;
 
-		termios_p = ( struct termios* ) *argp;
+		if ( argptr( 2, &termios_p, sizeof( struct termios ) ) < 0 )
+		{
+			return - 1;
+		}
 
-		// Copy cons.termios to *termios_p
-		memcpy( termios_p, &( cons.termios ), sizeof( termios ) );
+		return _getAttribute( ( struct termios* ) termios_p );
 
 	}
 	else if ( request == CONS_IOCTL_SETATTR )
 	{
-		struct termios* termios_p;
+		char* termios_p;
 
-		termios_p = ( struct termios* ) *argp;
+		if ( argptr( 2, &termios_p, sizeof( struct termios ) ) < 0 )
+		{
+			return - 1;
+		}
 
-		// Copy *termios_p to cons.termios
-		memcpy( &( cons.termios ), termios_p, sizeof( termios ) );
+		return _setAttribute( ( struct termios* ) termios_p );
 	}
 	else
 	{

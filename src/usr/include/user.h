@@ -11,7 +11,7 @@ int   fork    ( void );
 int   fstat   ( int, struct stat* );
 int   getpid  ( void );
 int   gettime ( struct rtcdate* );
-int   ioctl   ( int, int, uint* );
+int   ioctl   ( int, int, ... );
 int   kill    ( int );
 int   link    ( const char*, const char* );
 int   mkdir   ( const char* );

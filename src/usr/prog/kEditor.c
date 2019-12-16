@@ -15,7 +15,7 @@ TODO:
 #include "types.h"
 #include "user.h"
 #include "GFXtext.h"  // Render graphically
-// #include "termios.h"
+#include "termios.h"
 
 // Temp
 #define stdin  0
@@ -30,7 +30,7 @@ TODO:
 //
 struct _editorState {
 
-	//struct termios origConsoleAttr;
+	struct termios origConsoleAttr;
 
 	uint nRows;
 	uint nCols;
@@ -86,8 +86,6 @@ void freeUnderlyingBuffer ( struct charBuffer* cBuf )
 
 // ____________________________________________________________________________________
 
-#if 10
-
 void enableRawMode ( void )
 {
 	struct termios newConsoleAttr;
@@ -98,10 +96,11 @@ void enableRawMode ( void )
 	}
 
 	// Copy editorState.origConsoleAttr to newConsoleAttr
-	memcpy( &newConsoleAttr, &( editorState.origConsoleAttr ), sizeof( termios ) );
+	// memcpy( &newConsoleAttr, &( editorState.origConsoleAttr ), sizeof( struct termios ) );
+	newConsoleAttr = editorState.origConsoleAttr;
 
-	newConsoleAttr->echo   = 0;  // disable echoing
-	newConsoleAttr->icanon = 0;  // disiable canonical mode input
+	// newConsoleAttr.echo   = 0;  // disable echoing
+	newConsoleAttr.icanon = 0;  // disiable canonical mode input
 
 	if ( setConsoleAttr( stdin, &newConsoleAttr ) < 0 )
 	{
@@ -116,8 +115,6 @@ void disableRawMode ( void )
 		die( "setConsoleAttr" );
 	}
 }
-
-#endif
 
 
 // ____________________________________________________________________________________
@@ -498,17 +495,16 @@ void setup ( void )
 {
 	initGFXText();
 
-	//
-	// enableRawMode();
-	initEditor();
+	enableRawMode();
 
+	initEditor();
 }
 
 void cleanup ( void )
 {
 	exitGFXText();
 
-	// disableRawMode();
+	disableRawMode();
 }
 
 

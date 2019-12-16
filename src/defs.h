@@ -153,6 +153,7 @@ void            releasesleep  ( struct sleeplock* );
 
 // string.c
 int             memcmp     ( const void*, const void*, uint );
+void*           memcpy     ( void*, const void*, uint );
 void*           memmove    ( void*, const void*, uint );
 void*           memset     ( void*, int, uint );
 char*           safestrcpy ( char*, const char*, int );

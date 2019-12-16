@@ -49,7 +49,7 @@ struct devsw
 {
 	int ( *read  )( struct inode*, char*, int );  // ( struct inode* ip, char* dst, int n )
 	int ( *write )( struct inode*, char*, int );  // ( struct inode* ip, char* src, int n )
-	int ( *ioctl )( struct inode*, int, uint* );  // ( struct inode* ip, int request, uint* argp )
+	int ( *ioctl )( struct inode*, int, ... );    // ( struct inode* ip, int request, ... )
 };
 
 extern struct devsw devsw [];
