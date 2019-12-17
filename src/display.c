@@ -148,6 +148,42 @@ static int displayioctl ( struct inode* ip, int request, ... )
 		vgaFillRect( x, y, w, h, colorIdx );
 	}
 
+	else if ( request == DISP_IOCTL_DRAWBITMAP8 )
+	{
+		char* bitmap;
+		int   x;
+		int   y;
+		int   h;
+		int   colorIdx;
+
+		if ( argptr( 2, &bitmap, sizeof( uchar ) ) < 0 )
+		{
+			return - 1;
+		}
+
+		if ( argint( 3, &x ) < 0 )
+		{
+			return - 1;
+		}
+
+		if ( argint( 4, &y ) < 0 )
+		{
+			return - 1;
+		}
+
+		if ( argint( 5, &h ) < 0 )
+		{
+			return - 1;
+		}
+
+		if ( argint( 6, &colorIdx ) < 0 )
+		{
+			return - 1;
+		}
+
+		vgaDrawBitmap8( ( uchar* ) bitmap, x, y, h, colorIdx );
+	}
+
 	else
 	{
 		cprintf( "displayioctl: unknown request - %d\n", request );

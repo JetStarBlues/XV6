@@ -616,6 +616,8 @@ void vgaFillRect ( int x, int y, int w, int h, int colorIdx )
 	int x2;
 	int y2;
 
+	// Should check bounds. Ignoring for speed.
+
 	for ( y2 = y; y2 < ( y + h ); y2 += 1 )
 	{
 		off = WIDTH_GFXMODE * y2 + x;
@@ -626,6 +628,49 @@ void vgaFillRect ( int x, int y, int w, int h, int colorIdx )
 
 			off += 1;
 		}
+	}
+}
+
+/* Draws a bitmap of width 8, height 'h'.
+   Encoding:
+    . Each byte represents a row.
+    . A set bit represents a pixel.
+*/
+void vgaDrawBitmap8 ( uchar* bitmap, int x, int y, int h, int colorIdx )
+{
+	uchar bitmapRow;
+	uchar pixelMask;
+	int   i;
+	int   j;
+	int   y2;
+	int   off;
+
+	// Should check bounds. Ignoring for speed.
+
+	y2 = y;
+
+	// For each row (byte) in the bitmap...
+	for ( j = 0; j < h; j += 1 )
+	{
+		bitmapRow = bitmap[ j ];
+
+		off = WIDTH_GFXMODE * y2 + x;
+
+		// For each bit in the row...
+		for ( i = 7; i >= 0; i -= 1 )
+		{
+			pixelMask = 1 << i;
+
+			// If the bit is set, draw a pixel
+			if ( ( bitmapRow & pixelMask ) != 0 )
+			{
+				gfxbuffer[ off ] = colorIdx;
+			}
+
+			off += 1;
+		}
+
+		y2 += 1;
 	}
 }
 

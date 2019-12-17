@@ -188,6 +188,7 @@ void            vgainit              ( void );
 void            vgaputc              ( int );
 
 void            vgaBlit              ( uchar* );
+void            vgaDrawBitmap8       ( uchar*, int, int, int, int );
 void            vgaFillRect          ( int, int, int, int, int );
 void            vgaSetMode           ( int );
 void            vgaSetDefaultPalette ( void );

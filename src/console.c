@@ -445,8 +445,6 @@ static int _setAttribute ( struct termios* termios_p )
 	// cons.termios = *termios_p;
 	memcpy( &( cons.termios ), termios_p, sizeof( struct termios ) );
 
-	// cprintf( "SETATTR: %d\n", cons.termios.icanon );
-
 	return 0;
 }
 

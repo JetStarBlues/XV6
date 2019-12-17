@@ -25,7 +25,8 @@
 #define SCREEN_WIDTH  320
 #define SCREEN_HEIGHT 200
 
-// Assuming using font g_8x11_font__Gohu
+// Font
+#define FONT        g_8x11_font__Gohu
 #define FONT_WIDTH  8
 #define FONT_HEIGHT 11
 
@@ -164,8 +165,8 @@ void clearScreen ( void )
 
 // ____________________________________________________________________________________
 
-// Simple, terrible perfomance
-// Assumes using font g_8x11_font__Gohu
+/*
+// Simple, terrible performance.
 static void drawFontChar ( uchar ch, uint x, uint y )
 {
 	uchar chRow;
@@ -173,8 +174,8 @@ static void drawFontChar ( uchar ch, uint x, uint y )
 	int   i;
 	uint  j;
 	uint  baseAddress;
-	uint x2;
-	uint y2;
+	uint  x2;
+	uint  y2;
 
 	//
 	x2 = x;
@@ -188,7 +189,7 @@ static void drawFontChar ( uchar ch, uint x, uint y )
 	for ( j = 0; j < FONT_HEIGHT; j += 1 )
 	{
 		// Get row
-		chRow = ( uchar ) g_8x11_font__Gohu[ baseAddress + j ];
+		chRow = ( uchar ) FONT[ baseAddress + j ];
 
 		// Draw each pixel in the current row
 		for ( i = FONT_WIDTH - 1; i >= 0; i -= 1 )
@@ -217,7 +218,7 @@ static void drawFontChar ( uchar ch, uint x, uint y )
 		// Update y
 		y2 += 1;
 	}
-}
+}*/
 
 void printChar ( uchar ch )
 {
@@ -244,7 +245,16 @@ void printChar ( uchar ch )
 
 
 	// Draw char
-	drawFontChar( ch, x, y );
+	ioctl(
+
+		displayfd,
+		DISP_IOCTL_DRAWBITMAP8,       // Assumes FONT_WIDTH == 8
+		FONT + ( ch * FONT_HEIGHT ),
+		x,
+		y,
+		FONT_HEIGHT,
+		textColor
+	);
 }
 
 

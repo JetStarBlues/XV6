@@ -28,15 +28,31 @@ TODO:
 
 
 //
+struct _textRow {
+
+	int   len;
+	char* chars;  // better name
+};
+
+// typedef struct _textRow textRow;
+
+
+//
 struct _editorState {
 
 	struct termios origConsoleAttr;
 
-	uint nRows;
-	uint nCols;
+	// screen dimensions
+	uint nScreenRows;
+	uint nScreenCols;
 
+	// cursor position
 	uint cursorRow;
 	uint cursorCol;
+
+	//
+	int             nTextRows;
+	struct _textRow curTextRow;  // better name
 };
 
 static struct _editorState editorState;
@@ -99,7 +115,7 @@ void enableRawMode ( void )
 	// newConsoleAttr = editorState.origConsoleAttr;
 	memcpy( &newConsoleAttr, &( editorState.origConsoleAttr ), sizeof( struct termios ) );
 
-	// newConsoleAttr.echo   = 0;  // disable echoing
+	newConsoleAttr.echo   = 0;  // disable echoing
 	newConsoleAttr.icanon = 0;  // disiable canonical mode input
 
 	if ( setConsoleAttr( stdin, &newConsoleAttr ) < 0 )
@@ -151,7 +167,7 @@ void eraseInLine ( uint mode )
 
 	if ( mode == ERASELINE_RIGHT )
 	{
-		while ( col < editorState.nCols )
+		while ( col < editorState.nScreenCols )
 		{
 			setCursorPosition( row, col );
 			printChar( ' ' );
@@ -173,7 +189,7 @@ void eraseInLine ( uint mode )
 	}
 	else if ( ERASELINE_ALL )
 	{
-		for ( col = 0; col < editorState.nCols; col += 1 )
+		for ( col = 0; col < editorState.nScreenCols; col += 1 )
 		{
 			setCursorPosition( row, col );
 			printChar( ' ' );
@@ -192,7 +208,7 @@ void temp_testEraseLine ( void )
 
 	row = 0;
 
-	for ( col = 0; col < editorState.nCols; col += 1 )
+	for ( col = 0; col < editorState.nScreenCols; col += 1 )
 	{
 		setCursorPosition( row, col );
 		printChar( '$' );
@@ -206,7 +222,7 @@ void temp_testEraseLine ( void )
 
 	row = 1;
 
-	for ( col = 0; col < editorState.nCols; col += 1 )
+	for ( col = 0; col < editorState.nScreenCols; col += 1 )
 	{
 		setCursorPosition( row, col );
 		printChar( '&' );
@@ -220,7 +236,7 @@ void temp_testEraseLine ( void )
 
 	row = 2;
 
-	for ( col = 0; col < editorState.nCols; col += 1 )
+	for ( col = 0; col < editorState.nScreenCols; col += 1 )
 	{
 		setCursorPosition( row, col );
 		printChar( '#' );
@@ -254,7 +270,7 @@ void printString ( char* s, int wrap )
 		// Advance cursor
 		col += 1;
 
-		if ( col == editorState.nCols )
+		if ( col == editorState.nScreenCols )
 		{
 			if ( wrap == WRAP )
 			{
@@ -262,7 +278,7 @@ void printString ( char* s, int wrap )
 				row += 1;
 
 				// erm...
-				if ( row == editorState.nRows )
+				if ( row == editorState.nScreenRows )
 				{
 					row -= 1;
 				}
@@ -285,6 +301,36 @@ void printString ( char* s, int wrap )
 
 
 
+
+
+
+
+
+
+
+// ____________________________________________________________________________________
+
+void openFile ( void )  // better name
+{
+	char* line;
+	uint  lineLen;
+
+	line    = "Hello, world!";
+	lineLen = 13;  // excluding null terminal
+
+	//
+	editorState.curTextRow.len = lineLen;
+
+	//
+	editorState.curTextRow.chars = malloc( lineLen + 1 );  // +1 for null temrinal
+
+	memcpy( editorState.curTextRow.chars, line, lineLen );
+
+	editorState.curTextRow.chars[ lineLen ] = 0;
+
+	//
+	editorState.nTextRows = 1;
+}
 
 
 
@@ -331,7 +377,7 @@ void moveCursor ( uchar key )
 
 		case KEY_RIGHT:
 
-			if ( editorState.cursorCol < editorState.nCols - 1 )
+			if ( editorState.cursorCol < editorState.nScreenCols - 1 )
 			{
 				editorState.cursorCol += 1;
 			}
@@ -347,7 +393,7 @@ void moveCursor ( uchar key )
 
 		case KEY_DOWN:
 
-			if ( editorState.cursorRow < editorState.nRows - 1 )
+			if ( editorState.cursorRow < editorState.nScreenRows - 1 )
 			{
 				editorState.cursorRow += 1;
 			}
@@ -397,7 +443,7 @@ void processKeyPress ( void )
 		case KEY_PAGEDOWN:
 		{
 			// For now, just move to vertical extremes
-			int n = editorState.nRows;
+			int n = editorState.nScreenRows;
 			while ( n )
 			{
 				moveCursor( c == KEY_PAGEUP ? KEY_UP : KEY_DOWN );
@@ -411,7 +457,7 @@ void processKeyPress ( void )
 		case KEY_END:
 		{
 			// For now, just move to horizontal extremes
-			int n = editorState.nCols;
+			int n = editorState.nScreenCols;
 			while ( n )
 			{
 				moveCursor( c == KEY_HOME ? KEY_LEFT : KEY_RIGHT );
@@ -441,7 +487,7 @@ void drawRows ( void )
 
 	setCursorPosition( 0, 0 );  // makes more sense here...
 
-	for ( row = 0; row < editorState.nRows; row += 1 )
+	for ( row = 0; row < editorState.nScreenRows; row += 1 )
 	{
 		setCursorPosition( row, 0 );
 
@@ -450,9 +496,9 @@ void drawRows ( void )
 		printChar( '~' );
 
 		// Print welcome message
-		if ( row == editorState.nRows / 3 )
+		if ( row == editorState.nScreenRows / 3 )
 		{
-			center = ( editorState.nCols / 2 ) - ( welcomeMsgLen / 2 );
+			center = ( editorState.nScreenCols / 2 ) - ( welcomeMsgLen / 2 );
 
 			setCursorPosition( row, center );
 
@@ -480,12 +526,15 @@ void refreshScreen ( void )
 
 void initEditor ( void )
 {
+	//
 	editorState.cursorCol = 0;
 	editorState.cursorRow = 0;
 
 	//
-	getDimensions( &editorState.nRows, &editorState.nCols );
-	
+	getDimensions( &editorState.nScreenRows, &editorState.nScreenCols );
+
+	//
+	editorState.nTextRows = 0;
 }
 
 
