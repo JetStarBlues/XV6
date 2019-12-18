@@ -609,7 +609,7 @@ int sys_open ( void )
 	//
 	f->type     = FD_INODE;
 	f->ip       = ip;
-	f->off      = foffset;
+	f->offset   = foffset;
 	f->readable = ! ( omode & O_WRONLY );
 	f->writable = ( omode & O_WRONLY ) || ( omode & O_RDWR );
 
@@ -861,16 +861,15 @@ int sys_pipe ( void )
 
 // ___________________________________________________________________________
 
-/* ...
-   https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
+/* int ioctl ( int fd, int request, ... );
 
-   int ioctl ( int fd, int request, ... );
+   https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
 */
 int sys_ioctl ( void )
 {
+	struct file* f;
 	int          fd;
 	int          request;
-	struct file* f;
 
 	if ( argfd( 0, &fd, &f ) < 0    ||
 		 argint( 1, &request ) < 0 )
@@ -889,4 +888,119 @@ int sys_ioctl ( void )
 	}
 
 	return devsw[ f->ip->major ].ioctl( f->ip, request );
+}
+
+
+// ___________________________________________________________________________
+
+/* int lseek ( int fd, uint offset, int whence );
+
+   https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
+*/
+int sys_lseek ( void )
+{
+	struct file* f;
+	int          fd;
+	int          whence;
+	uint         offset;
+	uint         newOffset;
+
+	char*        zeros;
+	int          zeroSize;
+	int          i;
+	int          nWritten;
+	char*        ptr;
+
+
+	// Get args from user stack
+	if ( argfd( 0, &fd, &f ) < 0               ||
+		 argint( 1, ( int* ) ( &offset ) ) < 0 ||
+		 argint( 1, &whence ) < 0 )
+	{
+		return - 1;
+	}
+
+
+	// Check that not seeking a pipe
+	if ( f->type == FD_PIPE )
+	{
+		return - 1;
+	}
+
+
+	// New offset is 'offset'
+	if ( whence == SEEK_SET )
+	{
+		newOffset = offset;
+	}
+	// New offset is current location plus 'offset'
+	else if ( whence == SEEK_CUR )
+	{
+		newOffset = f->offset + offset;
+	}
+	// New offset is size of file plus 'offset'
+	else if ( whence == SEEK_END )
+	{
+		newOffset = f->ip->size + offset;
+	}
+	// Unknown specifier
+	else
+	{
+		return - 1;
+	}
+
+
+    /* From man pages:
+        "lseek() allows the file offset to be set beyond the end of the file
+         (but this does not change the size of the file). If data is later
+         written at this point, subsequent reads of the data in the gap (a
+         "hole") return null bytes ('\0') until data is actually written into
+         the gap."
+    */
+	/* JK - the code below seems to append zeros to the end of the file,
+	   and thus change the file size...
+	*/
+	if ( newOffset > f->ip->size )
+	{
+		zeroSize = ( int ) ( newOffset - f->ip->size );
+
+		zeros = kalloc();
+
+
+		// Zero block returned by kalloc...
+		ptr = zeros;
+
+		for ( i = 0; i < PGSIZE; i += 1 )
+		{
+			*ptr = 0;
+
+			ptr += 1;
+		}
+
+
+		// Append zeros to the end of the file...
+		f->offset = f->ip->size;  // JK, added because shouldn't we be appending to end ??
+
+		while ( zeroSize > 0 )
+		{
+			nWritten = filewrite( f, zeros, MIN( PGSIZE, zeroSize ) );
+
+			if ( nWritten < 0 )
+			{
+				return - 1;
+			}
+
+			zeroSize -= nWritten;
+		}
+
+
+		//
+		kfree( zeros );
+	}
+
+
+	// Update
+	f->offset = newOffset;
+
+	return newOffset;
 }

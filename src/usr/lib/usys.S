@@ -55,6 +55,7 @@ SYSCALL( gettime )
 SYSCALL( ioctl   )
 SYSCALL( kill    )
 SYSCALL( link    )
+SYSCALL( lseek   )
 SYSCALL( mkdir   )
 SYSCALL( mknod   )
 SYSCALL( open    )
@@ -82,14 +83,15 @@ SYSCALL( write   )
 # .globl ioctl;   ioctl:   movl $10, %eax; int $64; ret
 # .globl kill;    kill:    movl $11, %eax; int $64; ret
 # .globl link;    link:    movl $12, %eax; int $64; ret
-# .globl mkdir;   mkdir:   movl $13, %eax; int $64; ret
-# .globl mknod;   mknod:   movl $14, %eax; int $64; ret
-# .globl open;    open:    movl $15, %eax; int $64; ret
-# .globl pipe;    pipe:    movl $16, %eax; int $64; ret
-# .globl read;    read:    movl $17, %eax; int $64; ret
-# .globl sbrk;    sbrk:    movl $18, %eax; int $64; ret
-# .globl sleep;   sleep:   movl $19, %eax; int $64; ret
-# .globl unlink;  unlink:  movl $20, %eax; int $64; ret
-# .globl uptime;  uptime:  movl $21, %eax; int $64; ret
-# .globl wait;    wait:    movl $22, %eax; int $64; ret
-# .globl write;   write:   movl $23, %eax; int $64; ret
+# .globl lseek;   lseek:   movl $13, %eax; int $64; ret
+# .globl mkdir;   mkdir:   movl $14, %eax; int $64; ret
+# .globl mknod;   mknod:   movl $15, %eax; int $64; ret
+# .globl open;    open:    movl $16, %eax; int $64; ret
+# .globl pipe;    pipe:    movl $17, %eax; int $64; ret
+# .globl read;    read:    movl $18, %eax; int $64; ret
+# .globl sbrk;    sbrk:    movl $19, %eax; int $64; ret
+# .globl sleep;   sleep:   movl $20, %eax; int $64; ret
+# .globl unlink;  unlink:  movl $21, %eax; int $64; ret
+# .globl uptime;  uptime:  movl $22, %eax; int $64; ret
+# .globl wait;    wait:    movl $23, %eax; int $64; ret
+# .globl write;   write:   movl $24, %eax; int $64; ret

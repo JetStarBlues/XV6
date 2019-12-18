@@ -140,6 +140,7 @@ extern int sys_gettime ( void );
 extern int sys_ioctl   ( void );
 extern int sys_kill    ( void );
 extern int sys_link    ( void );
+extern int sys_lseek   ( void );
 extern int sys_mkdir   ( void );
 extern int sys_mknod   ( void );
 extern int sys_open    ( void );
@@ -167,6 +168,7 @@ static int ( *syscalls[] )( void ) = {
 	[ SYS_ioctl   ] sys_ioctl,
 	[ SYS_kill    ] sys_kill,
 	[ SYS_link    ] sys_link,
+	[ SYS_lseek   ] sys_lseek,
 	[ SYS_mkdir   ] sys_mkdir,
 	[ SYS_mknod   ] sys_mknod,
 	[ SYS_open    ] sys_open,

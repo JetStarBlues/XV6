@@ -14,7 +14,7 @@ struct file
 	char          writable;  // File opened for writing
 	struct pipe*  pipe;
 	struct inode* ip;
-	uint          off;       // IO offset...
+	uint          offset;    // Read/write offset...
 };
 
 
@@ -42,6 +42,7 @@ struct inode
 	uint             size;                   // Size of file (bytes)
 	uint             addrs [ NDIRECT + 1 ];  // Data block addresses
 };
+
 
 // Table mapping major device numberd to their respective
 // read and write functions
@@ -73,3 +74,9 @@ extern struct devsw devsw [];
        devices. The minor number provides a way for the driver
        to differentiate among them. 
 */
+
+
+// Lseek defines
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2

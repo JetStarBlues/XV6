@@ -14,6 +14,7 @@ int   gettime ( struct rtcdate* );
 int   ioctl   ( int, int, ... );
 int   kill    ( int );
 int   link    ( const char*, const char* );
+int   lseek   ( int, int, int );
 int   mkdir   ( const char* );
 int   mknod   ( const char*, short, short );
 int   open    ( const char*, int );

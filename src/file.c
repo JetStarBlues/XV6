@@ -9,7 +9,7 @@
 
    Each call to 'open' creats a new open file ("struct file").
    If multiple processes open the same file independently, the different
-   instances will have different IO offsets (file->off).
+   instances will have different IO offsets (file->offset).
 
    On the other hand, a single open file (the same "struct file") can
    appear multiple times in one process's file table and also in the
@@ -170,7 +170,7 @@ int filestat ( struct file* f, struct stat *st )
 	return - 1;
 }
 
-// Read n bytes from file f, starting at f->off
+// Read n bytes from file f, starting at f->offset
 /*
    On success, the number of bytes read is returned.
    If the number of bytes read is zero, indicates EOF.
@@ -197,11 +197,11 @@ int fileread ( struct file* f, char* addr, int n )
 	{
 		ilock( f->ip );
 
-		nRead = readi( f->ip, addr, f->off, n );
+		nRead = readi( f->ip, addr, f->offset, n );
 
 		if ( nRead > 0 )
 		{
-			f->off += nRead;
+			f->offset += nRead;
 		}
 
 		iunlock( f->ip );
@@ -212,7 +212,7 @@ int fileread ( struct file* f, char* addr, int n )
 	panic( "fileread" );
 }
 
-// Write n bytes to file f, starting at f->off
+// Write n bytes to file f, starting at f->offset
 int filewrite ( struct file* f, char* addr, int n )
 {
 	int nWritten,
@@ -265,11 +265,11 @@ int filewrite ( struct file* f, char* addr, int n )
 
 			ilock( f->ip );
 
-			nWritten = writei( f->ip, addr + nWrittenTotal, f->off, nToWrite );
+			nWritten = writei( f->ip, addr + nWrittenTotal, f->offset, nToWrite );
 
 			if ( nWritten > 0 )
 			{
-				f->off += nWritten;
+				f->offset += nWritten;
 			}
 
 			iunlock( f->ip );
