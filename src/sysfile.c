@@ -896,6 +896,8 @@ int sys_ioctl ( void )
 /* int lseek ( int fd, uint offset, int whence );
 
    https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
+
+   TODO: test
 */
 int sys_lseek ( void )
 {

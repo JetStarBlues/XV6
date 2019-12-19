@@ -14,6 +14,7 @@ TODO:
 
 #include "types.h"
 #include "user.h"
+#include "fcntl.h"
 #include "GFXtext.h"  // Render graphically
 #include "termios.h"
 
@@ -30,7 +31,7 @@ TODO:
 //
 struct _textRow {
 
-	int   len;
+	int   len;    // not null-terminated
 	char* chars;  // better name
 };
 
@@ -270,6 +271,7 @@ void printString ( char* s, int wrap )
 		// Advance cursor
 		col += 1;
 
+		// Handle horizontal overflow... erm...
 		if ( col == editorState.nScreenCols )
 		{
 			if ( wrap == WRAP )
@@ -277,7 +279,7 @@ void printString ( char* s, int wrap )
 				col  = 0;
 				row += 1;
 
-				// erm...
+				// Handle vertical overflow... erm...
 				if ( row == editorState.nScreenRows )
 				{
 					row -= 1;
@@ -310,26 +312,59 @@ void printString ( char* s, int wrap )
 
 // ____________________________________________________________________________________
 
-void openFile ( void )  // better name
+void openFile ( char* filename )  // better name
 {
+	int   fd;
 	char* line;
-	uint  lineLen;
-
-	line    = "Hello, world!";
-	lineLen = 13;  // excluding null terminal
+	int   lineLen;  // excluding null terminal
+	uint  lineBufSize;
 
 	//
-	editorState.curTextRow.len = lineLen;
+	fd = open( filename, O_RDONLY );
+
+	if ( fd < 0 )
+	{
+		die( "open" );
+	}
 
 	//
-	editorState.curTextRow.chars = malloc( lineLen + 1 );  // +1 for null temrinal
+	line        = NULL;
+	lineLen     = 0;
+	lineBufSize = 0;
 
-	memcpy( editorState.curTextRow.chars, line, lineLen );
+	// Use 'getline' to read a line from the file
+	lineLen = getline( &line, &lineBufSize, fd );
+	printf( 1, "getline returned: %s\n", line );
 
-	editorState.curTextRow.chars[ lineLen ] = 0;
+	if ( lineLen > 0 )
+	{
+		// Strip newline characters returned by 'getline'
+		while ( ( lineLen > 0 ) &&
+		        ( ( line[ lineLen - 1 ] == '\n' ) || ( line[ lineLen - 1 ] == '\r' ) ) )
+		{
+			lineLen -= 1;
+		}
+
+
+		//
+		editorState.curTextRow.len = lineLen;
+
+		// Copy the line
+		editorState.curTextRow.chars = malloc( lineLen + 1 );  // +1 for null temrinal
+
+		memcpy( editorState.curTextRow.chars, line, lineLen );
+
+		editorState.curTextRow.chars[ lineLen ] = 0;  // null terminate
+
+		//
+		editorState.nTextRows += 1;
+	}
+
 
 	//
-	editorState.nTextRows = 1;
+	free( line );
+
+	close( fd );
 }
 
 
@@ -493,10 +528,18 @@ void drawRows ( void )
 
 		eraseInLine( ERASELINE_ALL );  // erase entire line...
 
-		printChar( '~' );
+		// Draw file contents...
+		if ( row < editorState.nTextRows )
+		{
+			printString( editorState.curTextRow.chars, NO_WRAP );
+		}
+		else
+		{
+			printChar( '~' );
+		}
 
 		// Print welcome message
-		if ( row == editorState.nScreenRows / 3 )
+		if ( ( editorState.nTextRows == 0 ) && ( row == editorState.nScreenRows / 3 ) )
 		{
 			center = ( editorState.nScreenCols / 2 ) - ( welcomeMsgLen / 2 );
 
@@ -547,6 +590,8 @@ void setup ( void )
 	enableRawMode();
 
 	initEditor();
+
+	// openFile();  // ...
 }
 
 void cleanup ( void )
@@ -572,9 +617,14 @@ void die ( char* msg )
 
 // ____________________________________________________________________________________
 
-int main ( void )
+int main ( int argc, char* argv [] )
 {
 	setup();
+
+	if ( argc == 2 )
+	{
+		openFile( argv[ 1 ] );
+	}
 
 	while ( 1 )
 	{

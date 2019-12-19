@@ -29,6 +29,8 @@ int   write   ( int, const void*, int );
 
 // ulib.c
 int   atoi    ( const char* );
+int   getc    ( int );
+int   getline ( char**, uint*, int );
 char* gets    ( char*, int );
 void* memcpy  ( void*, const void*, uint );
 void* memmove ( void*, const void*, uint );

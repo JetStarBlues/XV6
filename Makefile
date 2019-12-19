@@ -292,9 +292,10 @@ vectors.o: vectors.S
 
 forktest: $(UPROGDIR)forktest.c
 	# forktest has less library code linked in
-	# Needs to be small in order to be able to max out the proc table.
+	# Needs to be small (size?) in order to be able to max out the proc table.
+	# JK, added umalloc.o, hopefully nothing breaks...
 	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)ulib.o $(USERBINDIR)usys.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)ulib.o $(USERBINDIR)usys.o $(USERBINDIR)umalloc.o
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)forktest > $(DEBUGDIR)forktest.asm
 
 

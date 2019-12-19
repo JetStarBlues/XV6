@@ -127,17 +127,17 @@ char* strchr ( const char* s, char c )
 
 char* gets ( char* buf, int max )
 {
-	int  i,
-	     cc;
 	char c;
+	int  nRead;
+	int  i;
 
 	for ( i = 0; ( i + 1 ) < max;  )
 	{
 		// Read one byte from stdin
-		cc = read( 0, &c, 1 );
+		nRead = read( 0, &c, 1 );
 
 		// Read error...
-		if ( cc < 1 )
+		if ( nRead < 1 )
 		{
 			break;
 		}
@@ -155,6 +155,120 @@ char* gets ( char* buf, int max )
 	buf[ i ] = '\0';
 
 	return buf;
+}
+
+// JK, crude implmentation
+int getc ( int fd )
+{
+	char c;
+	int  nRead;
+
+	nRead = read( fd, &c, 1 );
+
+	if ( nRead == 0 )  // EOF
+	{
+		return - 1;
+	}
+	else if ( nRead < 0 )  // error
+	{
+		return - 1;
+	}
+
+	return ( int ) c;
+}
+
+/* Description from man pages:
+
+    Reads an entire line from 'fd', and stores the charcters
+    into the buffer pointed to by '*bufPtr'.
+    The buffer is null-terminated and includes any found
+    newline characters.
+
+    If '*bufPtr' is null, allocates a buffer to store the line,
+    which should be freed by the caller.
+    Updates '*bufPtr' and 'bufSize' accordingly.
+
+    If 'bufSize' is not large enough to hold the line,
+    it resizes '*bufPtr' with realloc.
+    Updates '*bufPtr' and 'bufSize' accordingly.
+
+    On success, returns the number of characters read, including
+    newline characters, but not including the terminating null byte.
+
+    On failure to read a line, (including EOF condition), returns -1.
+*/
+int getline ( char** bufPtr, uint* bufSize, int fd )
+{
+	char  c;
+	int   lineSize;  // excluding null byte
+	char* bPtr;
+	void* p;
+
+
+	if ( *bufPtr == 0 )
+	{
+		*bufSize = 128;  // arbitrary
+
+		p = malloc( *bufSize );
+
+		if ( p == 0 )
+		{
+			return - 1;
+		}
+
+		*bufPtr = p;
+	}
+
+	c        = 0;
+	lineSize = 0;
+	bPtr     = *bufPtr;
+
+	while ( 1 )
+	{
+		// Get character from file
+		c = getc( fd );
+
+		if ( c < 0 )
+		{
+			return - 1;
+		}
+
+
+		// Grow buffer if not big enough
+		if ( ( ( uint ) ( lineSize + 1 ) ) > *bufSize )
+		{
+			*bufSize *= 2;  // double
+
+			p = realloc( *bufPtr, *bufSize );
+
+			if ( p == 0 )
+			{
+				return - 1;
+			}
+
+			*bufPtr = p;
+		}
+
+
+		// Add character to buffer
+		*bPtr = c;
+
+		bPtr += 1;
+
+		lineSize += 1;
+
+
+		//
+		if ( c == '\n' || c == '\r' )
+		{
+			break;
+		}
+	}
+
+	// Null terminate
+	*bPtr = 0;
+
+	return lineSize;
 }
 
 
