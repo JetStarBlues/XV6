@@ -13,7 +13,6 @@ char          buf  [ 8192 ];
 char          name [ 3 ];
 unsigned long randstate   = 1;
 char*         echoargv [] = { "echo", "cats", "are", "awesome!", 0 };
-int           stdout      = 1;
 
 
 // What is the point of this?

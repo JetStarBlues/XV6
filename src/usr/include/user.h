@@ -50,3 +50,13 @@ void* realloc ( void*, uint );
 
 // ctype...
 #define ISDIGIT( c ) ( ( ( c ) >= '0' ) && ( ( c ) <= '9' ) )
+
+
+/* Chuck these here for now, since almost everything
+   includes 'user.h'
+*/
+#define NULL   0
+
+#define stdin  0
+#define stdout 1
+#define stderr 2

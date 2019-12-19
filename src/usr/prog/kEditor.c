@@ -18,11 +18,6 @@ TODO:
 #include "GFXtext.h"  // Render graphically
 #include "termios.h"
 
-// Temp
-#define stdin  0
-#define stdout 1
-#define stderr 2
-#define NULL   0
 
 //
 #define CTRL( k ) ( ( k ) & 0x1F )  // https://en.wikipedia.org/wiki/ASCII#Control_characters
@@ -52,8 +47,8 @@ struct _editorState {
 	uint cursorCol;
 
 	//
-	int             nTextRows;
-	struct _textRow curTextRow;  // better name
+	struct _textRow* textRows;  // better name
+	int              nTextRows;
 };
 
 static struct _editorState editorState;
@@ -259,6 +254,7 @@ void printString ( char* s, int wrap )
 	uint row;
 	uint col;
 
+
 	getCursorPosition( &row, &col );
 
 	while ( *s )
@@ -312,6 +308,43 @@ void printString ( char* s, int wrap )
 
 // ____________________________________________________________________________________
 
+void appendTextRow ( char*line, int lineLen )
+{
+	struct _textRow* p;
+	struct _textRow* curTextRow;
+
+	// Allocate space for a new textRow
+	p = realloc(
+
+		editorState.textRows,
+		sizeof( struct _textRow ) * ( editorState.nTextRows + 1 )
+	);
+
+	if ( p == NULL )
+	{
+		die( "realloc" );
+	}
+
+	editorState.textRows = p;
+
+
+	// Copy the line to the textRow
+	curTextRow = editorState.textRows + editorState.nTextRows;
+
+	curTextRow->chars = malloc( lineLen + 1 );  // +1 for null temrinal
+
+	memcpy( curTextRow->chars, line, lineLen );
+
+	curTextRow->chars[ lineLen ] = 0;  // null terminate
+
+	//
+	curTextRow->len = lineLen;
+
+	// Update count
+	editorState.nTextRows += 1;
+}
+
+
 void openFile ( char* filename )  // better name
 {
 	int   fd;
@@ -332,12 +365,18 @@ void openFile ( char* filename )  // better name
 	lineLen     = 0;
 	lineBufSize = 0;
 
-	// Use 'getline' to read a line from the file
-	lineLen = getline( &line, &lineBufSize, fd );
-	printf( 1, "getline returned: %s\n", line );
-
-	if ( lineLen > 0 )
+	while ( 1 )
 	{
+		// Use 'getline' to read a line from the file
+		lineLen = getline( &line, &lineBufSize, fd );
+		// printf( 1, "getline returned: (%d) %s\n", lineLen, line );
+
+		//
+		if ( lineLen < 0 )
+		{
+			break;
+		}
+
 		// Strip newline characters returned by 'getline'
 		while ( ( lineLen > 0 ) &&
 		        ( ( line[ lineLen - 1 ] == '\n' ) || ( line[ lineLen - 1 ] == '\r' ) ) )
@@ -345,21 +384,9 @@ void openFile ( char* filename )  // better name
 			lineLen -= 1;
 		}
 
-
 		//
-		editorState.curTextRow.len = lineLen;
-
-		// Copy the line
-		editorState.curTextRow.chars = malloc( lineLen + 1 );  // +1 for null temrinal
-
-		memcpy( editorState.curTextRow.chars, line, lineLen );
-
-		editorState.curTextRow.chars[ lineLen ] = 0;  // null terminate
-
-		//
-		editorState.nTextRows += 1;
+		appendTextRow( line, lineLen );
 	}
-
 
 	//
 	free( line );
@@ -512,10 +539,11 @@ void processKeyPress ( void )
 
 void drawRows ( void )
 {
-	uint  row;
-	int   center;
-	char* welcomeMsg;
-	int   welcomeMsgLen;
+	uint             row;
+	int              center;
+	char*            welcomeMsg;
+	int              welcomeMsgLen;
+	struct _textRow* curTextRow;
 
 	welcomeMsg    = "Kilo Editor";
 	welcomeMsgLen = 11;  // excluding null terminal
@@ -531,7 +559,9 @@ void drawRows ( void )
 		// Draw file contents...
 		if ( row < editorState.nTextRows )
 		{
-			printString( editorState.curTextRow.chars, NO_WRAP );
+			curTextRow = editorState.textRows + row;
+
+			printString( curTextRow->chars, NO_WRAP );
 		}
 		else
 		{
@@ -578,6 +608,7 @@ void initEditor ( void )
 
 	//
 	editorState.nTextRows = 0;
+	editorState.textRows  = NULL;
 }
 
 
@@ -590,8 +621,6 @@ void setup ( void )
 	enableRawMode();
 
 	initEditor();
-
-	// openFile();  // ...
 }
 
 void cleanup ( void )

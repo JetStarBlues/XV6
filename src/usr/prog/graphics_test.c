@@ -49,6 +49,13 @@ int main ( int argc, char* argv [] )
 
 	imgbuf = ( char* ) malloc( WIDTHxHEIGHT_GFXMODE );
 
+	if ( imgbuf == NULL )
+	{
+		printf( 2, "graphics_test: failed to malloc\n" );
+
+		exit();
+	}
+
 	bytesRead = read( imagefd, imgbuf, WIDTHxHEIGHT_GFXMODE );
 
 	if ( bytesRead != WIDTHxHEIGHT_GFXMODE )

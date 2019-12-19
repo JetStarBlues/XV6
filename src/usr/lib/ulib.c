@@ -205,13 +205,13 @@ int getline ( char** bufPtr, uint* bufSize, int fd )
 	void* p;
 
 
-	if ( *bufPtr == 0 )
+	if ( *bufPtr == NULL )
 	{
 		*bufSize = 128;  // arbitrary
 
 		p = malloc( *bufSize );
 
-		if ( p == 0 )
+		if ( p == NULL )
 		{
 			return - 1;
 		}
@@ -241,7 +241,7 @@ int getline ( char** bufPtr, uint* bufSize, int fd )
 
 			p = realloc( *bufPtr, *bufSize );
 
-			if ( p == 0 )
+			if ( p == NULL )
 			{
 				return - 1;
 			}

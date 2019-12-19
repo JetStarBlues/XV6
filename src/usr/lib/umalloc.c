@@ -78,8 +78,6 @@ union header {
 typedef union header Header;
 
 
-#define NULL 0  // JK temp
-
 /* According to stackoverflow.com/a/36512105,
 
    By having first block of free list as global,
@@ -342,16 +340,15 @@ void free ( void* blockFreeSpacePtr )
 
 // ___________________________________________________________________________________
 
-/* Crude implementation of realloc based on
-   man page description.
-   TODO: write a proper test, and check works as expected.
+/* Crude implementation of realloc based on man page description.
 */
 
 void* realloc ( void* oldPtr, uint newSize )
 {
+	Header* blockPtr;
 	void*   newPtr;
 	uint    oldSize;
-	Header* blockPtr;
+	uint    nBytesToCopy;
 
 	// If oldPtr is NULL, the call is equivalent to malloc
 	if ( oldPtr == NULL )
@@ -367,6 +364,8 @@ void* realloc ( void* oldPtr, uint newSize )
 	else if ( newSize == 0 )
 	{
 		free( oldPtr );
+
+		oldPtr = NULL;
 
 		return NULL;
 	}
@@ -389,13 +388,21 @@ void* realloc ( void* oldPtr, uint newSize )
 	oldSize = blockPtr->h.size;
 
 
-	// Copy old contents (up to minimum of old size and new size)
-	memcpy(
+	/* Compare apples to apples.
+	   Convert newSize from bytes to same units used by oldSize.
+	*/
+	newSize = ceilingDivide( newSize, sizeof( Header ) );
 
-		newPtr,
-		oldPtr,
-		newSize < oldSize ? newSize : oldSize
-	);
+	newSize += 1;  // save room for block header
+
+
+	// Copy old contents (up to minimum of old size and new size)
+	nBytesToCopy = newSize < oldSize ? newSize : oldSize;
+	nBytesToCopy -= 1;                 // remove size of block's header
+	nBytesToCopy *= sizeof( Header );  // convert units to bytes
+
+	memcpy( newPtr, oldPtr, nBytesToCopy );
+
 
 	// Free old block
 	free( oldPtr );
@@ -406,3 +413,9 @@ void* realloc ( void* oldPtr, uint newSize )
 	//
 	return oldPtr;
 }
+
+
+// ___________________________________________________________________________________
+
+/* TODO: function to print visualization of blocks currently managing
+*/

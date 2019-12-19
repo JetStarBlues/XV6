@@ -897,7 +897,7 @@ int sys_ioctl ( void )
 
    https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
 
-   TODO: test
+   TODO: Write a proper test, and check works as expected
 */
 int sys_lseek ( void )
 {

@@ -85,6 +85,7 @@ UPROGS =            \
 	gfx_text_test   \
 	hexdump         \
 	keditor         \
+	realloc_test    \
 	stackoverflow   \
 	stressfs        \
 	time            \
