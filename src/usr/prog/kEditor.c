@@ -49,6 +49,8 @@ struct _editorState {
 	//
 	struct _textRow* textRows;  // better name
 	int              nTextRows;
+	int              textRowOffset;  // vertical scroll offset
+	int              textColOffset;  // horizontal scroll offset
 };
 
 static struct _editorState editorState;
@@ -261,7 +263,7 @@ void printString ( char* s, int wrap )
 	{
 		//
 		printChar( *s );
-		printf( 1, "%c", *s );
+		// printf( 1, "%c", *s );
 
 
 		// Advance cursor
@@ -306,6 +308,9 @@ void printString ( char* s, int wrap )
 
 
 
+
+
+
 // ____________________________________________________________________________________
 
 void appendTextRow ( char*line, int lineLen )
@@ -336,6 +341,7 @@ void appendTextRow ( char*line, int lineLen )
 	memcpy( curTextRow->chars, line, lineLen );
 
 	curTextRow->chars[ lineLen ] = 0;  // null terminate
+
 
 	//
 	curTextRow->len = lineLen;
@@ -395,9 +401,46 @@ void openFile ( char* filename )  // better name
 }
 
 
+// ____________________________________________________________________________________
+
+void scroll ( void )
+{
+printf(
+	1,
+	"cursorRow %d, textRowOffset %d, nScreenRows\n"
+	"cursorCol %d, textColOffset %d, nScreenCols %d\n",
+	editorState.cursorRow, editorState.textRowOffset, editorState.nScreenRows,
+	editorState.cursorCol, editorState.textColOffset, editorState.nScreenCols
+);
+	/* Vertical scroll */
+
+	// Cursor above visible window, scroll up to cursor
+	if ( editorState.cursorRow < editorState.textRowOffset )
+	{
+		editorState.textRowOffset = editorState.cursorRow;
+	}
+
+	// Cursor below visible window, scroll down to cursor
+	if ( editorState.cursorRow >= ( editorState.nScreenRows + editorState.textRowOffset ) )
+	{
+		editorState.textRowOffset = editorState.cursorRow - editorState.nScreenRows + 1;  // why +1 ??
+	}
 
 
+	/* Horizontal scroll */
 
+	// Cursor left of visible window, scroll right to cursor
+	if ( editorState.cursorCol < editorState.textColOffset )
+	{
+		editorState.textColOffset = editorState.cursorCol;
+	}
+
+	// Cursor right of visible window, scroll left to cursor
+	if ( editorState.cursorCol >= ( editorState.nScreenCols + editorState.textColOffset ) )
+	{
+		editorState.textColOffset = editorState.cursorCol - editorState.nScreenCols + 1;  // why +1 ??
+	}
+}
 
 
 // ____________________________________________________________________________________
@@ -439,10 +482,10 @@ void moveCursor ( uchar key )
 
 		case KEY_RIGHT:
 
-			if ( editorState.cursorCol < editorState.nScreenCols - 1 )
-			{
+			// if ( editorState.cursorCol < editorState.nScreenCols - 1 )
+			// {
 				editorState.cursorCol += 1;
-			}
+			// }
 			break;
 
 		case KEY_UP:
@@ -455,7 +498,7 @@ void moveCursor ( uchar key )
 
 		case KEY_DOWN:
 
-			if ( editorState.cursorRow < editorState.nScreenRows - 1 )
+			if ( editorState.cursorRow < editorState.nTextRows )
 			{
 				editorState.cursorRow += 1;
 			}
@@ -539,58 +582,96 @@ void processKeyPress ( void )
 
 void drawRows ( void )
 {
-	uint             row;
-	int              center;
+	uint             screenRow;
+	uint             fileRow;
+	struct _textRow* curTextRow;
+	char*            text;
+	int              centerCol;
 	char*            welcomeMsg;
 	int              welcomeMsgLen;
-	struct _textRow* curTextRow;
 
 	welcomeMsg    = "Kilo Editor";
 	welcomeMsgLen = 11;  // excluding null terminal
 
 	setCursorPosition( 0, 0 );  // makes more sense here...
 
-	for ( row = 0; row < editorState.nScreenRows; row += 1 )
+	// Empty file
+	if ( editorState.nTextRows == 0 )
 	{
-		setCursorPosition( row, 0 );
-
-		eraseInLine( ERASELINE_ALL );  // erase entire line...
-
-		// Draw file contents...
-		if ( row < editorState.nTextRows )
+		for ( screenRow = 0; screenRow < editorState.nScreenRows; screenRow += 1 )
 		{
-			curTextRow = editorState.textRows + row;
+			setCursorPosition( screenRow, 0 );
 
-			printString( curTextRow->chars, NO_WRAP );
-		}
-		else
-		{
 			printChar( '~' );
+
+			// Print welcome message
+			if ( screenRow == editorState.nScreenRows / 3 )
+			{
+				centerCol = ( editorState.nScreenCols / 2 ) - ( welcomeMsgLen / 2 );
+
+				setCursorPosition( screenRow, centerCol );
+
+				printString( welcomeMsg, NO_WRAP );
+			}
 		}
+	}
 
-		// Print welcome message
-		if ( ( editorState.nTextRows == 0 ) && ( row == editorState.nScreenRows / 3 ) )
+
+	// Non-empty file
+	else
+	{
+		for ( screenRow = 0; screenRow < editorState.nScreenRows; screenRow += 1 )
 		{
-			center = ( editorState.nScreenCols / 2 ) - ( welcomeMsgLen / 2 );
+			//
+			setCursorPosition( screenRow, 0 );
 
-			setCursorPosition( row, center );
+			//
+			fileRow = screenRow + editorState.textRowOffset;
 
-			printString( welcomeMsg, NO_WRAP );
+			// Draw file contents...
+			if ( fileRow < editorState.nTextRows )
+			{
+				//
+				curTextRow = editorState.textRows + fileRow;
+
+				/* If haven't scrolled horizontally past end of line,
+				   draw the visible part...
+				*/
+				if ( editorState.textColOffset < curTextRow->len )
+				{
+					text = curTextRow->chars + editorState.textColOffset;
+
+					printString( text, NO_WRAP );
+				}
+			}
+			else
+			{
+				printChar( '~' );
+			}
 		}
 	}
 }
 
+// ____________________________________________________________________________________
+
 void refreshScreen ( void )
 {
-	// clearScreen();
+	clearScreen();
 
 	// setCursorPosition( 0, 0 );
 	// Does editor cursor mirror terminal's ???
 
+	scroll();
+
 	drawRows();
 
 	// setCursorPosition( 0, 0 );
-	setCursorPosition( editorState.cursorRow, editorState.cursorCol );
+	// setCursorPosition( editorState.cursorRow, editorState.cursorCol );
+	setCursorPosition(
+
+		editorState.cursorRow - editorState.textRowOffset,
+		editorState.cursorCol - editorState.textColOffset
+	);
 	drawCursor();
 }
 
@@ -607,8 +688,10 @@ void initEditor ( void )
 	getDimensions( &editorState.nScreenRows, &editorState.nScreenCols );
 
 	//
-	editorState.nTextRows = 0;
-	editorState.textRows  = NULL;
+	editorState.nTextRows     = 0;
+	editorState.textRows      = NULL;
+	editorState.textRowOffset = 0;
+	editorState.textColOffset = 0;
 }
 
 
