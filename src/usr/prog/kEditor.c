@@ -470,6 +470,18 @@ printf(
 //
 void moveCursor ( uchar key )
 {
+	struct _textRow* curTextRow;
+
+	if ( editorState.cursorRow >= editorState.nScreenRows )
+	{
+		curTextRow = NULL;
+	}
+	else
+	{
+		curTextRow = editorState.textRows + editorState.cursorRow;
+	}
+
+
 	switch ( key )
 	{
 		case KEY_LEFT:
@@ -478,14 +490,40 @@ void moveCursor ( uchar key )
 			{
 				editorState.cursorCol -= 1;
 			}
+
+			/* Allow ability to move to end of previous line
+			*/
+			else if ( editorState.cursorRow > 0 )
+			{
+				editorState.cursorRow -= 1;
+
+				curTextRow = editorState.textRows + editorState.cursorRow;
+
+				editorState.cursorCol = curTextRow->len;
+			}
+
 			break;
 
 		case KEY_RIGHT:
 
-			// if ( editorState.cursorCol < editorState.nScreenCols - 1 )
-			// {
+			/* Prevent cursor from moving more than one char past end of line...
+
+			   One char past allowed so that user can insert text at end of line...
+			*/
+			if ( curTextRow && ( editorState.cursorCol < curTextRow->len ) )
+			{
 				editorState.cursorCol += 1;
-			// }
+			}
+
+			/* Allow ability to move to start of next line
+			*/
+			else if ( curTextRow && ( editorState.cursorCol == curTextRow->len ) )
+			{
+				editorState.cursorRow += 1;
+
+				editorState.cursorCol = 0;
+			}
+
 			break;
 
 		case KEY_UP:
@@ -494,15 +532,47 @@ void moveCursor ( uchar key )
 			{
 				editorState.cursorRow -= 1;
 			}
+
 			break;
 
 		case KEY_DOWN:
 
+			/* Prevent cursor from moving more than one line past end of file...
+
+			   One line past allowed so that user can insert new lines at end of file...
+			*/
 			if ( editorState.cursorRow < editorState.nTextRows )
 			{
 				editorState.cursorRow += 1;
 			}
+
 			break;
+	}
+
+
+	/* Snap cursor to end of line.
+	   I.e. if on cursorRow update, cursorCol position is now invalid (past end of line)
+	*/
+
+	if ( editorState.cursorRow >= editorState.nScreenRows )
+	{
+		curTextRow = NULL;
+	}
+	else
+	{
+		curTextRow = editorState.textRows + editorState.cursorRow;
+	}
+
+	if ( curTextRow )
+	{
+		if ( editorState.cursorCol > curTextRow->len )  // past end of line
+		{
+			editorState.cursorCol = curTextRow->len;
+		}
+	}
+	else  // empty line
+	{
+		editorState.cursorCol = 0;
 	}
 }
 
