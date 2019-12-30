@@ -262,6 +262,14 @@ void free ( void* blockFreeSpacePtr )
 	Header* blockPtr;
 	Header* curBlockPtr;
 
+	/* JK - do nothing if null pointer...
+	*/
+	if ( blockFreeSpacePtr == NULL )
+	{
+		return;
+	}
+
+
 	/* Get pointer to block's header from the
 	   given pointer to its free space
 	*/
