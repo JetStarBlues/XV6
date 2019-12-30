@@ -20,6 +20,10 @@ TODO:
 
 
 //
+#define TABSIZE 3  // tab size in spaces
+
+
+//
 #define CTRL( k ) ( ( k ) & 0x1F )  // https://en.wikipedia.org/wiki/ASCII#Control_characters
 
 
@@ -28,6 +32,12 @@ struct _textRow {
 
 	int   len;    // not null-terminated
 	char* chars;  // better name
+
+	/* What rendered might be different length than bytes on file.
+	   For example tabs.
+	*/
+	int   len_render;    // not null-terminated
+	char* chars_render;
 };
 
 // typedef struct _textRow textRow;
@@ -42,9 +52,13 @@ struct _editorState {
 	uint nScreenRows;
 	uint nScreenCols;
 
-	// cursor position
-	uint cursorRow;
-	uint cursorCol;
+	// edit cursor position
+	uint editCursorRow;
+	uint editCursorCol;
+
+	// render cursor position
+	uint renderCursorRow;
+	uint renderCursorCol;
 
 	//
 	struct _textRow* textRows;  // better name
@@ -313,24 +327,88 @@ void printString ( char* s, int wrap )
 
 // ____________________________________________________________________________________
 
+void updateTextRowRender ( struct _textRow* textRow )  // better name
+{
+	int j;
+	int idx;
+	int nTabs;
+
+	// Count number of tabs in line
+	for ( j = 0; j < textRow->len; j += 1 )
+	{
+		if ( textRow->chars[ j ] == '\t' )
+		{
+			nTabs += 1;
+		}
+	}
+
+
+	//
+	free( textRow->chars_render );  // hmm...
+
+	textRow->chars_render = malloc(
+
+		textRow->len            +
+		nTabs * ( TABSIZE - 1 ) +  // space taken up by tabs
+		1                          // null temrinal
+	);
+
+
+	//
+	idx = 0;
+
+	for ( j = 0; j < textRow->len; j += 1 )
+	{
+		if ( textRow->chars[ j ] == '\t' )
+		{
+			// Each tab must advane the cursor forward at least one column
+			textRow->chars_render[ idx ] = ' ';
+
+			idx += 1;
+
+
+			// Append spaces until we get to a tab stop (column divisible by TABSIZE)
+			while ( ( idx % TABSIZE ) != 0 )
+			{
+				textRow->chars_render[ idx ] = ' ';
+
+				idx += 1;
+			}
+		}
+		else
+		{
+			textRow->chars_render[ idx ] = textRow->chars[ j ];
+
+			idx += 1;
+		}
+	}
+
+	textRow->chars_render[ idx ] = 0;  // null terminate
+
+	textRow->len_render = idx;
+}
+
+
+// ____________________________________________________________________________________
+
 void appendTextRow ( char*line, int lineLen )
 {
-	struct _textRow* p;
+	struct _textRow* ptr;
 	struct _textRow* curTextRow;
 
 	// Allocate space for a new textRow
-	p = realloc(
+	ptr = realloc(
 
 		editorState.textRows,
 		sizeof( struct _textRow ) * ( editorState.nTextRows + 1 )
 	);
 
-	if ( p == NULL )
+	if ( ptr == NULL )
 	{
 		die( "realloc" );
 	}
 
-	editorState.textRows = p;
+	editorState.textRows = ptr;
 
 
 	// Copy the line to the textRow
@@ -345,6 +423,13 @@ void appendTextRow ( char*line, int lineLen )
 
 	//
 	curTextRow->len = lineLen;
+
+
+	//
+	curTextRow->chars_render = NULL;
+	curTextRow->len_render   = 0;
+	updateTextRowRender( curTextRow );
+
 
 	// Update count
 	editorState.nTextRows += 1;
@@ -403,42 +488,86 @@ void openFile ( char* filename )  // better name
 
 // ____________________________________________________________________________________
 
+uint convert_edit_to_renderCursorCol ( struct _textRow* textRow, uint _editCursorCol )
+{
+	uint _renderCursorCol;
+	int  j;
+	uint nLeft;
+	uint nRight;
+
+	_renderCursorCol = 0;
+
+	for ( j = 0; j < _editCursorCol; j += 1 )
+	{
+		if ( textRow->chars[ j ] == '\t' )
+		{
+			// Number of columns we are to the right of the previous tab stop...
+			nRight = _renderCursorCol % TABSIZE;
+
+			// Number of columns we are to the left of the next tab stop...
+			nLeft = ( TABSIZE - 1 ) - nRight;
+
+			//
+			_renderCursorCol += nLeft;
+		}
+
+		_renderCursorCol += 1;
+	}
+
+	return _renderCursorCol;
+}
+
 void scroll ( void )
 {
-printf(
-	1,
-	"cursorRow %d, textRowOffset %d, nScreenRows\n"
-	"cursorCol %d, textColOffset %d, nScreenCols %d\n",
-	editorState.cursorRow, editorState.textRowOffset, editorState.nScreenRows,
-	editorState.cursorCol, editorState.textColOffset, editorState.nScreenCols
-);
+	struct _textRow* curTextRow;
+
+	/* Calculate location of render cursor...
+	*/
+	editorState.renderCursorRow = editorState.editCursorRow;
+
+	if ( editorState.editCursorRow < editorState.nTextRows )
+	{
+		curTextRow = editorState.textRows + editorState.editCursorRow;
+
+		editorState.renderCursorCol = convert_edit_to_renderCursorCol(
+
+			curTextRow,
+			editorState.editCursorCol
+		);
+	}
+	else
+	{
+		editorState.renderCursorCol = 0;
+	}
+
+
 	/* Vertical scroll */
 
 	// Cursor above visible window, scroll up to cursor
-	if ( editorState.cursorRow < editorState.textRowOffset )
+	if ( editorState.renderCursorRow < editorState.textRowOffset )
 	{
-		editorState.textRowOffset = editorState.cursorRow;
+		editorState.textRowOffset = editorState.renderCursorRow;
 	}
 
 	// Cursor below visible window, scroll down to cursor
-	if ( editorState.cursorRow >= ( editorState.nScreenRows + editorState.textRowOffset ) )
+	if ( editorState.renderCursorRow >= ( editorState.nScreenRows + editorState.textRowOffset ) )
 	{
-		editorState.textRowOffset = editorState.cursorRow - editorState.nScreenRows + 1;  // why +1 ??
+		editorState.textRowOffset = editorState.renderCursorRow - editorState.nScreenRows + 1;  // why +1 ??
 	}
 
 
 	/* Horizontal scroll */
 
 	// Cursor left of visible window, scroll right to cursor
-	if ( editorState.cursorCol < editorState.textColOffset )
+	if ( editorState.renderCursorCol < editorState.textColOffset )
 	{
-		editorState.textColOffset = editorState.cursorCol;
+		editorState.textColOffset = editorState.renderCursorCol;
 	}
 
 	// Cursor right of visible window, scroll left to cursor
-	if ( editorState.cursorCol >= ( editorState.nScreenCols + editorState.textColOffset ) )
+	if ( editorState.renderCursorCol >= ( editorState.nScreenCols + editorState.textColOffset ) )
 	{
-		editorState.textColOffset = editorState.cursorCol - editorState.nScreenCols + 1;  // why +1 ??
+		editorState.textColOffset = editorState.renderCursorCol - editorState.nScreenCols + 1;  // why +1 ??
 	}
 }
 
@@ -472,13 +601,13 @@ void moveCursor ( uchar key )
 {
 	struct _textRow* curTextRow;
 
-	if ( editorState.cursorRow >= editorState.nScreenRows )
+	if ( editorState.editCursorRow >= editorState.nScreenRows )
 	{
 		curTextRow = NULL;
 	}
 	else
 	{
-		curTextRow = editorState.textRows + editorState.cursorRow;
+		curTextRow = editorState.textRows + editorState.editCursorRow;
 	}
 
 
@@ -486,20 +615,20 @@ void moveCursor ( uchar key )
 	{
 		case KEY_LEFT:
 
-			if ( editorState.cursorCol != 0 )
+			if ( editorState.editCursorCol != 0 )
 			{
-				editorState.cursorCol -= 1;
+				editorState.editCursorCol -= 1;
 			}
 
 			/* Allow ability to move to end of previous line
 			*/
-			else if ( editorState.cursorRow > 0 )
+			else if ( editorState.editCursorRow > 0 )
 			{
-				editorState.cursorRow -= 1;
+				editorState.editCursorRow -= 1;
 
-				curTextRow = editorState.textRows + editorState.cursorRow;
+				curTextRow = editorState.textRows + editorState.editCursorRow;
 
-				editorState.cursorCol = curTextRow->len;
+				editorState.editCursorCol = curTextRow->len;
 			}
 
 			break;
@@ -510,27 +639,27 @@ void moveCursor ( uchar key )
 
 			   One char past allowed so that user can insert text at end of line...
 			*/
-			if ( curTextRow && ( editorState.cursorCol < curTextRow->len ) )
+			if ( curTextRow && ( editorState.editCursorCol < curTextRow->len ) )
 			{
-				editorState.cursorCol += 1;
+				editorState.editCursorCol += 1;
 			}
 
 			/* Allow ability to move to start of next line
 			*/
-			else if ( curTextRow && ( editorState.cursorCol == curTextRow->len ) )
+			else if ( curTextRow && ( editorState.editCursorCol == curTextRow->len ) )
 			{
-				editorState.cursorRow += 1;
+				editorState.editCursorRow += 1;
 
-				editorState.cursorCol = 0;
+				editorState.editCursorCol = 0;
 			}
 
 			break;
 
 		case KEY_UP:
 
-			if ( editorState.cursorRow != 0 )
+			if ( editorState.editCursorRow != 0 )
 			{
-				editorState.cursorRow -= 1;
+				editorState.editCursorRow -= 1;
 			}
 
 			break;
@@ -541,9 +670,9 @@ void moveCursor ( uchar key )
 
 			   One line past allowed so that user can insert new lines at end of file...
 			*/
-			if ( editorState.cursorRow < editorState.nTextRows )
+			if ( editorState.editCursorRow < editorState.nTextRows )
 			{
-				editorState.cursorRow += 1;
+				editorState.editCursorRow += 1;
 			}
 
 			break;
@@ -551,28 +680,28 @@ void moveCursor ( uchar key )
 
 
 	/* Snap cursor to end of line.
-	   I.e. if on cursorRow update, cursorCol position is now invalid (past end of line)
+	   I.e. if on row update, col position is now invalid (past end of line)
 	*/
 
-	if ( editorState.cursorRow >= editorState.nScreenRows )
+	if ( editorState.editCursorRow >= editorState.nScreenRows )
 	{
 		curTextRow = NULL;
 	}
 	else
 	{
-		curTextRow = editorState.textRows + editorState.cursorRow;
+		curTextRow = editorState.textRows + editorState.editCursorRow;
 	}
 
 	if ( curTextRow )
 	{
-		if ( editorState.cursorCol > curTextRow->len )  // past end of line
+		if ( editorState.editCursorCol > curTextRow->len )  // past end of line
 		{
-			editorState.cursorCol = curTextRow->len;
+			editorState.editCursorCol = curTextRow->len;
 		}
 	}
 	else  // empty line
 	{
-		editorState.cursorCol = 0;
+		editorState.editCursorCol = 0;
 	}
 }
 
@@ -588,14 +717,16 @@ char readKey ( void )
 		die( "read" );
 	}
 
-	printf( stdout, "(%d, %c)\n", c, c );
+	// printf( stdout, "(%d, %c)\n", c, c );
 
 	return c;
 }
 
 void processKeyPress ( void )
 {
-	uchar c;
+	uchar            c;
+	int              n;
+	struct _textRow* curTextRow;
 
 	c = ( uchar ) readKey();
 
@@ -616,9 +747,28 @@ void processKeyPress ( void )
 
 		case KEY_PAGEUP:
 		case KEY_PAGEDOWN:
-		{
-			// For now, just move to vertical extremes
-			int n = editorState.nScreenRows;
+
+			/* To scroll up or down a page, we position the cursor
+			   at either the top or bottom of the screen, then simulate
+			   nScreenRows key presses
+			*/
+			if ( c == KEY_PAGEUP )
+			{
+				editorState.editCursorRow = editorState.textRowOffset;
+			}
+			else
+			{
+				editorState.editCursorRow = editorState.textRowOffset + editorState.nScreenRows - 1;
+
+				if ( editorState.editCursorRow > editorState.nTextRows )
+				{
+					editorState.editCursorRow = editorState.nTextRows;
+				}
+			}
+
+			//
+			n = editorState.nScreenRows;
+
 			while ( n )
 			{
 				moveCursor( c == KEY_PAGEUP ? KEY_UP : KEY_DOWN );
@@ -626,21 +776,23 @@ void processKeyPress ( void )
 			}
 
 			break;
-		}
 
 		case KEY_HOME:
+
+			editorState.editCursorCol = 0;
+
+			break;
+
 		case KEY_END:
-		{
-			// For now, just move to horizontal extremes
-			int n = editorState.nScreenCols;
-			while ( n )
+
+			if ( editorState.editCursorRow < editorState.nTextRows )
 			{
-				moveCursor( c == KEY_HOME ? KEY_LEFT : KEY_RIGHT );
-				n -= 1;
+				curTextRow = editorState.textRows + editorState.editCursorRow;
+
+				editorState.editCursorCol = curTextRow->len;
 			}
 
 			break;
-		}
 
 		// case KEY_DELETE:
 			// break;
@@ -663,7 +815,6 @@ void drawRows ( void )
 	welcomeMsg    = "Kilo Editor";
 	welcomeMsgLen = 11;  // excluding null terminal
 
-	setCursorPosition( 0, 0 );  // makes more sense here...
 
 	// Empty file
 	if ( editorState.nTextRows == 0 )
@@ -707,9 +858,9 @@ void drawRows ( void )
 				/* If haven't scrolled horizontally past end of line,
 				   draw the visible part...
 				*/
-				if ( editorState.textColOffset < curTextRow->len )
+				if ( editorState.textColOffset < curTextRow->len_render )
 				{
-					text = curTextRow->chars + editorState.textColOffset;
+					text = curTextRow->chars_render + editorState.textColOffset;
 
 					printString( text, NO_WRAP );
 				}
@@ -736,11 +887,11 @@ void refreshScreen ( void )
 	drawRows();
 
 	// setCursorPosition( 0, 0 );
-	// setCursorPosition( editorState.cursorRow, editorState.cursorCol );
+	// setCursorPosition( editorState.editCursorRow, editorState.editCursorCol );
 	setCursorPosition(
 
-		editorState.cursorRow - editorState.textRowOffset,
-		editorState.cursorCol - editorState.textColOffset
+		editorState.renderCursorRow - editorState.textRowOffset,
+		editorState.renderCursorCol - editorState.textColOffset
 	);
 	drawCursor();
 }
@@ -751,8 +902,10 @@ void refreshScreen ( void )
 void initEditor ( void )
 {
 	//
-	editorState.cursorCol = 0;
-	editorState.cursorRow = 0;
+	editorState.editCursorCol   = 0;
+	editorState.editCursorRow   = 0;
+	editorState.renderCursorCol = 0;
+	editorState.renderCursorRow = 0;
 
 	//
 	getDimensions( &editorState.nScreenRows, &editorState.nScreenCols );
