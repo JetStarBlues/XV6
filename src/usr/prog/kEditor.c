@@ -880,7 +880,6 @@ void drawRows ( void )
 	}
 }
 
-// TODO: Optimize to draw a single rect
 void drawStatusBar ( void )
 {
 	int  col;
@@ -895,12 +894,14 @@ void drawStatusBar ( void )
 	slen = snprintf(
 
 		status,
-		editorState.nScreenCols,
+		editorState.nScreenCols + 1,  // +1 for null terminal
 
 		"%s - %d lines",
 		editorState.filename ? editorState.filename : "Untitled",
 		editorState.nTextRows
 	);
+
+	setCursorPosition( editorState.nScreenRows, 0 );
 
 	printString( status, NO_WRAP );
 
