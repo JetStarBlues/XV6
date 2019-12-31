@@ -1,10 +1,16 @@
 // From: Compiler Design in C, Allen Holub, p.724
 
+/* Unused because GCC uses own version...
+    stackoverflow.com/a/32292315
+
+   Keeping as reference...
+*/
+
 typedef char* va_list;
 
-#define va_start( arg_ptr, first )                      \
-	                                                    \
-	arg_ptr = ( va_list ) ( &first ) + sizeof( first )
+#define va_start( arg_ptr, first )                          \
+	                                                        \
+	arg_ptr = ( ( va_list ) ( &first ) ) + sizeof( first )
 
 #define va_arg( arg_ptr, type )                         \
 	                                                    \
@@ -21,7 +27,7 @@ typedef char* va_list;
 		char* args;
 
 		// va_start( args, argCount );
-		args = ( char* ) ( &argCount ) + sizeof( argCount );
+		args = ( ( char* ) ( &argCount ) ) + sizeof( argCount );
 
 		while ( argCount > 0 )
 		{

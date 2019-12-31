@@ -30,7 +30,13 @@ int   wait    ( void );
 int   write   ( int, const void*, int );
 
 // printf.c
-void  printf  ( int, const char*, ... );
+// void  printf  ( int, const char*, ... );
+int printf    ( int, const char*, ... );
+int snprintf  ( char*, int, const char*, ... );
+int sprintf   ( char*, const char*, ... );
+int vprintf   ( int, const char*, va_list );
+int vsnprintf ( char*, int, const char*, va_list );
+int vsprintf  ( char*, const char*, va_list );
 
 // ulib.c
 int   atoi    ( const char* );
