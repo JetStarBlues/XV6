@@ -122,6 +122,23 @@ char* strchr ( const char* s, char c )
 	return 0;
 }
 
+/* Returns a pointer to a new string which is a duplicate
+   of string s.
+*/
+char* strdup ( const char* s )
+{
+	int   slen;
+	char* sdup;
+
+	slen = strlen( s );
+
+	sdup = ( char* ) malloc( slen + 1 );  // +1 for null terminal
+
+	strcpy( sdup, s );
+
+	return sdup;
+}
+
 
 // _________________________________________________________________
 
@@ -270,6 +287,14 @@ int getline ( char** bufPtr, uint* bufSize, int fd )
 
 	return lineSize;
 }
+
+
+// _________________________________________________________________
+
+/*int putc ( int c, int fd )
+{
+	return write( fd, &c, 1 );
+}*/
 
 
 // _________________________________________________________________

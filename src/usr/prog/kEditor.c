@@ -65,6 +65,9 @@ struct _editorState {
 	int              nTextRows;
 	int              textRowOffset;  // vertical scroll offset
 	int              textColOffset;  // horizontal scroll offset
+
+	//
+	char* filename;
 };
 
 static struct _editorState editorState;
@@ -442,6 +445,10 @@ void openFile ( char* filename )  // better name
 	char* line;
 	int   lineLen;  // excluding null terminal
 	uint  lineBufSize;
+
+	//
+	free( editorState.filename );
+	editorState.filename = strdup( filename );
 
 	//
 	fd = open( filename, O_RDONLY );
@@ -873,21 +880,63 @@ void drawRows ( void )
 	}
 }
 
+// TODO: Optimize to draw a single rect
+void drawStatusBar ( void )
+{
+	int  col;
+	int  slen;
+	char status [ 81 ];  /* if nScreenCols was compile time constant, would use it
+	                        instead to allocate space */
+
+	invertTextColors();
+
+
+	// Print status text
+	slen = snprintf(
+
+		status,
+		editorState.nScreenCols,
+
+		"%s - %d lines",
+		editorState.filename ? editorState.filename : "Untitled",
+		editorState.nTextRows
+	);
+
+	printString( status, NO_WRAP );
+
+
+	// Draw spaces for the rest...
+	if ( slen < editorState.nScreenCols )
+	{
+		for ( col = slen; col < editorState.nScreenCols; col += 1 )
+		{
+			setCursorPosition( editorState.nScreenRows, col );
+
+			printChar( ' ' );
+		}
+	}
+
+
+	// Restore
+	invertTextColors();
+}
+
+
 // ____________________________________________________________________________________
 
 void refreshScreen ( void )
 {
+	//
 	clearScreen();
 
-	// setCursorPosition( 0, 0 );
-	// Does editor cursor mirror terminal's ???
-
+	//
 	scroll();
 
+	//
 	drawRows();
+	drawStatusBar();
 
-	// setCursorPosition( 0, 0 );
-	// setCursorPosition( editorState.editCursorRow, editorState.editCursorCol );
+	//
 	setCursorPosition(
 
 		editorState.renderCursorRow - editorState.textRowOffset,
@@ -907,14 +956,22 @@ void initEditor ( void )
 	editorState.renderCursorCol = 0;
 	editorState.renderCursorRow = 0;
 
+
 	//
 	getDimensions( &editorState.nScreenRows, &editorState.nScreenCols );
+
+	editorState.nScreenRows -= 1;  // reserve space for status bar
+
 
 	//
 	editorState.nTextRows     = 0;
 	editorState.textRows      = NULL;
 	editorState.textRowOffset = 0;
 	editorState.textColOffset = 0;
+
+
+	//
+	editorState.filename = NULL;
 }
 
 

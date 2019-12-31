@@ -1,3 +1,5 @@
+#include "stdarg.h"
+
 struct stat;
 struct rtcdate;
 
@@ -27,6 +29,9 @@ int   uptime  ( void );
 int   wait    ( void );
 int   write   ( int, const void*, int );
 
+// printf.c
+void  printf  ( int, const char*, ... );
+
 // ulib.c
 int   atoi    ( const char* );
 int   getc    ( int );
@@ -35,11 +40,12 @@ char* gets    ( char*, int );
 void* memcpy  ( void*, const void*, uint );
 void* memmove ( void*, const void*, uint );
 void* memset  ( void*, int, uint );
-void  printf  ( int, const char*, ... );
+// int   putc    ( int, int );
 int   stat    ( const char*, struct stat* );
 char* strchr  ( const char*, char );
 int   strcmp  ( const char*, const char* );
 char* strcpy  ( char*, const char* );
+char* strdup  ( const char* );
 uint  strlen  ( const char* );
 
 // umalloc.c
