@@ -1,4 +1,5 @@
 #include "types.h"
+#include "stdarg.h"  // GCC builtin
 
 /*
 	Mirrors "printf.c"
@@ -7,19 +8,11 @@
 		. Duplication only because of kernel vs user space distinction...
 
 	Differences (minor):
-		. no fd parameter
-			. instead pointer to putc function
+		. added 'raw_putc' field to 'struct printState'
+		. added 'k_putc'   function (omitted 'fd_putc' and variants)
+		. added 'vkprintf' function (omitted 'printf' and variants)
 
-		. "printf" is called "kprintf" and has the following parameters:
-			. "void ( *putc ) ( int )" - pointer to putc function
-			. "char* fmt"              - pointer to string format
-			. "uint* argp"             - pointer to variable args
-
-			. Thus:
-				. 'putc' is now an argument instead of a static function
-				. 'argp' is now an argument instead of a local variable
-
-	The following functions from "ulib.c" and "user.h" also copied:
+	The following functions from "ulib.c" and "user.h" are also copied:
 		. ISDIGIT
 		. strlen
 		. strchr
@@ -86,16 +79,79 @@ static int atoi ( const char* s )
 
 // _____________________________________________________________________________
 
-/* Below is slightly modified contents of "printf.c".
-   See notes at top of page.
-*/
-
 #define MAXNDIGITS 16
 
 static char* flags       = "-0";
 static char* conversions = "dxpcs";
 
+// Pass this around to track progress (in leiu of globals)
+struct printState {
 
+	char* dstString;  // sprintf variants
+	int   dstFd;      //
+
+	int nWritten;     // bytes written thus far
+	int nToWrite;     // max bytes to write for snprintf variants
+	int nExcess;      // bytes in excess of nToWrite
+
+
+	// DIFFERENT from printf.c
+	void ( *raw_putc ) ( int );
+};
+
+
+// _____________________________________________________________________________
+
+// DIFFERENT from printf.c
+static void k_putc ( int c, struct printState* pState )
+{
+	pState->raw_putc( c );
+
+	pState->nWritten += 1;
+}
+
+
+// _____________________________________________________________________________
+
+static void _printf (
+
+	struct printState*,
+	void ( * ) ( int, struct printState* ),
+	const char*,
+	va_list*
+);
+
+
+// DIFFERENT from printf.c
+int vkprintf (
+
+	void ( *putc ) ( int ),
+	const char* fmt,
+	va_list     argp
+)
+{
+	struct printState pState;
+
+	//
+	pState.raw_putc = putc;
+
+	//
+	_printf( &pState, k_putc, fmt, &argp );
+
+	//
+	return pState.nWritten;
+}
+
+
+// _____________________________________________________________________________
+
+/* For itoa explanation, see:
+     The C Programming Language, Kernighan & Ritchie,
+     2nd ed. Section 3.6
+*/
+/* Returns string version of int 'xx' in 'sint',
+   and sign in 'sign'
+*/
 static void itoa ( int xx, int base, int issigned, char* sign, char sint [] )
 {
 	static char digits [] = "0123456789ABCDEF";
@@ -173,39 +229,52 @@ static void itoa ( int xx, int base, int issigned, char* sign, char sint [] )
 	}
 }
 
-static void printPadding ( void ( *putc ) ( int ), int n, int padWithZero )
+
+// _____________________________________________________________________________
+
+static void printPadding (
+
+	struct printState* pState,
+	void ( *putc ) ( int, struct printState* ),
+	int n,
+	int padWithZero
+)
 {
 	while ( n )
 	{
 		if ( padWithZero )
 		{
-			putc( '0' );
+			putc( '0', pState );
 		}
 		else
 		{
-			putc( ' ' );
+			putc( ' ', pState );
 		}
 
 		n -= 1;
 	}
 }
 
-static void print_d ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight, int padWithZero )
+static void print_d (
+
+	struct printState* pState,
+	void ( *putc ) ( int, struct printState* ), 
+	va_list* argpp, 
+	int      width, 
+	int      padLeft, 
+	int      padRight,
+	int      padWithZero
+)
 {
-	uint* argp;
-	char  sint [ MAXNDIGITS + 1 ];
-	char  sign;
-	int   i;
-	int   x;
-	int   npad;
-	int   printSign;
+	char sint [ MAXNDIGITS + 1 ];
+	char sign;
+	int  i;
+	int  x;
+	int  npad;
+	int  printSign;
 
 	// Get integer from argp
-	argp = *argpp;      // create a local copy of argp
-
-	x = ( int ) *argp;  //
-
-	*argpp += 1;        // increment original argp
+	x = va_arg( *argpp, int );
 
 
 	// Convert integer to string
@@ -246,19 +315,19 @@ static void print_d ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 	{
 		if ( printSign )
 		{
-			putc( sign );
+			putc( sign, pState );
 		}
 
-		printPadding( putc, npad, 1 );
+		printPadding( pState, putc, npad, 1 );
 	}
 	// If padding with spaces, padding comes first
 	else
 	{
-		printPadding( putc, npad, 0 );
+		printPadding( pState, putc, npad, 0 );
 
 		if ( printSign )
 		{
-			putc( sign );
+			putc( sign, pState );
 		}
 	}
 
@@ -267,7 +336,7 @@ static void print_d ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 
 	while ( sint[ i ] )
 	{
-		putc( sint[ i ] );
+		putc( sint[ i ], pState );
 
 		i += 1;
 	}
@@ -275,25 +344,29 @@ static void print_d ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( putc, npad, 0 );
+		printPadding( pState, putc, npad, 0 );
 	}
 }
 
-static void print_x ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight, int padWithZero )
+static void print_x (
+
+	struct printState* pState,
+	void ( *putc ) ( int, struct printState* ),
+	va_list* argpp,
+	int      width,
+	int      padLeft,
+	int      padRight,
+	int      padWithZero
+)
 {
-	uint* argp;
-	char  sint [ MAXNDIGITS + 1 ];
-	char  sign;
-	int   i;
-	int   x;
-	int   npad;
+	char sint [ MAXNDIGITS + 1 ];
+	char sign;
+	int  i;
+	int  x;
+	int  npad;
 
 	// Get integer from argp
-	argp = *argpp;      // create a local copy of argp
-
-	x = ( int ) *argp;  //
-
-	*argpp += 1;        // increment original argp
+	x = va_arg( *argpp, int );
 
 
 	// Convert integer to string
@@ -319,7 +392,7 @@ static void print_x ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 	// Print leading spaces or zeros
 	if ( padLeft )
 	{
-		printPadding( putc, npad, padWithZero );
+		printPadding( pState, putc, npad, padWithZero );
 	}
 
 	// Print integer string
@@ -327,7 +400,7 @@ static void print_x ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 
 	while ( sint[ i ] )
 	{
-		putc( sint[ i ] );
+		putc( sint[ i ], pState );
 
 		i += 1;
 	}
@@ -335,24 +408,37 @@ static void print_x ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( putc, npad, 0 );
+		printPadding( pState, putc, npad, 0 );
 	}
 }
 
-static void print_c ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight )
+static void print_c (
+
+	struct printState* pState,
+	void ( *putc ) ( int, struct printState* ),
+	va_list* argpp,
+	int      width,
+	int      padLeft,
+	int      padRight
+)
 {
-	uint* argp;
-	char  c;
-	int   npad;
+	char c;
+	int  npad;
 
 	// Get char from argp
-	argp = *argpp;       // create a local copy of argp
+	/* It seems that chars pushed as int to stack...
 
-	c = ( char ) *argp;  //
+	    stackoverflow.com/a/28308615
+	    stackoverflow.com/a/28054417
 
-	*argpp += 1;         // increment original argp
-	                     /* It seems that chars pushed as int to stack...
-	                     */
+	    "For a variadic function, the compiler doesn't know the types
+	     of the parameters corresponding to the ', ...'
+	     For historical reasons, and to make the compiler's job easier,
+	     any corresponding arguments of types narrower than int
+	     are promoted to int or to unsigned int, and any arguments of type
+	     float are promoted to double."
+	*/
+	c = va_arg( *argpp, int );
 
 
 	// Calculate padding
@@ -367,33 +453,35 @@ static void print_c ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 	// Print leading spaces
 	if ( padLeft )
 	{
-		printPadding( putc, npad, 0 );
+		printPadding( pState, putc, npad, 0 );
 	}
 
 	// Print char
-	putc( c );
+	putc( c, pState );
 
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( putc, npad, 0 );
+		printPadding( pState, putc, npad, 0 );
 	}
 }
 
-static void print_s ( void ( *putc ) ( int ), uint** argpp, int width, int padLeft, int padRight )
+static void print_s (
+
+	struct printState* pState,
+	void ( *putc ) ( int, struct printState* ),
+	va_list* argpp,
+	int      width,
+	int      padLeft,
+	int      padRight
+)
 {
-	uint* argp;
 	char* s;
 	int   npad;
 
 	// Get string from argp
-	argp = *argpp;        // create a local copy of argp
+	s = va_arg( *argpp, char* );
 
-	s = ( char* ) *argp;  //
-
-	*argpp += 1;          // increment original argp
-	                      /* Pointer, sizeof( char* ), seems to be sizeof( int )
-	                      */
 
 	// Why so nice?
 	if ( s == 0 )
@@ -414,13 +502,13 @@ static void print_s ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 	// Print leading spaces
 	if ( padLeft )
 	{
-		printPadding( putc, npad, 0 );
+		printPadding( pState, putc, npad, 0 );
 	}
 
 	// Print string
 	while ( *s != 0 )
 	{
-		putc( *s );
+		putc( *s, pState );
 
 		s += 1;
 	}
@@ -428,21 +516,23 @@ static void print_s ( void ( *putc ) ( int ), uint** argpp, int width, int padLe
 	// Print trailing spaces
 	if ( padRight )
 	{
-		printPadding( putc, npad, 0 );
+		printPadding( pState, putc, npad, 0 );
 	}
 }
 
 
 // _____________________________________________________________________________
 
-/* Tweaked printf function.
-   See notes at top of page.
-*/
+static void _printf (
 
-void kprintf ( void ( *putc ) ( int ), const char* fmt, uint* argp )
+	struct printState* pState,
+	void ( *putc ) ( int, struct printState* ),
+	const char* fmt,
+	va_list*    argpp
+)
 {
-	char  c;
-	int   i;
+	char c;
+	int  i;
 
 	int flag_padTrailing;
 	int flag_padWithZero;
@@ -457,6 +547,10 @@ void kprintf ( void ( *putc ) ( int ), const char* fmt, uint* argp )
 
 	int padLeft;
 	int padRight;
+
+
+	//
+	pState->nWritten = 0;
 
 
 	// Parse format
@@ -476,7 +570,7 @@ void kprintf ( void ( *putc ) ( int ), const char* fmt, uint* argp )
 		*/
 		if ( c != '%' )
 		{
-			putc( c );
+			putc( c, pState );
 
 			continue;
 		}		
@@ -580,33 +674,33 @@ void kprintf ( void ( *putc ) ( int ), const char* fmt, uint* argp )
 			// Print conversion
 			if ( c == 'd' )
 			{
-				print_d( putc, &argp, width, padLeft, padRight, flag_padWithZero );
+				print_d( pState, putc, argpp, width, padLeft, padRight, flag_padWithZero );
 			}
 			else if ( c == 'x' || c == 'p' )
 			{
-				print_x( putc, &argp, width, padLeft, padRight, flag_padWithZero );
+				print_x( pState, putc, argpp, width, padLeft, padRight, flag_padWithZero );
 			}
 			else if ( c == 'c' )
 			{
-				print_c( putc, &argp, width, padLeft, padRight );
+				print_c( pState, putc, argpp, width, padLeft, padRight );
 			}
 			else if ( c == 's' )
 			{
-				print_s( putc, &argp, width, padLeft, padRight );
+				print_s( pState, putc, argpp, width, padLeft, padRight );
 			}
 		}
 
 		// An escaped '%'
 		else if ( c == '%' )
 		{
-			putc( c );
+			putc( c, pState );
 		}
 
 		// Unknown % sequence. Print it to draw attention.
 		else
 		{
-			putc( '%' );
-			putc( c );
+			putc( '%', pState );
+			putc( c,   pState );
 		}
 	}
 }

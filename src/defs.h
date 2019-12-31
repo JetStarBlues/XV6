@@ -1,3 +1,5 @@
+#include "stdarg.h"  // GCC builtin
+
 struct buf;
 struct context;
 struct file;
@@ -80,7 +82,7 @@ void            kinit2 ( void*, void* );
 void            kbdintr ( void );
 
 // kprintf.c
-void kprintf ( void ( * ) ( int ), const char*, uint* );
+int vkprintf ( void ( * ) ( int ), const char*, va_list );
 
 // lapic.c
 extern volatile uint *lapic;

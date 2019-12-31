@@ -489,9 +489,11 @@ static int consoleioctl ( struct inode* ip, int request, ... )
 // Print to the console
 void cprintf ( char* fmt, ... )
 {
-	int   locking;
-	uint* argp;
+	int     locking;
+	va_list argp;
 
+
+	//
 	locking = cons.locking;
 
 	if ( locking )
@@ -499,19 +501,16 @@ void cprintf ( char* fmt, ... )
 		acquire( &cons.lock );
 	}
 
-	if ( fmt == 0 )
-	{
-		panic( "cprintf: null fmt" );
-	}
-
-	// Create pointer to variable args...
-	argp = ( ( uint* ) ( void* ) &fmt ) + 1;
-
 
 	// Call kprintf to do the actual printing
-	kprintf( &consputc, fmt, argp );
+	va_start( argp, fmt );
+
+	vkprintf( &consputc, fmt, argp );
+
+	va_end( argp );
 
 
+	//
 	if ( locking )
 	{
 		release( &cons.lock );

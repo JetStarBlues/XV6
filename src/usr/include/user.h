@@ -1,4 +1,4 @@
-#include "stdarg.h"
+#include "stdarg.h"  // GCC builtin
 
 struct stat;
 struct rtcdate;
@@ -30,7 +30,6 @@ int   wait    ( void );
 int   write   ( int, const void*, int );
 
 // printf.c
-// void  printf  ( int, const char*, ... );
 int printf    ( int, const char*, ... );
 int snprintf  ( char*, int, const char*, ... );
 int sprintf   ( char*, const char*, ... );
