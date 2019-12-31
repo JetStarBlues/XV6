@@ -3,7 +3,7 @@
 #include "types.h"
 #include "user.h"
 
-int main ( int argc, char* argv [] )
+void test_printf ( void )
 {
 	printf( 1, "abcdef\n" );
 	printf( 1, "%c\n",    97 );
@@ -50,8 +50,6 @@ int main ( int argc, char* argv [] )
 	printf( 1, "%02x %02x %02x %02x %02x %02x\n", 10, 11, 12, 13, 14, 15 );
 	printf( 1, "%02x %02d %02c %02c %02x %02x %02d %s\n", 10, 11, '1', '2', 13, 14, 15, "<--" );
 
-	exit();
-}
 
 /*
 abcdef
@@ -91,3 +89,14 @@ FA
 0A 0B 0C 0D 0E 0F
 0A 11  1  2 0D 0E 15 <--
 */
+
+}
+
+
+int main ( int argc, char* argv [] )
+{
+	test_printf();
+
+
+	exit();
+}

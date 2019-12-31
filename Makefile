@@ -85,12 +85,12 @@ UPROGS =            \
 	gfx_text_test   \
 	hexdump         \
 	keditor         \
+	printf_test     \
 	realloc_test    \
 	stackoverflow   \
 	stressfs        \
 	time            \
 	temptest        \
-	testprintf      \
 	usertests       \
 	wisc_exec       \
 	wisc_fault      \
