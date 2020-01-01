@@ -608,7 +608,7 @@ void moveCursor ( uchar key )
 {
 	struct _textRow* curTextRow;
 
-	if ( editorState.editCursorRow >= editorState.nScreenRows )
+	if ( editorState.editCursorRow >= editorState.nTextRows )
 	{
 		curTextRow = NULL;
 	}
@@ -683,6 +683,10 @@ void moveCursor ( uchar key )
 			}
 
 			break;
+
+		default:
+
+			break;
 	}
 
 
@@ -690,7 +694,7 @@ void moveCursor ( uchar key )
 	   I.e. if on row update, col position is now invalid (past end of line)
 	*/
 
-	if ( editorState.editCursorRow >= editorState.nScreenRows )
+	if ( editorState.editCursorRow >= editorState.nTextRows )
 	{
 		curTextRow = NULL;
 	}
@@ -734,6 +738,7 @@ void processKeyPress ( void )
 	uchar            c;
 	int              n;
 	struct _textRow* curTextRow;
+	uint             savedEditCursorRow;
 
 	c = ( uchar ) readKey();
 
@@ -759,6 +764,10 @@ void processKeyPress ( void )
 			   at either the top or bottom of the screen, then simulate
 			   nScreenRows key presses
 			*/
+			//
+			savedEditCursorRow = editorState.editCursorRow;
+
+			//
 			if ( c == KEY_PAGEUP )
 			{
 				editorState.editCursorRow = editorState.textRowOffset;
@@ -782,6 +791,11 @@ void processKeyPress ( void )
 				n -= 1;
 			}
 
+			// JK, calling moveCursor seems pointless...
+
+			// JK FIX ME
+			editorState.editCursorRow = savedEditCursorRow + editorState.nScreenRows;
+
 			break;
 
 		case KEY_HOME:
@@ -803,6 +817,10 @@ void processKeyPress ( void )
 
 		// case KEY_DELETE:
 			// break;
+
+		default:
+
+			break;
 	}
 }
 
@@ -883,20 +901,22 @@ void drawRows ( void )
 void drawStatusBar ( void )
 {
 	int  col;
+	int  posTextCol;
 	int  slen;
+	int  slen2;
 	char status [ 81 ];  /* if nScreenCols was compile time constant, would use it
 	                        instead to allocate space */
 
 	invertTextColors();
 
 
-	// Print status text
+	// Draw file info
 	slen = snprintf(
 
 		status,
 		editorState.nScreenCols + 1,  // +1 for null terminal
 
-		"%s - %d lines",
+		"\"%s\" %dL",
 		editorState.filename ? editorState.filename : "Untitled",
 		editorState.nTextRows
 	);
@@ -906,14 +926,40 @@ void drawStatusBar ( void )
 	printString( status, NO_WRAP );
 
 
-	// Draw spaces for the rest...
-	if ( slen < editorState.nScreenCols )
+	// Get cursor position
+	slen2 = snprintf(
+
+		status,
+		editorState.nScreenCols + 1,  // +1 for null terminal
+
+		"%dL,%dC",
+		editorState.renderCursorRow + 1,  // +1 for one-index display
+		editorState.renderCursorCol + 1   // +1 for one-index display
+	);
+
+	posTextCol = editorState.nScreenCols - slen2;  // right align
+
+
+	// Draw the rest...
+	if ( ( slen + slen2 ) < editorState.nScreenCols )
 	{
 		for ( col = slen; col < editorState.nScreenCols; col += 1 )
 		{
 			setCursorPosition( editorState.nScreenRows, col );
 
-			printChar( ' ' );
+			// Draw spaces
+			if ( col < posTextCol )
+			{
+				printChar( ' ' );
+			}
+
+			// Draw cursor position
+			else
+			{
+				printString( status, NO_WRAP );
+
+				break;
+			}
 		}
 	}
 
