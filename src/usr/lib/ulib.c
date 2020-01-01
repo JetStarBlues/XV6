@@ -17,34 +17,73 @@ void* memset ( void* dst, int c, uint n )
 	return dst;
 }
 
-void* memmove ( void* _dst, const void* _src, uint n )
+void* memcpy ( void* dst, const void* src, uint n )
 {
-	const char* src;
-	char*       dst;
+	const char* s;
+	char*       d;
 
-	dst = _dst;
-	src = _src;
+	s = src;
+	d = dst;
 
 	while ( n > 0 )
 	{
-		/* *dst++ = *src++; */
+		*d = *s;
 
-		*dst = *src;
-
-		dst += 1;
-		src += 1;
+		d += 1;
+		s += 1;
 
 		n -= 1;
 	}
 
-	return _dst;
+	return dst;
 }
 
-void* memcpy ( void* dst, const void* src, uint n )
+void* memmove ( void* dst, const void* src, uint n )
 {
-	return memmove( dst, src, n );
-}
+	const char* s;
+	char*       d;
 
+	s = src;
+	d = dst;
+
+	/* Check if src overlaps dst.
+
+	     ...dddddd
+	     ssssss...
+	*/
+	if ( ( s < d ) && ( ( s + n ) > d ) )
+	{
+		// Copy in reverse so that don't overwrite src before copy...
+		s += n;
+		d += n;
+
+		while ( n > 0 )
+		{
+			d -= 1;
+			s -= 1;
+
+			*d = *s;
+
+			n -= 1;
+		}
+	}
+
+	// Otherwise, copy in "normal" direction...
+	else
+	{
+		while ( n > 0 )
+		{
+			*d = *s;
+
+			d += 1;
+			s += 1;
+
+			n -= 1;
+		}
+	}
+
+	return dst;
+}
 
 
 // _________________________________________________________________
@@ -57,13 +96,30 @@ void* memcpy ( void* dst, const void* src, uint n )
 */
 int strcmp ( const char* p, const char* q )
 {
-	while ( *p && *p == *q )
+	while ( *p && ( *p == *q ) )
 	{
 		p += 1;
 		q += 1;
 	}
 
 	return ( uchar ) *p - ( uchar ) *q;  // Why the cast (and not just "*p - *q")?
+}
+
+int strncmp ( const char* p, const char* q, int n )
+{
+	while ( ( n > 0 ) && ( *p ) && ( *p == *q ) )
+	{
+		n -= 1;
+		p += 1;
+		q += 1;
+	}
+
+	if ( n == 0 )
+	{
+		return 0;
+	}
+
+	return ( uchar ) *p - ( uchar ) *q;
 }
 
 /* Copies the string pointed to by src, including the
@@ -75,19 +131,51 @@ char* strcpy ( char* dst, const char* src )
 
 	odst = dst;
 
-	/*while ( ( *dst++ = *src++ ) != 0 )
+	while ( 1 )
 	{
-		//
-	}*/
+		*dst = *src;  // in case src is null string
 
-	*dst = *src;  // in case src is null string
+		if ( *dst == 0 )
+		{
+			break;
+		}
 
-	while ( *dst )
-	{
 		dst += 1;
 		src += 1;
+	}
 
+	return odst;
+}
+
+char* strncpy ( char* dst, const char* src, int n )
+{
+	char* odst;
+
+	odst = dst;
+
+	while ( n > 0 )
+	{
 		*dst = *src;
+
+		if ( *dst == 0 )
+		{
+			break;
+		}
+
+		dst += 1;
+		src += 1;
+		n   -= 1;
+	}
+
+	/* If length of 'src' is less than 'n', write additional
+	   null bytes to 'dst'.
+	*/
+	while ( n > 0 )
+	{
+		*dst = 0;
+
+		dst += 1;
+		n   -= 1;
 	}
 
 	return odst;

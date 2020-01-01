@@ -160,7 +160,7 @@ void*           memmove    ( void*, const void*, uint );
 void*           memset     ( void*, int, uint );
 char*           safestrcpy ( char*, const char*, int );
 int             strlen     ( const char* );
-int             strncmp    ( const char*, const char*, uint );
+int             strncmp    ( const char*, const char*, int );
 char*           strncpy    ( char*, const char*, int );
 
 // syscall.c

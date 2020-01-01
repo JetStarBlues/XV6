@@ -52,6 +52,8 @@ int   strcmp  ( const char*, const char* );
 char* strcpy  ( char*, const char* );
 char* strdup  ( const char* );
 uint  strlen  ( const char* );
+int   strncmp ( const char*, const char*, int );
+char* strncpy ( char*, const char*, int );
 
 // umalloc.c
 void  free    ( void* );

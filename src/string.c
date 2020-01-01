@@ -3,7 +3,9 @@
 
 void* memset (  void* dst, int c, uint n  )
 {
-	if ( ( int ) dst % 4 == 0 && n % 4 == 0 )
+	// If possible, store 4 bytes at a time
+	if ( ( ( ( int ) dst ) % 4 == 0 ) &&
+		               ( n % 4 == 0 ) )
 	{
 		c &= 0xFF;
 
@@ -14,6 +16,8 @@ void* memset (  void* dst, int c, uint n  )
 			n / 4
 		);
 	}
+
+	// Otherwise, store 1 byte at a time
 	else
 	{
 		stosb( dst, c, n );
@@ -30,21 +34,39 @@ void* memmove ( void* dst, const void* src, uint n )
 	s = src;
 	d = dst;
 
-	if ( s < d && s + n > d )
+	/* Check if src overlaps dst.
+
+	     ...dddddd
+	     ssssss...
+	*/
+	if ( ( s < d ) && ( ( s + n ) > d ) )
 	{
+		// Copy in reverse so that don't overwrite src before copy...
 		s += n;
 		d += n;
 
-		while ( n-- > 0 )
+		while ( n > 0 )
 		{
-			*--d = *--s;
+			d -= 1;
+			s -= 1;
+
+			*d = *s;
+
+			n -= 1;
 		}
 	}
+
+	// Otherwise, copy in "normal" direction...
 	else
 	{
-		while ( n-- > 0 )
+		while ( n > 0 )
 		{
-			*d++ = *s++;
+			*d = *s;
+
+			d += 1;
+			s += 1;
+
+			n -= 1;
 		}
 	}
 
@@ -57,13 +79,13 @@ void* memcpy ( void* dst, const void* src, uint n )
 	return memmove( dst, src, n );
 }
 
-int memcmp ( const void* v1, const void* v2, uint n )
+int memcmp ( const void* src1, const void* src2, uint n )
 {
 	const uchar* s1;
 	const uchar* s2;
 
-	s1 = v1;
-	s2 = v2;
+	s1 = src1;
+	s2 = src2;
 
 	while ( n > 0 )
 	{
@@ -84,9 +106,9 @@ int memcmp ( const void* v1, const void* v2, uint n )
 
 // _________________________________________________________________
 
-int strncmp ( const char* p, const char* q, uint n )
+int strncmp ( const char* p, const char* q, int n )
 {
-	while ( n > 0 && *p && *p == *q )
+	while ( ( n > 0 ) && ( *p ) && ( *p == *q ) )
 	{
 		n -= 1;
 		p += 1;
@@ -101,45 +123,69 @@ int strncmp ( const char* p, const char* q, uint n )
 	return ( uchar ) *p - ( uchar ) *q;
 }
 
-char* strncpy ( char* s, const char* t, int n )
+char* strncpy ( char* dst, const char* src, int n )
 {
-	char* os;
+	char* odst;
 
-	os = s;
+	odst = dst;
 
-	while ( n-- > 0 && ( *s++ = *t++ ) != 0 )
+	while ( n > 0 )
 	{
-		//
+		*dst = *src;
+
+		if ( *dst == 0 )
+		{
+			break;
+		}
+
+		dst += 1;
+		src += 1;
+		n   -= 1;
 	}
 
-	while ( n-- > 0 )
+	/* If length of 'src' is less than 'n', write additional
+	   null bytes to 'dst'.
+	*/
+	while ( n > 0 )
 	{
-		*s++ = 0;
+		*dst = 0;
+
+		dst += 1;
+		n   -= 1;
 	}
 
-	return os;
+	return odst;
 }
 
-// Like strncpy but guaranteed to NUL-terminate.
-char* safestrcpy ( char* s, const char* t, int n )
+// Like strncpy but guaranteed to NULL-terminate.
+char* safestrcpy ( char* dst, const char* src, int n )
 {
-	char* os;
+	char* odst;
 
-	os = s;
+	odst = dst;
 
 	if ( n <= 0 )
 	{
-		return os;
+		return odst;
 	}
 
-	while ( --n > 0 && ( *s++ = *t++ ) != 0 )
+	while ( n > 1 )  // >1 to reserve space for null terminal
 	{
-		//
+		*dst = *src;
+
+		if ( *dst == 0 )
+		{
+			break;
+		}
+
+		dst += 1;
+		src += 1;
+		n   -= 1;
 	}
 
-	*s = 0;
+	*dst = 0;  // null terminate
 
-	return os;
+	return odst;
 }
 
 int strlen ( const char* s )
