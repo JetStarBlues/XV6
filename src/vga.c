@@ -595,6 +595,8 @@ void vgaWritePixel ( int x, int y, int colorIdx )
 {
 	int off;
 
+	// Should check bounds. Ignoring for speed.
+
 	off = WIDTH_GFXMODE * y + x;
 
 	gfxbuffer[ off ] = colorIdx;
@@ -602,12 +604,7 @@ void vgaWritePixel ( int x, int y, int colorIdx )
 
 void vgaBlit ( uchar* src )
 {
-	int off;
-
-	for ( off = 0; off < WIDTHxHEIGHT_GFXMODE; off += 1 )
-	{
-		gfxbuffer[ off ] = src[ off ];
-	}
+	memcpy( gfxbuffer, src, WIDTHxHEIGHT_GFXMODE );
 }
 
 void vgaFillRect ( int x, int y, int w, int h, int colorIdx )
@@ -618,15 +615,25 @@ void vgaFillRect ( int x, int y, int w, int h, int colorIdx )
 
 	// Should check bounds. Ignoring for speed.
 
-	for ( y2 = y; y2 < ( y + h ); y2 += 1 )
+	// If screen dimensions, memset
+	if ( ( x == 0 ) && ( y == 0 ) && ( w == WIDTH_GFXMODE ) && ( h == HEIGHT_GFXMODE ) )
 	{
-		off = WIDTH_GFXMODE * y2 + x;
+		memset( gfxbuffer, colorIdx, WIDTHxHEIGHT_GFXMODE );
+	}
 
-		for ( x2 = x; x2 < ( x + w ); x2 += 1 )
+	// Otherwise do math...
+	else
+	{
+		for ( y2 = y; y2 < ( y + h ); y2 += 1 )
 		{
-			gfxbuffer[ off ] = colorIdx;
+			off = WIDTH_GFXMODE * y2 + x;
 
-			off += 1;
+			for ( x2 = x; x2 < ( x + w ); x2 += 1 )
+			{
+				gfxbuffer[ off ] = colorIdx;
+
+				off += 1;
+			}
 		}
 	}
 }
