@@ -17,6 +17,15 @@
 
 */
 
+/* TODO:
+   For performance, can assume only one controlling the screen.
+   As such, do draw operations to a local buffer,
+   and blit that buffer to the kernel when want to update screen.
+
+   This assumes context switches triggered by ioctls are
+   partly responsible for slow performance...
+*/
+
 // VGA modes
 #define TXTMODE 0x03
 #define GFXMODE 0x13

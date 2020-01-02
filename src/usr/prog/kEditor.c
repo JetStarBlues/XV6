@@ -604,17 +604,21 @@ void scroll ( void )
 #define KEY_DELETE   0xE9
 
 //
-void moveCursor ( uchar key )
+#define SNAP    0
+#define NO_SNAP 1
+
+//
+void moveCursor ( uchar key, int snap )
 {
 	struct _textRow* curTextRow;
 
-	if ( editorState.editCursorRow >= editorState.nTextRows )
+	if ( editorState.editCursorRow < editorState.nTextRows )
 	{
-		curTextRow = NULL;
+		curTextRow = editorState.textRows + editorState.editCursorRow;
 	}
 	else
 	{
-		curTextRow = editorState.textRows + editorState.editCursorRow;
+		curTextRow = NULL;
 	}
 
 
@@ -694,25 +698,28 @@ void moveCursor ( uchar key )
 	   I.e. if on row update, col position is now invalid (past end of line)
 	*/
 
-	if ( editorState.editCursorRow >= editorState.nTextRows )
+	if ( snap == SNAP )
 	{
-		curTextRow = NULL;
-	}
-	else
-	{
-		curTextRow = editorState.textRows + editorState.editCursorRow;
-	}
-
-	if ( curTextRow )
-	{
-		if ( editorState.editCursorCol > curTextRow->len )  // past end of line
+		if ( editorState.editCursorRow < editorState.nTextRows )
 		{
-			editorState.editCursorCol = curTextRow->len;
+			curTextRow = editorState.textRows + editorState.editCursorRow;
 		}
-	}
-	else  // empty line
-	{
-		editorState.editCursorCol = 0;
+		else
+		{
+			curTextRow = NULL;
+		}
+
+		if ( curTextRow )
+		{
+			if ( editorState.editCursorCol > curTextRow->len )  // past end of line
+			{
+				editorState.editCursorCol = curTextRow->len;
+			}
+		}
+		else  // empty line
+		{
+			editorState.editCursorCol = 0;
+		}
 	}
 }
 
@@ -738,7 +745,8 @@ void processKeyPress ( void )
 	uchar            c;
 	int              n;
 	struct _textRow* curTextRow;
-	uint             savedEditCursorRow;
+	// uint             savedEditCursorRow;
+	uint             offsetFromScreenTop;
 
 	c = ( uchar ) readKey();
 
@@ -754,7 +762,7 @@ void processKeyPress ( void )
 		case KEY_UP:
 		case KEY_DOWN:
 
-			moveCursor( c );
+			moveCursor( c, SNAP );
 			break;
 
 		case KEY_PAGEUP:
@@ -765,36 +773,104 @@ void processKeyPress ( void )
 			   nScreenRows key presses
 			*/
 			//
-			savedEditCursorRow = editorState.editCursorRow;
+			// savedEditCursorRow = editorState.editCursorRow;
+
+			// delta = editorState.editCursorRow % editorState.nScreenRows;
+			// printf( 1, "delta %d\n", delta );
 
 			//
 			if ( c == KEY_PAGEUP )
 			{
-				editorState.editCursorRow = editorState.textRowOffset;
+				// editorState.editCursorRow = editorState.textRowOffset;
 			}
 			else
 			{
+				// editorState.editCursorRow = editorState.textRowOffset + editorState.nScreenRows - 1;
+
+				// if ( editorState.editCursorRow > editorState.nTextRows )
+				// {
+				// 	editorState.editCursorRow = editorState.nTextRows;
+				// }
+			}
+			//
+			// n = editorState.nScreenRows;
+			// n = editorState.nScreenRows * 2 - 1;
+			// n = editorState.nScreenRows - editorState.editCursorRow + 1;
+
+			/*while ( n )
+			{
+				moveCursor( c == KEY_PAGEUP ? KEY_UP : KEY_DOWN );
+				n -= 1;
+			}*/
+
+			if ( c == KEY_PAGEUP )
+			{
+				// n = delta + 1;  // current to top
+
+				// while ( n )
+				// {
+				// 	moveCursor( KEY_UP );
+				// 	n -= 1;
+				// }
+
+				// scroll();
+
+				// while ( delta )
+				// {
+				// 	moveCursor( KEY_DOWN );
+				// 	n -= 1;
+				// }
+
+				editorState.editCursorRow = 0;  // temp
+			}
+			else  // KEY_PAGEDOWN
+			{
+				//
+				offsetFromScreenTop = editorState.editCursorRow - editorState.textRowOffset;
+				printf( 1, "delta %d\n", offsetFromScreenTop );
+
+				// Move cursor to bottom of screen
 				editorState.editCursorRow = editorState.textRowOffset + editorState.nScreenRows - 1;
+
+				printf( 1, "wtf? %d\n", editorState.editCursorRow );
 
 				if ( editorState.editCursorRow > editorState.nTextRows )
 				{
 					editorState.editCursorRow = editorState.nTextRows;
 				}
+
+				// Nothing to scroll to...
+				if ( editorState.editCursorRow == editorState.nTextRows )
+				{
+					moveCursor( 0, SNAP );  // hmmm... reset col offset
+					break;
+				}
+				printf( 1, ".\n" );
+
+
+				// Scroll down a page...
+				n = editorState.nScreenRows;
+
+				while ( n )
+				{
+					moveCursor( KEY_DOWN, NO_SNAP );
+					n -= 1;
+				}
+
+				scroll();
+
+
+				// Place cursor at initial row offset...
+				n = editorState.nScreenRows - offsetFromScreenTop - 1;  // bottom to previous position
+
+				while ( n )
+				{
+					moveCursor( KEY_UP, NO_SNAP );
+					n -= 1;
+				}
+
+				moveCursor( 0, SNAP );  // Same initial col offset if possible...
 			}
-
-			//
-			n = editorState.nScreenRows;
-
-			while ( n )
-			{
-				moveCursor( c == KEY_PAGEUP ? KEY_UP : KEY_DOWN );
-				n -= 1;
-			}
-
-			// JK, calling moveCursor seems pointless...
-
-			// JK FIX ME
-			editorState.editCursorRow = savedEditCursorRow + editorState.nScreenRows;
 
 			break;
 
