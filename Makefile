@@ -1,3 +1,8 @@
+# Useful Makefile info:
+#   . https://www.gnu.org/software/make/manual/make.html#Automatic-Variables
+#
+
+
 # Paths
 SRCDIR       = src/
 UHEADERDIR   = src/usr/include/
@@ -16,6 +21,7 @@ FSBINDIR    = fs/bin/
 FSDEVDIR    = fs/dev/
 FSUSRDIR    = fs/usr/
 FSUSRBINDIR = fs/usr/bin/
+
 
 # Kernel code
 KERNOBJS =      \
@@ -47,67 +53,68 @@ KERNOBJS =      \
 	sysfile.o   \
 	sysmisc.o   \
 	sysproc.o   \
-	trapasm.o   \
 	trap.o      \
+	trapasm.o   \
 	uart.o      \
 	vectors.o   \
 	vga.o       \
 	vm.o
 
 # User code
-ULIB =         \
-	GFXtext.o  \
-	printf.o   \
-	termios.o  \
-	ulib.o     \
-	umalloc.o  \
+ULIB =                \
+	GFXtext.o         \
+	printf.o          \
+	termios.o         \
+	ulib.o            \
+	umalloc.o         \
 	usys.o
 
-UPROGSCORE =        \
-	cat             \
-	echo            \
-	grep            \
-	init            \
-	kill            \
-	ln              \
-	ls              \
-	mkdir           \
-	rm              \
-	sh              \
-	wc
+UPROGSCORE =          \
+	cat.o             \
+	echo.o            \
+	grep.o            \
+	init.o            \
+	kill.o            \
+	ln.o              \
+	ls.o              \
+	mkdir.o           \
+	rm.o              \
+	sh.o              \
+	wc.o
 
-UPROGS =            \
-	exists          \
-	forktest        \
-	graphics_test   \
-	gets_test       \
-	gets_test2      \
-	gfx_text_test   \
-	hexdump         \
-	keditor         \
-	printf_test     \
-	realloc_test    \
-	stackoverflow   \
-	stressfs        \
-	time            \
-	temptest        \
-	usertests       \
-	wisc_exec       \
-	wisc_fault      \
-	wisc_fmode      \
-	wisc_fork       \
-	wisc_fork2      \
-	wisc_fork3      \
-	wisc_hello      \
-	wisc_pipe       \
-	wisc_spinner    \
-	zombie
+UPROGS =              \
+	exists.o          \
+	forktest.o        \
+	graphics_test.o   \
+	gets_test.o       \
+	gets_test2.o      \
+	gfx_text_test.o   \
+	hexdump.o         \
+	keditor.o         \
+	printf_test.o     \
+	realloc_test.o    \
+	stackoverflow.o   \
+	stressfs.o        \
+	time.o            \
+	temptest.o        \
+	usertests.o       \
+	wisc_exec.o       \
+	wisc_fault.o      \
+	wisc_fmode.o      \
+	wisc_fork.o       \
+	wisc_fork2.o      \
+	wisc_fork3.o      \
+	wisc_hello.o      \
+	wisc_pipe.o       \
+	wisc_spinner.o    \
+	zombie.o
 
 
 # JK... stackoverflow.com/a/4481931
-KERNOBJS_BINS = $(addprefix $(KERNBINDIR), $(KERNOBJS))
-ULIB_BINS     = $(addprefix $(USERBINDIR), $(ULIB))
-UPROG_BINS    = $(addprefix $(USERBINDIR), $(UPROGS))
+KERNOBJS_BINS   = $(addprefix $(KERNBINDIR), $(KERNOBJS))
+ULIB_BINS       = $(addprefix $(USERBINDIR), $(ULIB))
+UPROGSCORE_BINS = $(addprefix $(USERBINDIR), $(UPROGSCORE))
+UPROGS_BINS     = $(addprefix $(USERBINDIR), $(UPROGS))
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -180,19 +187,20 @@ endif
 
 # --- OS image --------------------------------------------------------------
 
-xv6.img: bootblock kernel
+xv6.img: $(IMGDIR)bootblock $(IMGDIR)kernel
 	dd if=/dev/zero          of=$(IMGDIR)xv6.img count=10000          # zero out 512*count bytes
 
 	dd if=$(IMGDIR)bootblock of=$(IMGDIR)xv6.img        conv=notrunc  # first sector (512 bytes)
 	dd if=$(IMGDIR)kernel    of=$(IMGDIR)xv6.img seek=1 conv=notrunc  # second sector
 
-xv6memfs.img: bootblock kernelmemfs
+xv6memfs.img: $(IMGDIR)bootblock $(IMGDIR)kernelmemfs
 	dd if=/dev/zero            of=$(IMGDIR)xv6memfs.img count=10000          # zero out 512*count bytes
 
 	dd if=$(IMGDIR)bootblock   of=$(IMGDIR)xv6memfs.img        conv=notrunc  # first sector (512 bytes)
 	dd if=$(IMGDIR)kernelmemfs of=$(IMGDIR)xv6memfs.img seek=1 conv=notrunc  # second sector
 
-bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
+
+$(IMGDIR)bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
 	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c $(SRCDIR)bootmain.c -o $(KERNBINDIR)bootmain.o
 	# $(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c bootmain.c -o $(KERNBINDIR)bootmain.o  # JK, remove optimization
 	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(SRCDIR)bootasm.S -o $(KERNBINDIR)bootasm.o
@@ -201,23 +209,23 @@ bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblock.o > $(DEBUGDIR)bootblock.asm
 	$(SRCDIR)sign.pl $(IMGDIR)bootblock
 
-entryother: $(SRCDIR)entryother.S
+$(IMGDIR)entryother: $(SRCDIR)entryother.S
 	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(SRCDIR)entryother.S -o $(KERNBINDIR)entryother.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o $(KERNBINDIR)bootblockother.o $(KERNBINDIR)entryother.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblockother.o $(IMGDIR)entryother
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblockother.o > $(DEBUGDIR)entryother.asm
 
-initcode: $(SRCDIR)initcode.S
+$(IMGDIR)initcode: $(SRCDIR)initcode.S
 	$(CC) $(CFLAGS) -nostdinc -I. -c $(SRCDIR)initcode.S -o $(KERNBINDIR)initcode.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $(KERNBINDIR)initcode.out $(KERNBINDIR)initcode.o
 	$(OBJCOPY) -S -O binary $(KERNBINDIR)initcode.out $(IMGDIR)initcode
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
 
 # The kernel ELF is a composite of:
-#    entry.o
 #    $(KERNOBJS_BINS)
-#    initcode
+#    entry.o
 #    entryother
+#    initcode
 # 
 # Because of -b flag, the initcode and entryother binaries are
 # placed (as is) in the .data section of the kernel ELF.
@@ -226,7 +234,7 @@ initcode: $(SRCDIR)initcode.S
 #    _binary_img_initcode_start   .. _binary_img_initcode_end
 #    _binary_img_entryother_start .. _binary_img_entryother_end
 #
-kernel: $(KERNOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld
+$(IMGDIR)kernel: $(KERNOBJS_BINS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld
 	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERNOBJS_BINS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
 	$(OBJDUMP) -S -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel.asm
 	$(OBJDUMP) -D -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel_all.asm
@@ -240,17 +248,20 @@ kernel: $(KERNOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld
 # great for testing the kernel on real hardware without
 # needing a scratch disk.
 MEMFSOBJS = $(filter-out ide.o, $(KERNOBJS)) memide.o
-MEMFSOBJS_BINDIR = $(addprefix $(KERNBINDIR), $(MEMFSOBJS))  # JK
+MEMFSOBJS_BINS = $(addprefix $(KERNBINDIR), $(MEMFSOBJS))  # JK
 
-kernelmemfs: $(MEMFSOBJS) entry.o entryother initcode $(SRCDIR)kernel.ld fs.img
-	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernelmemfs $(KERNBINDIR)entry.o $(MEMFSOBJS_BINDIR) -b binary $(IMGDIR)initcode $(IMGDIR)entryother $(IMGDIR)fs.img
+$(IMGDIR)kernelmemfs: $(MEMFSOBJS_BINS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld fs.img
+	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernelmemfs $(KERNBINDIR)entry.o $(MEMFSOBJS_BINS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother $(IMGDIR)fs.img
 	$(OBJDUMP) -S -M intel $(IMGDIR)kernelmemfs > $(DEBUGDIR)kernelmemfs.asm
 	$(OBJDUMP) -t $(IMGDIR)kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernelmemfs.sym
 
-tags: $(KERNOBJS) entryother.S _init
-	etags *.S *.c
 
-vectors.S: $(SRCDIR)vectors.pl
+# http://manpages.ubuntu.com/manpages/trusty/man1/etags.xemacs21.1.html
+# tags: $(KERNOBJS) entryother.S _init
+# 	etags *.S *.c
+
+# ...
+$(SRCDIR)vectors.S: $(SRCDIR)vectors.pl
 	$(SRCDIR)vectors.pl > $(SRCDIR)vectors.S
 
 
@@ -264,34 +275,34 @@ vectors.S: $(SRCDIR)vectors.pl
 
 
 # JK Used to compile kernel code
-%.o: $(SRCDIR)%.c
-	$(CC) $(CFLAGS) -c $< -o $(KERNBINDIR)$@
-%.o: $(SRCDIR)%.S
-	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$@
+$(KERNBINDIR)%.o: $(SRCDIR)%.c
+	$(CC) $(CFLAGS) -c $< -o $(KERNBINDIR)$(@F)
+$(KERNBINDIR)%.o: $(SRCDIR)%.S
+	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)
 
-vectors.o: vectors.S
-	$(CC) $(ASFLAGS) -c $(SRCDIR)$< -o $(KERNBINDIR)$@  # JK, stackoverflow.com/q/53348134
+$(KERNBINDIR)vectors.o: $(SRCDIR)vectors.S
+	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)  # JK, stackoverflow.com/q/53348134
 
 
 # JK Used to compile user code
-%.o: $(ULIBDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$@
-%.o: $(ULIBDIR)%.S
-	$(CC) $(ASFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$@
+$(USERBINDIR)%.o: $(ULIBDIR)%.c
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+$(USERBINDIR)%.o: $(ULIBDIR)%.S
+	$(CC) $(ASFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$(@F)
 
-%: $(UPROGCOREDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$*.o
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINS)
-	$(OBJDUMP) -S -M intel $(FSBINDIR)$@ > $(DEBUGDIR)$*.asm
-	$(OBJDUMP) -t $(FSBINDIR)$@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$*.sym
+$(USERBINDIR)%.o: $(UPROGCOREDIR)%.c
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_BINS)
+	$(OBJDUMP) -S -M intel $(FSBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
+	$(OBJDUMP) -t $(FSBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-%: $(UPROGDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$*.o
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$@ $(USERBINDIR)$*.o $(ULIB_BINS)
-	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$@ > $(DEBUGDIR)$*.asm
-	$(OBJDUMP) -t $(FSUSRBINDIR)$@ | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$*.sym
+$(USERBINDIR)%.o: $(UPROGDIR)%.c
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_BINS)
+	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
+	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-forktest: $(UPROGDIR)forktest.c
+$(USERBINDIR)forktest.o: $(UPROGDIR)forktest.c
 	# forktest has less library code linked in
 	# Needs to be small (size?) in order to be able to max out the proc table.
 	# JK, added umalloc.o, hopefully nothing breaks...
@@ -302,7 +313,7 @@ forktest: $(UPROGDIR)forktest.c
 
 # --- fs --------------------------------------------------------------------
 
-mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
+$(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 	gcc -Werror -Wall -o $(UTILBINDIR)mkfs $(SRCDIR)mkfs.c
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
@@ -321,12 +332,12 @@ mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
 #
-fs.img: mkfs $(ULIB) $(UPROGS) $(UPROGSCORE)
+fs.img: $(UTILBINDIR)mkfs $(ULIB_BINS) $(UPROGSCORE_BINS) $(UPROGS_BINS)
 
 	# Keep copy up to date
-	cp README fs
+	cp README $(FSDIR)
 
-	$(UTILBINDIR)mkfs $(IMGDIR)fs.img fs
+	$(UTILBINDIR)mkfs $(IMGDIR)fs.img $(FSDIR)
 
 
 # --- ? ---------------------------------------------------------------------
