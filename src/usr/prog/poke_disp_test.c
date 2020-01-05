@@ -20,7 +20,7 @@ int main ( int argc, char* argv [] )
 	int   displayfd;
 	char  uinputbuf [ UINPUTBUFSZ ];
 	char* vgaBuffer;
-	int   x, y, c;
+	int   x, y, c, k;
 
 
 	displayfd = open( "/dev/display", O_RDWR );
@@ -62,20 +62,23 @@ int main ( int argc, char* argv [] )
 
 	vgaBuffer = ( char* ) UMMIO__VGA_MODE13_BUF;
 
+	// Draw colored squares
 	for ( y = 0; y < 10; y += 1 )
 	{
 		c = 0;
 
-		for ( x = 0; x < 15; x += 1 )
+		for ( k = 0; k < 16; k += 1 )
 		{
-			*( vgaBuffer + ( y * SCREEN_WIDTH ) + x ) = c;
+			for ( x = k * 10; x < k * 10 + 10; x += 1 )
+			{
+				*( vgaBuffer + ( y * SCREEN_WIDTH ) + x ) = c;  // poke
 
-			printf( 1, "c %d at (%d, %d)\n", c, x, y );
+				// printf( 1, "c %d at (%d, %d)\n", c, x, y );
+			}
 
 			c += 1;
 		}
 	}
-	// Should probably clear screen first...
 
 
 	/* When user enters "q", switch back to text mode.
