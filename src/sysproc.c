@@ -48,7 +48,7 @@ int sys_sbrk ( void )
 	int addr;
 	int n;
 
-	if ( argint( 0, &n ) < 0 )  // n is not negative...
+	if ( argint( 0, &n ) < 0 )
 	{
 		return - 1;
 	}

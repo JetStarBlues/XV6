@@ -37,8 +37,7 @@ struct _kmem
 	struct spinlock lock;      // Held when modifying freelist
 	int             use_lock;
 
-	struct node*    freelist;  // Where is this initialized ?? Is it default 0?
-
+	struct node* freelist;  // Where is this initialized ?? Is it default 0?
 };
 
 static struct _kmem kmem;
@@ -88,23 +87,25 @@ void freerange ( void* vstart, void* vend )
 	}
 }
 
-// Free the page of physical memory pointed at by va,
+// Free the page of physical memory pointed at by vAddr,
 // which normally should have been returned by a
 // call to kalloc(). (The exception is when
 // initializing the allocator; see kinit above.)
-void kfree ( char* va )
+void kfree ( char* vAddr )
 {
 	struct node* np;
 
 	// Not page aligned or outside valid range
-	if ( ( uint ) va % PGSIZE || va < end || V2P( va ) >= PHYSTOP )
+	if ( ( uint ) vAddr % PGSIZE   ||
+		 vAddr < end               ||  // kernel.end
+		 V2P( vAddr ) >= PHYSTOP )
 	{
 		panic( "kfree" );
 	}
 
 
 	// Fill with junk to hopefully catch dangling refs.
-	memset( va, 1, PGSIZE );
+	memset( vAddr, 1, PGSIZE );
 
 
 	if ( kmem.use_lock )
@@ -114,8 +115,8 @@ void kfree ( char* va )
 
 
 	// Add the page to the start of the freelist
-	np = ( struct node* ) va;  // The page's "struct node" (pointer to the next free
-	                           // page) is stored in the first bytes of the page
+	np = ( struct node* ) vAddr;  // The page's "struct node" (pointer to the next free
+	                              // page) is stored in the first bytes of the page
 
 	np->next = kmem.freelist;  // record old start of the list in np->next
 

@@ -91,6 +91,7 @@ UPROGS =              \
 	gfx_text_test.o   \
 	hexdump.o         \
 	keditor.o         \
+	poke_disp_test.o  \
 	printf_test.o     \
 	realloc_test.o    \
 	stackoverflow.o   \

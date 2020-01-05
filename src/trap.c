@@ -273,7 +273,7 @@ void trap ( struct trapframe *tf )
 		// Default
 		default:
 
-			// In kernel, it must be our mistake.
+			// In kernel, it must be our mistake, panic.
 			if ( myproc() == 0 || ( tf->cs & 3 ) == DPL_KERN )
 			{
 				cprintf( "Unexpected kernel trap\n" );
@@ -294,7 +294,7 @@ void trap ( struct trapframe *tf )
 				panic( "trap" );
 			}
 
-			// In user space, assume process misbehaved.
+			// In user space, assume process misbehaved, kill it.
 			else
 			{
 				cprintf( "Kill misbehaved user process:\n" );

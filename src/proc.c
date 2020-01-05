@@ -182,7 +182,7 @@ found:
 		return 0;
 	}
 
-	sp = p->kstack + KSTACKSIZE;
+	sp = p->kstack + KSTACKSIZE;  // top of kernel stack
 
 
 	/* Prepare the kernel stack so that:
@@ -249,47 +249,6 @@ found:
 
 	//
 	return p;
-}
-
-// Grow current process's memory by n bytes.
-// Return 0 on success, -1 on failure.
-int growproc ( int n )
-{
-	struct proc* curproc;
-	uint         sz;
-
-	//
-	curproc = myproc();
-
-	sz = curproc->sz;
-
-	// Allocate n pages and add mappings
-	if ( n > 0 )
-	{
-		sz = allocuvm( curproc->pgdir, sz, sz + n );
-
-		if ( sz == 0 )
-		{
-			return - 1;
-		}
-	}
-
-	// Deallocate abs(n) pages and remove mappings
-	else if ( n < 0 )
-	{
-		sz = deallocuvm( curproc->pgdir, sz, sz + n );
-
-		if ( sz == 0 )
-		{
-			return - 1;
-		}
-	}
-
-	curproc->sz = sz;
-
-	switchuvm( curproc );
-
-	return 0;
 }
 
 
@@ -382,7 +341,7 @@ void userinit ( void )
 int fork ( void )
 {
 	struct proc* curproc;
-	struct proc* np;
+	struct proc* newproc;
 	int          i,
 	             pid;
 
@@ -390,61 +349,105 @@ int fork ( void )
 	curproc = myproc();
 
 	// Allocate process
-	np = allocproc();
+	newproc = allocproc();
 
-	if ( np == 0 )
+	if ( newproc == 0 )
 	{
 		return - 1;
 	}
 
-	// Copy process state from proc
-	np->pgdir = copyuvm( curproc->pgdir, curproc->sz );
+	// Setup its page table as a copy of curproc's
+	newproc->pgdir = copyuvm( curproc->pgdir, curproc->sz );
 
-	if ( np->pgdir == 0 )
+	if ( newproc->pgdir == 0 )
 	{
-		kfree( np->kstack );
+		kfree( newproc->kstack );
 
-		np->kstack = 0;
-		np->state  = UNUSED;
+		newproc->kstack = 0;
+		newproc->state  = UNUSED;
 
 		return - 1;
 	}
 
-	np->parent = curproc;
-	np->sz     = curproc->sz;
+	newproc->parent = curproc;
+	newproc->sz     = curproc->sz;
 
 	// Use same trapframe as parent
 	/* This also has effect that the child will resume execution at the
 	   same point (tf->eip) as the parent.
 	   This corresponds to the point after the parent's call to fork.
 	*/
-	*np->tf = *curproc->tf;
+	*newproc->tf = *curproc->tf;
 
 	// Clear %eax so that fork returns 0 in the child.
-	np->tf->eax = 0;
+	newproc->tf->eax = 0;
 
 	// Copy file descriptors
 	for ( i = 0; i < NOPENFILE_PROC; i += 1 )
 	{
 		if ( curproc->ofile[ i ] )
 		{
-			np->ofile[ i ] = filedup( curproc->ofile[ i ] );
+			newproc->ofile[ i ] = filedup( curproc->ofile[ i ] );
 		}
 	}
 
-	np->cwd = idup( curproc->cwd );
+	newproc->cwd = idup( curproc->cwd );
 
-	safestrcpy( np->name, curproc->name, sizeof( curproc->name ) );
+	safestrcpy( newproc->name, curproc->name, sizeof( curproc->name ) );
 
-	pid = np->pid;  //
+	pid = newproc->pid;  //
 
 	acquire( &ptable.lock );
 
-	np->state = RUNNABLE;
+	newproc->state = RUNNABLE;
 
 	release( &ptable.lock );
 
 	return pid;
+}
+
+
+// _________________________________________________________________________________
+
+// Grow current process's memory by n bytes.
+// Return 0 on success, -1 on failure.
+int growproc ( int n )
+{
+	struct proc* curproc;
+	uint         sz;
+
+	//
+	curproc = myproc();
+
+	sz = curproc->sz;
+
+	// Allocate n pages and add mappings
+	if ( n > 0 )
+	{
+		sz = allocuvm( curproc->pgdir, sz, sz + n );
+
+		if ( sz == 0 )
+		{
+			return - 1;
+		}
+	}
+
+	// Deallocate abs(n) pages and remove mappings
+	else if ( n < 0 )
+	{
+		sz = deallocuvm( curproc->pgdir, sz, sz + n );
+
+		if ( sz == 0 )
+		{
+			return - 1;
+		}
+	}
+
+	curproc->sz = sz;
+
+	switchuvm( curproc );
+
+	return 0;
 }
 
 

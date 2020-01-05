@@ -46,7 +46,7 @@ static void mpmain      ( void )  __attribute__( ( noreturn ) );
 
 extern pde_t* kpgdir;
 
-extern char end [];  /* first address after kernel text and static data.
+extern char end [];  /* first address after kernel text and data.
                         Label is created by "kernel.ld" when creating the
                         kernel ELF */
 
