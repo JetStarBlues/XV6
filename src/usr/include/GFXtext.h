@@ -1,15 +1,12 @@
 #include "types.h"
 
-void initGFXText       ( void );
-void exitGFXText       ( void );
-void setDisplayFd      ( int );
-void setCursorPosition ( uint, uint );
-void getCursorPosition ( uint*, uint* );
-void getDimensions     ( uint*, uint* );
-void setTextColor      ( uchar );
-void setTextBgColor    ( uchar );
-void setCursorColor    ( uchar );
-void invertTextColors  ( void );
-void clearScreen       ( void );
-void printChar         ( uchar );
-void drawCursor        ( void );
+void GFXText_setCursorPosition ( uint, uint );
+void GFXText_getCursorPosition ( uint*, uint* );
+void GFXText_getDimensions     ( uint*, uint* );
+void GFXText_setTextColor      ( uchar );
+void GFXText_setTextBgColor    ( uchar );
+void GFXText_setCursorColor    ( uchar );
+void GFXText_invertTextColors  ( void );
+void GFXText_printChar         ( uchar );
+void GFXText_drawCursor        ( void );
+void GFXText_clearScreen       ( void );

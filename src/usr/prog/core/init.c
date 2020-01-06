@@ -75,11 +75,6 @@ int main ( void )
 		   around, they must be abandoned.
 
 		   We wait on all such processes...
-		   wpid != 0 (sh), wpid != pid (init)
-
-		   Why do we not wait for the shell (pid 0)?
-		   If we cleanup while shell is running in child, we can handle its
-		   abandoned children immediately ??
 		*/
 		/*
 		   Only the parent (init) reaches this code section because
@@ -90,20 +85,19 @@ int main ( void )
 		{
 			wpid = wait();
 
-			if ( ( wpid < 0 ) || ( wpid == pid ) )
+			// if ( ( wpid < 0 ) || ( wpid == pid ) )
+			if ( wpid < 0 )
 			{
-				break;  // ? To where?
+				break;
 			}
 
-			printf( 1, "init: zombie!\n" );
+			printf( 1, "init: found a zombie!\n" );
 
 			/* Why does init handle processes abandoned indirectly by child?
 			   For example, why does it handle grandchildren abandoned by
 			   sh's children?
-			   Is this because of the while loop iterating through all
-			   pids that are not 0 (sh) or itself (pid)?
 			*/
-			printf( 1, "  handled by (pid = %d)\n", getpid() );
+			printf( 1, "  handled zombie (pid = %d)\n", wpid );
 		}
 	}
 }

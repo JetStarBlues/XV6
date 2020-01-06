@@ -164,7 +164,7 @@ static struct proc* allocproc ( void )
 
 found:
 
-	p->state = EMBRYO;   // mark as used
+	p->state = EMBRYO;   // mark as used, but not ready to run yet
 	p->pid   = nextpid;  // give unique PID
 
 	nextpid += 1;
@@ -377,7 +377,7 @@ int fork ( void )
 	   same point (tf->eip) as the parent.
 	   This corresponds to the point after the parent's call to fork.
 	*/
-	*newproc->tf = *curproc->tf;
+	*( newproc->tf ) = *( curproc->tf );
 
 	// Clear %eax so that fork returns 0 in the child.
 	newproc->tf->eax = 0;

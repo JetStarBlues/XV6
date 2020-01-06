@@ -353,7 +353,7 @@ int exec ( char* path, char* argv [] )
 
 	curproc->pgdir   = pgdir;
 	curproc->sz      = sz;         // at this point, points to heap_base/stack_end ??
-	curproc->tf->eip = elf.entry;  // main (see Makefile)
+	curproc->tf->eip = elf.entry;  // location of ELF's main
 	curproc->tf->esp = sp;
 
 	switchuvm( curproc );

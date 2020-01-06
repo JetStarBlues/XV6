@@ -1,5 +1,6 @@
 #include "types.h"
 #include "user.h"
+#include "GFX.h"
 #include "GFXtext.h"
 
 #define UINPUTBUFSZ 3
@@ -16,45 +17,45 @@ int main ( int argc, char* argv [] )
 	uint nRows;
 	uint nCols;
 
-	initGFXText();
+	GFX_init();
 
-	getDimensions( &nRows, &nCols );
-
-	// setTextBgColor( 64 );
-	// clearScreen();
+	GFXText_setTextBgColor( 64 );
+	GFXText_clearScreen();
 
 
 	//
-	setTextBgColor( 3 );
-	setCursorPosition( 0, 0 );
-	printChar( 'H' );
-	setCursorPosition( 0, 1 );
-	printChar( 'e' );
-	setCursorPosition( 0, 2 );
-	printChar( 'l' );
-	setCursorPosition( 0, 3 );
-	printChar( 'l' );
-	setCursorPosition( 0, 4 );
-	printChar( 'o' );
+	GFXText_setTextBgColor( 3 );
+	GFXText_setCursorPosition( 0, 0 );
+	GFXText_printChar( 'H' );
+	GFXText_setCursorPosition( 0, 1 );
+	GFXText_printChar( 'e' );
+	GFXText_setCursorPosition( 0, 2 );
+	GFXText_printChar( 'l' );
+	GFXText_setCursorPosition( 0, 3 );
+	GFXText_printChar( 'l' );
+	GFXText_setCursorPosition( 0, 4 );
+	GFXText_printChar( 'o' );
 
 
 	//
+	GFXText_getDimensions( &nRows, &nCols );
+
 	i = 0;
 	for ( c = 0; c <= 255; c += 1 )
 	{
 		row = i / nCols;
 		col = i % nCols;
 
-		setCursorPosition( 2 + row, col );
-		printChar( ( uchar ) c );
+		GFXText_setCursorPosition( 2 + row, col );
+		GFXText_printChar( ( uchar ) c );
 
 		i += 1;
 	}
 
 
 	// cursor...
-	setCursorPosition( 0, 2 );
-	drawCursor();
+	GFXText_setCursorPosition( 0, 2 );
+	GFXText_drawCursor();
 
 
 
@@ -76,7 +77,7 @@ int main ( int argc, char* argv [] )
 		}
 	}
 
-	exitGFXText();
+	GFX_exit();
 
 	exit();
 }

@@ -1,37 +1,23 @@
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
-#include "display.h"
+#include "GFX.h"
 
 /*
 Based on:
 	. https://github.com/sam46/xv6/blob/master/imshow.c
 */
 
-#define TXTMODE              0x03
-#define GFXMODE              0x13
-#define WIDTHxHEIGHT_GFXMODE 64000
-
 #define UINPUTBUFSZ 3
 
 
 int main ( int argc, char* argv [] )
 {
-	int   displayfd;
 	int   imagefd;
 	int   bytesRead;
 	char* imgbuf;
 	char  uinputbuf [ UINPUTBUFSZ ];
 
-
-	displayfd = open( "/dev/display", O_RDWR );
-
-	if ( displayfd < 0 )
-	{
-		printf( 2, "graphics_test: cannot open display\n" );
-
-		exit();
-	}
 
 	// imagefd = open( "/usr/pics/paltest.bin", O_RDONLY );
 	imagefd = open( "/usr/pics/cam2.bin", O_RDONLY );
@@ -47,7 +33,7 @@ int main ( int argc, char* argv [] )
 	// Retrieve contents of image file
 	printf( 1, "Reading image from disk...\n" );
 
-	imgbuf = ( char* ) malloc( WIDTHxHEIGHT_GFXMODE );
+	imgbuf = ( char* ) malloc( SCREEN_WIDTHxHEIGHT );
 
 	if ( imgbuf == NULL )
 	{
@@ -56,14 +42,14 @@ int main ( int argc, char* argv [] )
 		exit();
 	}
 
-	bytesRead = read( imagefd, imgbuf, WIDTHxHEIGHT_GFXMODE );
+	bytesRead = read( imagefd, imgbuf, SCREEN_WIDTHxHEIGHT );
 
-	if ( bytesRead != WIDTHxHEIGHT_GFXMODE )
+	if ( bytesRead != SCREEN_WIDTHxHEIGHT )
 	{
 		printf( 2,
 
 			"graphics_test: expected to read %d bytes, but read %d\n",
-			WIDTHxHEIGHT_GFXMODE,
+			SCREEN_WIDTHxHEIGHT,
 			bytesRead
 		);
 
@@ -71,16 +57,14 @@ int main ( int argc, char* argv [] )
 	}
 
 
-	printf( 1, "Drawing image...\n" );
-
 	// Switch to graphics mode
-	ioctl( displayfd, DISP_IOCTL_SETMODE, GFXMODE );
+	GFX_init();
 
-	// Set palette
-	ioctl( displayfd, DISP_IOCTL_DEFAULTPAL );
 
 	// Blit the image
-	ioctl( displayfd, DISP_IOCTL_BLIT, imgbuf );
+	printf( 1, "Drawing image...\n" );
+
+	GFX_blit( ( uchar* ) imgbuf );
 
 
 	/* When user enters "q", switch back to text mode.
@@ -103,13 +87,14 @@ int main ( int argc, char* argv [] )
 
 
 	// Switch to text mode
-	ioctl( displayfd, DISP_IOCTL_SETMODE, TXTMODE );
-
-	printf( 1, "Hasta luego!\n" );
+	GFX_exit();
 
 
 	//
 	free( imgbuf );  // deallocate memory, so it can be used for other things (no garbage collection)
+
+	//
+	printf( 1, "Hasta luego!\n" );
 
 	exit();
 }

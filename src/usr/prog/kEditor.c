@@ -15,9 +15,15 @@ TODO:
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
-#include "GFXtext.h"  // Render graphically
 #include "termios.h"
+#include "GFX.h"      // Render graphically
+#include "GFXtext.h"  // Render graphically
 
+
+// Default colors (standard 256-color VGA palette)
+static uchar textColor   = 24;   // grey
+static uchar textBgColor = 15;   // white
+static uchar cursorColor = 112;  // brown
 
 //
 #define TABSIZE 3  // tab size in spaces
@@ -74,18 +80,17 @@ static struct _editorState editorState;
 
 
 //
+void die ( char* );
+
+
+// ____________________________________________________________________________________
+
+//
 /*struct charBuffer {
 
 	char* buf;
 	int   len;
 };*/
-
-
-//
-void die ( char* );
-
-
-// ____________________________________________________________________________________
 
 /*void appendToBuffer ( struct charBuffer* cBuf, const char* s, int slen )
 {
@@ -175,7 +180,7 @@ void eraseInLine ( uint mode )
 	}
 
 
-	getCursorPosition( &row, &col );
+	GFXText_getCursorPosition( &row, &col );
 
 	savedCol = col;  // save
 
@@ -184,8 +189,8 @@ void eraseInLine ( uint mode )
 	{
 		while ( col < editorState.nScreenCols )
 		{
-			setCursorPosition( row, col );
-			printChar( ' ' );
+			GFXText_setCursorPosition( row, col );
+			GFXText_printChar( ' ' );
 
 			col += 1;
 		}
@@ -194,8 +199,8 @@ void eraseInLine ( uint mode )
 	{
 		while ( col >= 0 )
 		{
-			setCursorPosition( row, col );
-			printChar( ' ' );
+			GFXText_setCursorPosition( row, col );
+			GFXText_printChar( ' ' );
 
 			if ( col == 0 ) { break; }  // unsigned, avoid negatives...
 
@@ -206,14 +211,14 @@ void eraseInLine ( uint mode )
 	{
 		for ( col = 0; col < editorState.nScreenCols; col += 1 )
 		{
-			setCursorPosition( row, col );
-			printChar( ' ' );
+			GFXText_setCursorPosition( row, col );
+			GFXText_printChar( ' ' );
 		}
 	}
 
 
 	// Restore
-	setCursorPosition( row, savedCol );
+	GFXText_setCursorPosition( row, savedCol );
 }
 
 void temp_testEraseLine ( void )
@@ -225,11 +230,11 @@ void temp_testEraseLine ( void )
 
 	for ( col = 0; col < editorState.nScreenCols; col += 1 )
 	{
-		setCursorPosition( row, col );
-		printChar( '$' );
+		GFXText_setCursorPosition( row, col );
+		GFXText_printChar( '$' );
 	}
 
-	setCursorPosition( 0, 20 );
+	GFXText_setCursorPosition( 0, 20 );
 
 	eraseInLine( 0 );
 
@@ -239,11 +244,11 @@ void temp_testEraseLine ( void )
 
 	for ( col = 0; col < editorState.nScreenCols; col += 1 )
 	{
-		setCursorPosition( row, col );
-		printChar( '&' );
+		GFXText_setCursorPosition( row, col );
+		GFXText_printChar( '&' );
 	}
 
-	setCursorPosition( 1, 20 );
+	GFXText_setCursorPosition( 1, 20 );
 
 	eraseInLine( 1 );
 
@@ -253,15 +258,17 @@ void temp_testEraseLine ( void )
 
 	for ( col = 0; col < editorState.nScreenCols; col += 1 )
 	{
-		setCursorPosition( row, col );
-		printChar( '#' );
+		GFXText_setCursorPosition( row, col );
+		GFXText_printChar( '#' );
 	}
 
-	setCursorPosition( 2, 20 );
+	GFXText_setCursorPosition( 2, 20 );
 
 	eraseInLine( 2 );
 }
 
+
+// ____________________________________________________________________________________
 
 /* Here, since we're responsible for cursor movement...
 */
@@ -274,12 +281,12 @@ void printString ( char* s, int wrap )
 	uint col;
 
 
-	getCursorPosition( &row, &col );
+	GFXText_getCursorPosition( &row, &col );
 
 	while ( *s )
 	{
 		//
-		printChar( *s );
+		GFXText_printChar( *s );
 		// printf( 1, "%c", *s );
 
 
@@ -306,7 +313,7 @@ void printString ( char* s, int wrap )
 			}
 		}
 
-		setCursorPosition( row, col );
+		GFXText_setCursorPosition( row, col );
 
 
 		//
@@ -922,16 +929,16 @@ void drawRows ( void )
 	{
 		for ( screenRow = 0; screenRow < editorState.nScreenRows; screenRow += 1 )
 		{
-			setCursorPosition( screenRow, 0 );
+			GFXText_setCursorPosition( screenRow, 0 );
 
-			printChar( '~' );
+			GFXText_printChar( '~' );
 
 			// Print welcome message
 			if ( screenRow == editorState.nScreenRows / 3 )
 			{
 				centerCol = ( editorState.nScreenCols / 2 ) - ( welcomeMsgLen / 2 );
 
-				setCursorPosition( screenRow, centerCol );
+				GFXText_setCursorPosition( screenRow, centerCol );
 
 				printString( welcomeMsg, NO_WRAP );
 			}
@@ -945,7 +952,7 @@ void drawRows ( void )
 		for ( screenRow = 0; screenRow < editorState.nScreenRows; screenRow += 1 )
 		{
 			//
-			setCursorPosition( screenRow, 0 );
+			GFXText_setCursorPosition( screenRow, 0 );
 
 			//
 			fileRow = screenRow + editorState.textRowOffset;
@@ -968,7 +975,7 @@ void drawRows ( void )
 			}
 			else
 			{
-				printChar( '~' );
+				GFXText_printChar( '~' );
 			}
 		}
 	}
@@ -983,7 +990,7 @@ void drawStatusBar ( void )
 	char status [ 81 ];  /* if nScreenCols was compile time constant, would use it
 	                        instead to allocate space */
 
-	invertTextColors();
+	GFXText_invertTextColors();
 
 
 	// Draw file info
@@ -997,7 +1004,7 @@ void drawStatusBar ( void )
 		editorState.nTextRows
 	);
 
-	setCursorPosition( editorState.nScreenRows, 0 );
+	GFXText_setCursorPosition( editorState.nScreenRows, 0 );
 
 	printString( status, NO_WRAP );
 
@@ -1021,12 +1028,12 @@ void drawStatusBar ( void )
 	{
 		for ( col = slen; col < editorState.nScreenCols; col += 1 )
 		{
-			setCursorPosition( editorState.nScreenRows, col );
+			GFXText_setCursorPosition( editorState.nScreenRows, col );
 
 			// Draw spaces
 			if ( col < posTextCol )
 			{
-				printChar( ' ' );
+				GFXText_printChar( ' ' );
 			}
 
 			// Draw cursor position
@@ -1041,7 +1048,7 @@ void drawStatusBar ( void )
 
 
 	// Restore
-	invertTextColors();
+	GFXText_invertTextColors();
 }
 
 
@@ -1050,7 +1057,7 @@ void drawStatusBar ( void )
 void refreshScreen ( void )
 {
 	//
-	clearScreen();
+	GFXText_clearScreen();
 
 	//
 	scroll();
@@ -1060,12 +1067,12 @@ void refreshScreen ( void )
 	drawStatusBar();
 
 	//
-	setCursorPosition(
+	GFXText_setCursorPosition(
 
 		editorState.renderCursorRow - editorState.textRowOffset,
 		editorState.renderCursorCol - editorState.textColOffset
 	);
-	drawCursor();
+	GFXText_drawCursor();
 }
 
 
@@ -1081,7 +1088,7 @@ void initEditor ( void )
 
 
 	//
-	getDimensions( &editorState.nScreenRows, &editorState.nScreenCols );
+	GFXText_getDimensions( &editorState.nScreenRows, &editorState.nScreenCols );
 
 	editorState.nScreenRows -= 1;  // reserve space for status bar
 
@@ -1102,7 +1109,12 @@ void initEditor ( void )
 
 void setup ( void )
 {
-	initGFXText();
+	GFX_init();
+
+	GFXText_setTextColor( textColor );
+	GFXText_setTextBgColor( textBgColor );
+	GFXText_setCursorColor( cursorColor );
+	GFXText_clearScreen();
 
 	enableRawMode();
 
@@ -1111,7 +1123,7 @@ void setup ( void )
 
 void cleanup ( void )
 {
-	exitGFXText();
+	GFX_exit();
 
 	disableRawMode();
 }

@@ -62,6 +62,7 @@ KERNOBJS =      \
 
 # User code
 ULIB =                \
+	GFX.o             \
 	GFXtext.o         \
 	printf.o          \
 	termios.o         \
@@ -85,10 +86,10 @@ UPROGSCORE =          \
 UPROGS =              \
 	exists.o          \
 	forktest.o        \
-	graphics_test.o   \
 	gets_test.o       \
 	gets_test2.o      \
 	gfx_text_test.o   \
+	graphics_test.o   \
 	hexdump.o         \
 	keditor.o         \
 	poke_disp_test.o  \

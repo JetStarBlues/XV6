@@ -76,113 +76,115 @@ static int displayioctl ( struct inode* ip, int request, ... )
 		vgaSetDefaultPalette();
 	}
 
-	else if ( request == DISP_IOCTL_DRAWPIXEL )
-	{
-		int x;
-		int y;
-		int colorIdx;
-
-		if ( argint( 2, &x ) < 0 )
+	#if 0
+		else if ( request == DISP_IOCTL_DRAWPIXEL )
 		{
-			return - 1;
+			int x;
+			int y;
+			int colorIdx;
+
+			if ( argint( 2, &x ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 3, &y ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 4, &colorIdx ) < 0 )
+			{
+				return - 1;
+			}
+
+			vgaWritePixel( x, y, colorIdx );
 		}
 
-		if ( argint( 3, &y ) < 0 )
+		else if ( request == DISP_IOCTL_BLIT )
 		{
-			return - 1;
+			char* src;
+
+			if ( argptr( 2, &src, sizeof( uchar ) ) < 0 )
+			{
+				return - 1;
+			}
+
+			vgaBlit( ( uchar* ) src );
 		}
 
-		if ( argint( 4, &colorIdx ) < 0 )
+		else if ( request == DISP_IOCTL_DRAWFILLRECT )
 		{
-			return - 1;
+			int x;
+			int y;
+			int w;
+			int h;
+			int colorIdx;
+
+			if ( argint( 2, &x ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 3, &y ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 4, &w ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 5, &h ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 6, &colorIdx ) < 0 )
+			{
+				return - 1;
+			}
+
+			vgaFillRect( x, y, w, h, colorIdx );
 		}
 
-		vgaWritePixel( x, y, colorIdx );
-	}
-
-	else if ( request == DISP_IOCTL_BLIT )
-	{
-		char* src;
-
-		if ( argptr( 2, &src, sizeof( uchar ) ) < 0 )
+		else if ( request == DISP_IOCTL_DRAWBITMAP8 )
 		{
-			return - 1;
+			char* bitmap;
+			int   x;
+			int   y;
+			int   h;
+			int   colorIdx;
+
+			if ( argptr( 2, &bitmap, sizeof( uchar ) ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 3, &x ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 4, &y ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 5, &h ) < 0 )
+			{
+				return - 1;
+			}
+
+			if ( argint( 6, &colorIdx ) < 0 )
+			{
+				return - 1;
+			}
+
+			vgaDrawBitmap8( ( uchar* ) bitmap, x, y, h, colorIdx );
 		}
-
-		vgaBlit( ( uchar* ) src );
-	}
-
-	else if ( request == DISP_IOCTL_DRAWFILLRECT )
-	{
-		int x;
-		int y;
-		int w;
-		int h;
-		int colorIdx;
-
-		if ( argint( 2, &x ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 3, &y ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 4, &w ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 5, &h ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 6, &colorIdx ) < 0 )
-		{
-			return - 1;
-		}
-
-		vgaFillRect( x, y, w, h, colorIdx );
-	}
-
-	else if ( request == DISP_IOCTL_DRAWBITMAP8 )
-	{
-		char* bitmap;
-		int   x;
-		int   y;
-		int   h;
-		int   colorIdx;
-
-		if ( argptr( 2, &bitmap, sizeof( uchar ) ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 3, &x ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 4, &y ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 5, &h ) < 0 )
-		{
-			return - 1;
-		}
-
-		if ( argint( 6, &colorIdx ) < 0 )
-		{
-			return - 1;
-		}
-
-		vgaDrawBitmap8( ( uchar* ) bitmap, x, y, h, colorIdx );
-	}
+	#endif
 
 	else
 	{

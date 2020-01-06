@@ -188,16 +188,15 @@ void            uartputc ( int );
 // vga.c
 void            vgainit              ( void );
 void            vgaputc              ( int );
-
-void            vgaBlit              ( uchar* );
-void            vgaDrawBitmap8       ( uchar*, int, int, int, int );
-void            vgaFillRect          ( int, int, int, int, int );
 void            vgaSetMode           ( int );
 void            vgaSetDefaultPalette ( void );
 void            vgaSetPaletteColor   ( int, char, char, char );
-void            vgaWritePixel        ( int, int, int );
 
-void            demoGraphics ( void );
+// void            vgaBlit              ( uchar* );
+// void            vgaDrawBitmap8       ( uchar*, int, int, int, int );
+// void            vgaFillRect          ( int, int, int, int, int );
+// void            vgaWritePixel        ( int, int, int );
+// void            demoGraphics         ( void );
 
 void            updateMouseCursor ( int, int );
 

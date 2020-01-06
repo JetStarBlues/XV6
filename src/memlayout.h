@@ -32,7 +32,7 @@
 #define UMMIO__VGA_MODE13_BUF ( USER_MMIO_BASE + 0 )
 
 // Physical
-#define VGA_MODE13_BUF      0xA0000
+#define VGA_MODE13_BUF_ADDR 0xA0000  // physical address
 #define VGA_MODE13_BUF_SIZE 64000    // 320(w) * 200(h)
 
 

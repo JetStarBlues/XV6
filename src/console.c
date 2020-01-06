@@ -323,7 +323,7 @@ void consoleintr ( int ( *getc ) ( void ) )
 	{
 		cprintf( "Hacker thingies!\n" );
 
-		demoGraphics();
+		// demoGraphics();
 
 		// vgaSetMode( 0x03 );  // text mode
 

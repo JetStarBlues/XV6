@@ -282,13 +282,13 @@ static struct _mmap umap [] = {
 			start : USER_MMIO_BASE
 			end   : USER_MMIO_BASE + VGA_MODE13_BUF_SIZE
 		Physical range :
-			start : VGA_MODE13_BUF
-			end   : VGA_MODE13_BUF + VGA_MODE13_BUF_SIZE
+			start : VGA_MODE13_BUF_ADDR
+			end   : VGA_MODE13_BUF_ADDR + VGA_MODE13_BUF_SIZE
 	*/
 	{
 		( void* ) USER_MMIO_BASE,
-		VGA_MODE13_BUF,
-		VGA_MODE13_BUF + VGA_MODE13_BUF_SIZE,
+		VGA_MODE13_BUF_ADDR,
+		VGA_MODE13_BUF_ADDR + VGA_MODE13_BUF_SIZE,
 		PTE_W | PTE_U
 	}
 };

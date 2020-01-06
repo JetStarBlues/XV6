@@ -4,6 +4,7 @@
 #include "x86.h"
 #include "spinlock.h"
 #include "vga.h"
+#include "kfonts.h"
 
 
 /*
@@ -40,7 +41,7 @@ static struct
 static int currentMode;
 
 
-void        setTextMode                    ( void );
+static void setTextMode                    ( void );
 static void clearScreen_textMode           ( void );
 static void updateMouseCursor_textMode     ( int, int );
 static void updateMouseCursor_graphicsMode ( int, int );
@@ -57,6 +58,9 @@ void vgainit ( void )
 
 	clearScreen_textMode();
 }
+
+
+// ___________________________________________________________________________________
 
 static void writeRegs ( char* regs )
 {
@@ -196,7 +200,10 @@ static void writeFont ( char* font, int fontheight )
 	outb( VGA_GC_DATA,   gc6 );
 }
 
-void setTextMode ( void )
+
+// ___________________________________________________________________________________
+
+static void setTextMode ( void )
 {
 	writeRegs( g_80x25_text );
 
@@ -222,7 +229,7 @@ void setTextMode ( void )
 	currentMode = TXTMODE;
 }
 
-void setGraphicsMode ( void )
+static void setGraphicsMode ( void )
 {
 	writeRegs( g_320x200x256 );
 
@@ -252,6 +259,90 @@ void updateMouseCursor ( int dx, int dy )
 		updateMouseCursor_graphicsMode( dx, dy );
 	}
 }
+
+
+// Palettes __________________________________________________________________________
+
+void vgaSetPaletteColor ( int index, char r, char g, char b )
+{
+	outb( VGA_DAC_WRITE_INDEX, index );
+	outb( VGA_DAC_DATA,        r ); 
+	outb( VGA_DAC_DATA,        g ); 
+	outb( VGA_DAC_DATA,        b ); 
+}
+
+// http://www.brackeen.com/vga/bitmaps.html
+void vgaSetDefaultPalette ( void )
+{
+	int  i;
+	char r, g, b;
+
+	outb( VGA_DAC_WRITE_INDEX, 0 );
+
+	for ( i = 0; i < 768; i += 3 )
+	{
+		/*
+		r = vga256_18bit_custom[ i     ];
+		g = vga256_18bit_custom[ i + 1 ];
+		b = vga256_18bit_custom[ i + 2 ];*/
+
+		r = vga256_18bit_default[ i     ];
+		g = vga256_18bit_default[ i + 1 ];
+		b = vga256_18bit_default[ i + 2 ];
+
+		outb( VGA_DAC_DATA, r ); 
+		outb( VGA_DAC_DATA, g ); 
+		outb( VGA_DAC_DATA, b ); 
+	}
+}
+
+
+/*static void vgaSetPaletteColor_textMode ( int index, char r, char g, char b )
+{
+	outb( VGA_DAC_WRITE_INDEX, EGAtoVGA[ index ] );
+	outb( VGA_DAC_DATA,        r );
+	outb( VGA_DAC_DATA,        g );
+	outb( VGA_DAC_DATA,        b );
+}*/
+
+/* Restore default palette of text mode
+   https://forum.osdev.org/viewtopic.php?f=1&t=23753&p=192800#p192800
+*/
+static void vgaSetDefaultPalette_textMode ( void )
+{
+	int  egaIdx;
+	int  vgaIdx;
+	int  palIdx;
+	char r, g, b;
+
+	for ( egaIdx = 0; egaIdx < 16; egaIdx += 1 )
+	{
+		// Get expected EGA color
+		palIdx = egaIdx * 3;
+
+		r = vga256_18bit_default[ palIdx     ];
+		g = vga256_18bit_default[ palIdx + 1 ];
+		b = vga256_18bit_default[ palIdx + 2 ];
+
+
+		// Place it in expected VGA slot
+		vgaIdx = EGAtoVGA[ egaIdx ];
+
+		vgaSetPaletteColor( vgaIdx, r, g, b );
+	}
+}
+
+
+/* Turn byte channels (0xRRGGBB) into 6 bit channels
+   by dropping the lowest 2 bits.
+   https://en.wikipedia.org/wiki/List_of_monochrome_and_RGB_palettes#18-bit_RGB
+*/
+/*void convert24To18bit ( int color24, int* r, int* g, int* b )
+{
+	*r = ( ( color24 & 0xff0000 ) >> 16 ) >> 2;
+	*g = ( ( color24 & 0x00ff00 ) >> 8  ) >> 2;
+	*b = ( ( color24 & 0x0000ff )       ) >> 2;
+}*/
 
 
 // Text mode _________________________________________________________________________
@@ -306,7 +397,7 @@ static void clearScreen_textMode ( void )
 {
 	int i;
 
-	// Most efficient?, but only clears to black
+	// Most efficient, but only clears to black
 	/*memset(
 
 		textbuffer,
@@ -317,7 +408,6 @@ static void clearScreen_textMode ( void )
 	for ( i = 0; i < NCOLSxNROWS; i += 1 )
 	{
 		textbuffer[ i ] = clearchar_textMode;
-		// textbuffer[ i ] = ' ' | TXTCOLOR( 6, TRED );  // 6, 8, ?, ?, ?, 12, 13?, 14, 15
 	}
 }
 
@@ -328,42 +418,6 @@ static void clearScreen_textMode ( void )
 	outb( CTRL, 15 );
 	outb( DATA, pos );       // send lo byte
 }*/
-
-
-/*static void vgaSetPaletteColor_textMode ( int index, char r, char g, char b )
-{
-	outb( VGA_DAC_WRITE_INDEX, EGAtoVGA[ index ] );
-	outb( VGA_DAC_DATA,        r );
-	outb( VGA_DAC_DATA,        g );
-	outb( VGA_DAC_DATA,        b );
-}*/
-
-/* Restore default palette of text mode
-   https://forum.osdev.org/viewtopic.php?f=1&t=23753&p=192800#p192800
-*/
-static void vgaSetDefaultPalette_textMode ( void )
-{
-	int  egaIdx;
-	int  vgaIdx;
-	int  palIdx;
-	char r, g, b;
-
-	for ( egaIdx = 0; egaIdx < 16; egaIdx += 1 )
-	{
-		// Get expected EGA color
-		palIdx = egaIdx * 3;
-
-		r = vga256_18bit_default[ palIdx     ];
-		g = vga256_18bit_default[ palIdx + 1 ];
-		b = vga256_18bit_default[ palIdx + 2 ];
-
-
-		// Place it in expected VGA slot
-		vgaIdx = EGAtoVGA[ egaIdx ];
-
-		vgaSetPaletteColor( vgaIdx, r, g, b );
-	}
-}
 
 
 //
@@ -591,7 +645,7 @@ static int mouseX_gfxMode = WIDTH_GFXMODE  / 2;
 static int mouseY_gfxMode = HEIGHT_GFXMODE / 2;
 
 
-void vgaWritePixel ( int x, int y, int colorIdx )
+static void vgaWritePixel ( int x, int y, int colorIdx )
 {
 	int off;
 
@@ -602,129 +656,86 @@ void vgaWritePixel ( int x, int y, int colorIdx )
 	gfxbuffer[ off ] = colorIdx;
 }
 
-void vgaBlit ( uchar* src )
-{
-	memcpy( gfxbuffer, src, WIDTHxHEIGHT_GFXMODE );
-}
-
-void vgaFillRect ( int x, int y, int w, int h, int colorIdx )
-{
-	int off;
-	int x2;
-	int y2;
-
-	// Should check bounds. Ignoring for speed.
-
-	// If screen dimensions, memset
-	if ( ( x == 0 ) && ( y == 0 ) && ( w == WIDTH_GFXMODE ) && ( h == HEIGHT_GFXMODE ) )
+#if 0
+	void vgaBlit ( uchar* src )
 	{
-		memset( gfxbuffer, colorIdx, WIDTHxHEIGHT_GFXMODE );
+		memcpy( gfxbuffer, src, WIDTHxHEIGHT_GFXMODE );
 	}
 
-	// Otherwise do math...
-	else
+	void vgaFillRect ( int x, int y, int w, int h, int colorIdx )
 	{
-		for ( y2 = y; y2 < ( y + h ); y2 += 1 )
+		int off;
+		int x2;
+		int y2;
+
+		// Should check bounds. Ignoring for speed.
+
+		// If screen dimensions, memset
+		if ( ( x == 0 ) && ( y == 0 ) && ( w == WIDTH_GFXMODE ) && ( h == HEIGHT_GFXMODE ) )
 		{
+			memset( gfxbuffer, colorIdx, WIDTHxHEIGHT_GFXMODE );
+		}
+
+		// Otherwise do math...
+		else
+		{
+			for ( y2 = y; y2 < ( y + h ); y2 += 1 )
+			{
+				off = WIDTH_GFXMODE * y2 + x;
+
+				for ( x2 = x; x2 < ( x + w ); x2 += 1 )
+				{
+					gfxbuffer[ off ] = colorIdx;
+
+					off += 1;
+				}
+			}
+		}
+	}
+
+	/* Draws a bitmap of width 8, height 'h'.
+	   Encoding:
+	    . Each byte represents a row.
+	    . A set bit represents a pixel.
+	*/
+	void vgaDrawBitmap8 ( uchar* bitmap, int x, int y, int h, int colorIdx )
+	{
+		uchar bitmapRow;
+		uchar pixelMask;
+		int   i;
+		int   j;
+		int   y2;
+		int   off;
+
+		// Should check bounds. Ignoring for speed.
+
+		y2 = y;
+
+		// For each row (byte) in the bitmap...
+		for ( j = 0; j < h; j += 1 )
+		{
+			bitmapRow = bitmap[ j ];
+
 			off = WIDTH_GFXMODE * y2 + x;
 
-			for ( x2 = x; x2 < ( x + w ); x2 += 1 )
+			// For each bit in the row...
+			for ( i = 7; i >= 0; i -= 1 )
 			{
-				gfxbuffer[ off ] = colorIdx;
+				pixelMask = 1 << i;
+
+				// If the bit is set, draw a pixel
+				if ( ( bitmapRow & pixelMask ) != 0 )
+				{
+					gfxbuffer[ off ] = colorIdx;
+				}
 
 				off += 1;
 			}
+
+			y2 += 1;
 		}
 	}
-}
-
-/* Draws a bitmap of width 8, height 'h'.
-   Encoding:
-    . Each byte represents a row.
-    . A set bit represents a pixel.
-*/
-void vgaDrawBitmap8 ( uchar* bitmap, int x, int y, int h, int colorIdx )
-{
-	uchar bitmapRow;
-	uchar pixelMask;
-	int   i;
-	int   j;
-	int   y2;
-	int   off;
-
-	// Should check bounds. Ignoring for speed.
-
-	y2 = y;
-
-	// For each row (byte) in the bitmap...
-	for ( j = 0; j < h; j += 1 )
-	{
-		bitmapRow = bitmap[ j ];
-
-		off = WIDTH_GFXMODE * y2 + x;
-
-		// For each bit in the row...
-		for ( i = 7; i >= 0; i -= 1 )
-		{
-			pixelMask = 1 << i;
-
-			// If the bit is set, draw a pixel
-			if ( ( bitmapRow & pixelMask ) != 0 )
-			{
-				gfxbuffer[ off ] = colorIdx;
-			}
-
-			off += 1;
-		}
-
-		y2 += 1;
-	}
-}
-
-
-void vgaSetPaletteColor ( int index, char r, char g, char b )
-{
-	outb( VGA_DAC_WRITE_INDEX, index );
-	outb( VGA_DAC_DATA,        r ); 
-	outb( VGA_DAC_DATA,        g ); 
-	outb( VGA_DAC_DATA,        b ); 
-}
-
-// http://www.brackeen.com/vga/bitmaps.html
-void vgaSetDefaultPalette ( void )
-{
-	int  i;
-	char r, g, b;
-
-	outb( VGA_DAC_WRITE_INDEX, 0 );
-
-	for ( i = 0; i < 768; i += 3 )
-	{
-		/*
-		r = vga256_18bit_custom[ i     ];
-		g = vga256_18bit_custom[ i + 1 ];
-		b = vga256_18bit_custom[ i + 2 ];*/
-
-		r = vga256_18bit_default[ i     ];
-		g = vga256_18bit_default[ i + 1 ];
-		b = vga256_18bit_default[ i + 2 ];
-
-		outb( VGA_DAC_DATA, r ); 
-		outb( VGA_DAC_DATA, g ); 
-		outb( VGA_DAC_DATA, b ); 
-	}
-}
-
-/* Turn byte channels (0xRRGGBB) into 6 bit channels
-   by dropping the lowest 2 bits.
-   https://en.wikipedia.org/wiki/List_of_monochrome_and_RGB_palettes#18-bit_RGB
-*/
-/*void convert24To18bit ( int color24, int* r, int* g, int* b )
-{
-	*r = ( ( color24 & 0xff0000 ) >> 16 ) >> 2;
-	*g = ( ( color24 & 0x00ff00 ) >> 8  ) >> 2;
-	*b = ( ( color24 & 0x0000ff )       ) >> 2;
-}*/
+#endif
 
 
 static void updateMouseCursor_graphicsMode ( int dx, int dy )
@@ -779,55 +790,57 @@ static void updateMouseCursor_graphicsMode ( int dx, int dy )
 
 // Tests _____________________________________________________________________________
 
-static void drawX ( void )
-{
-	// Color indices in standard VGA 256 palette
-	// const int black  = 0;
-	// const int blue    = 1;
-	const int green   = 2;
-	const int cyan    = 3;
-	const int red     = 4;
-	const int magenta = 13;
-	const int yellow  = 14;
-
-	int x, y;
-
-	// Can I get a brighter yellow?
-	vgaSetPaletteColor( yellow, 63, 63, 0 );  // yes
-
-	/* Clear screen */
-	for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
+#if 0
+	static void drawX ( void )
 	{
+		// Color indices in standard VGA 256 palette
+		// const int black  = 0;
+		// const int blue    = 1;
+		const int green   = 2;
+		const int cyan    = 3;
+		const int red     = 4;
+		const int magenta = 13;
+		const int yellow  = 14;
+
+		int x, y;
+
+		// Can I get a brighter yellow?
+		vgaSetPaletteColor( yellow, 63, 63, 0 );  // yes
+
+		/* Clear screen */
+		for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
+		{
+			for ( x = 0; x < WIDTH_GFXMODE; x += 1 )
+			{
+				vgaWritePixel( x, y, yellow );
+			}
+		}
+
+		/* Draw 2-color X */
+		for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
+		{
+			vgaWritePixel( ( WIDTH_GFXMODE - HEIGHT_GFXMODE ) / 2 + y, y, magenta );
+			vgaWritePixel( ( HEIGHT_GFXMODE + WIDTH_GFXMODE ) / 2 - y, y, cyan );
+		}
+
+		/* Draw 2-color + */
 		for ( x = 0; x < WIDTH_GFXMODE; x += 1 )
 		{
-			vgaWritePixel( x, y, yellow );
+			vgaWritePixel( x, HEIGHT_GFXMODE / 2, red );
+		}
+		for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
+		{
+			vgaWritePixel( WIDTH_GFXMODE / 2, y, green );
 		}
 	}
 
-	/* Draw 2-color X */
-	for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
+	void demoGraphics ( void )
 	{
-		vgaWritePixel( ( WIDTH_GFXMODE - HEIGHT_GFXMODE ) / 2 + y, y, magenta );
-		vgaWritePixel( ( HEIGHT_GFXMODE + WIDTH_GFXMODE ) / 2 - y, y, cyan );
-	}
+		setGraphicsMode();
 
-	/* Draw 2-color + */
-	for ( x = 0; x < WIDTH_GFXMODE; x += 1 )
-	{
-		vgaWritePixel( x, HEIGHT_GFXMODE / 2, red );
+		drawX();
 	}
-	for ( y = 0; y < HEIGHT_GFXMODE; y += 1 )
-	{
-		vgaWritePixel( WIDTH_GFXMODE / 2, y, green );
-	}
-}
-
-void demoGraphics ( void )
-{
-	setGraphicsMode();
-
-	drawX();
-}
+#endif
 
 
 // Mouse selection (text mode) _______________________________________________________

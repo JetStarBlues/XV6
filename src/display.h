@@ -4,9 +4,9 @@
 #define DISP_IOCTL_DEFAULTPAL  3
 
 // Generic
-#define DISP_IOCTL_DRAWPIXEL      4
-#define DISP_IOCTL_BLIT           5
-#define DISP_IOCTL_DRAWLINE       6
-#define DISP_IOCTL_DRAWFILLRECT   7
-#define DISP_IOCTL_DRAWFILLCIRCLE 8
-#define DISP_IOCTL_DRAWBITMAP8    9
+// #define DISP_IOCTL_DRAWPIXEL      4
+// #define DISP_IOCTL_BLIT           5
+// #define DISP_IOCTL_DRAWLINE       6
+// #define DISP_IOCTL_DRAWFILLRECT   7
+// #define DISP_IOCTL_DRAWFILLCIRCLE 8
+// #define DISP_IOCTL_DRAWBITMAP8    9
