@@ -1,6 +1,6 @@
 #include "mmu.h"
 
-# vectors.S sends all traps here ('alltraps').
+# trapvectors.S sends all traps here ('alltraps').
 # I.e. this is the interrupt handler for all interrupts
 #
 # 'alltraps' then forwards the interrupt handling to the

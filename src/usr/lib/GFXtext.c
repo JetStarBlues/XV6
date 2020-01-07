@@ -19,6 +19,7 @@
 
 // Font
 #define FONT        g_8x11_font__Gohu
+// #define FONT_BOLD   g_8x11_font__Gohu_bold
 #define FONT_WIDTH  8
 #define FONT_HEIGHT 11
 

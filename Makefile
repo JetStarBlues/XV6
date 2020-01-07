@@ -24,40 +24,40 @@ FSUSRBINDIR = fs/usr/bin/
 
 
 # Kernel code
-KERNOBJS =      \
-	buf.o       \
-	console.o   \
-	debug.o     \
-	display.o   \
-	exec.o      \
-	file.o      \
-	fs.o        \
-	ide.o       \
-	ioapic.o    \
-	kalloc.o    \
-	kbd.o       \
-	kprintf.o   \
-	lapic.o     \
-	log.o       \
-	main.o      \
-	mouse.o     \
-	mp.o        \
-	picirq.o    \
-	pipe.o      \
-	proc.o      \
-	sleeplock.o \
-	spinlock.o  \
-	string.o    \
-	swtch.o     \
-	syscall.o   \
-	sysfile.o   \
-	sysmisc.o   \
-	sysproc.o   \
-	trap.o      \
-	trapasm.o   \
-	uart.o      \
-	vectors.o   \
-	vga.o       \
+KERNOBJS =          \
+	buf.o           \
+	console.o       \
+	debug.o         \
+	display.o       \
+	exec.o          \
+	file.o          \
+	fs.o            \
+	ide.o           \
+	ioapic.o        \
+	kalloc.o        \
+	kbd.o           \
+	kprintf.o       \
+	lapic.o         \
+	log.o           \
+	main.o          \
+	mouse.o         \
+	mp.o            \
+	picirq.o        \
+	pipe.o          \
+	proc.o          \
+	sleeplock.o     \
+	spinlock.o      \
+	string.o        \
+	swtch.o         \
+	syscall.o       \
+	sysfile.o       \
+	sysmisc.o       \
+	sysproc.o       \
+	trap.o          \
+	trapasm.o       \
+	uart.o          \
+	trapvectors.o   \
+	vga.o           \
 	vm.o
 
 # User code
@@ -209,7 +209,7 @@ $(IMGDIR)bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o $(KERNBINDIR)bootblock.o $(KERNBINDIR)bootasm.o $(KERNBINDIR)bootmain.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblock.o $(IMGDIR)bootblock
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblock.o > $(DEBUGDIR)bootblock.asm
-	$(SRCDIR)sign.pl $(IMGDIR)bootblock
+	$(SRCDIR)bootsign.pl $(IMGDIR)bootblock
 
 $(IMGDIR)entryother: $(SRCDIR)entryother.S
 	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(SRCDIR)entryother.S -o $(KERNBINDIR)entryother.o
@@ -263,8 +263,8 @@ $(IMGDIR)kernelmemfs: $(MEMFSOBJS_BINS) $(KERNBINDIR)entry.o $(IMGDIR)entryother
 # 	etags *.S *.c
 
 # ...
-$(SRCDIR)vectors.S: $(SRCDIR)vectors.pl
-	$(SRCDIR)vectors.pl > $(SRCDIR)vectors.S
+$(SRCDIR)trapvectors.S: $(SRCDIR)trapvectors.pl
+	$(SRCDIR)trapvectors.pl > $(SRCDIR)trapvectors.S
 
 
 # --- ... -------------------------------------------------------------------
@@ -282,7 +282,7 @@ $(KERNBINDIR)%.o: $(SRCDIR)%.c
 $(KERNBINDIR)%.o: $(SRCDIR)%.S
 	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)
 
-$(KERNBINDIR)vectors.o: $(SRCDIR)vectors.S
+$(KERNBINDIR)trapvectors.o: $(SRCDIR)trapvectors.S
 	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)  # JK, stackoverflow.com/q/53348134
 
 
@@ -352,23 +352,23 @@ fs.img: $(UTILBINDIR)mkfs $(ULIB_BINS) $(UPROGSCORE_BINS) $(UPROGS_BINS)
 # TODO: once get 'make print' working, can remove associated extensions
 # from 'make clean' as all will be inside 'fmt/'
 clean: 
-	rm -f              \
-	fmt/*              \
-	*.tex              \
-	*.dvi              \
-	*.idx              \
-	*.aux              \
-	*.log              \
-	*.ind              \
-	*.ilg              \
-	$(KERNBINDIR)*     \
-	$(UTILBINDIR)*     \
-	$(USERBINDIR)*     \
-	$(IMGDIR)*         \
-	$(DEBUGDIR)*       \
-	$(SRCDIR)vectors.S \
-	$(FSBINDIR)*       \
-	$(FSUSRBINDIR)*    \
+	rm -f                  \
+	fmt/*                  \
+	*.tex                  \
+	*.dvi                  \
+	*.idx                  \
+	*.aux                  \
+	*.log                  \
+	*.ind                  \
+	*.ilg                  \
+	$(KERNBINDIR)*         \
+	$(UTILBINDIR)*         \
+	$(USERBINDIR)*         \
+	$(IMGDIR)*             \
+	$(DEBUGDIR)*           \
+	$(SRCDIR)trapvectors.S \
+	$(FSBINDIR)*           \
+	$(FSUSRBINDIR)*        \
 	.gdbinit
 
 

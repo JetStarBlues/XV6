@@ -12,6 +12,10 @@ if ( $n > 510 )
 
 print STDERR "boot block is $n bytes (max 510)\n";
 
+
+# Add MBR signature as last two bytes
+#  https://manybutfinite.com/post/how-computers-boot-up/
+#  https://en.wikipedia.org/wiki/Master_boot_record
 $buf .= "\0" x ( 510 - $n );
 $buf .= "\x55\xAA";
 

@@ -33,6 +33,10 @@ void seginit ( void )
 	// Cannot share a CODE descriptor for both kernel and user
 	// because it would have to have DPL_USR, but the CPU forbids
 	// an interrupt from CPL=0 to DPL=3.
+	/* Configure as "flat model", which is equivalent to disabling
+	   the use of segments to translate addresses.
+	     https://manybutfinite.com/post/memory-translation-and-segmentation/
+	*/
 	c = &cpus[ cpuid() ];
 
 	c->gdt[ SEG_KCODE ] = SEG( STA_X | STA_R, 0, 0xffffffff, DPL_KERN );
@@ -129,18 +133,7 @@ static int mappages ( pde_t* pgdir, void* vAddr, uint pAddr, uint size, int perm
 		}
 
 		// Check if already mapped to a physical page
-		/*if ( *pte & PTE_P )
-		{
-			panic( "mappages: remap" );
-		}*/
-
-		// JK- check if already mapped to a non-IO physical page
-		if ( ( *pte & PTE_P ) &&
-		     (
-		       ( a <  ( char* ) USER_MMIO_BASE ) ||
-		       ( a >= ( char* ) KERNBASE )
-		     )
-		)
+		if ( *pte & PTE_P )
 		{
 			panic( "mappages: remap" );
 		}
@@ -443,7 +436,7 @@ void switchuvm ( struct proc* p )
 		STS_T32A,                   // type
 		&mycpu()->ts,               // base address
 		sizeof( mycpu()->ts ) - 1,  // limit
-		0                           // descriptor privilege level
+		DPL_KERN                    // descriptor privilege level
 	);
 
 	mycpu()->gdt[ SEG_TSS ].s = 0;  // 0 = system, 1 = application
@@ -454,8 +447,13 @@ void switchuvm ( struct proc* p )
 	mycpu()->ts.esp0 = ( uint ) p->kstack + KSTACKSIZE;  // top of kernel stack
 
 
-	// Setting IOPL=0 in eflags *and* iomb beyond the tss segment limit
-	// forbids I/O instructions (e.g. inb and outb) from user space
+	/* Setting,
+	    . IOPL=DPL_KERN (I/O privielege level) in eflags *and*
+	    . ts.iomb (IO map base address) beyond the tss segment limit
+	   forbids I/O instructions (e.g. inb and outb) from user space
+
+	   https://en.wikipedia.org/wiki/Task_state_segment#I/O_port_permissions
+	*/
 	mycpu()->ts.iomb = ( ushort ) 0xFFFF;
 
 
@@ -616,7 +614,13 @@ pde_t* copyuvm ( pde_t* pgdir, uint sz )
 		}
 
 		pAddr = PTE_ADDR(  *pte );
-		flags = PTE_FLAGS( *pte );
+		flags = PTE_FLAGS( *pte );  /* To implement copy on write, would change to
+		                               read only (clear PTE_W) for both parent and child
+		                               so that when either process attempts to write
+		                               to the page, the CPU triggers a page fault.
+		                               In the handler, the kernel duplicates the page and
+		                               marks it R/W for the writing?/both? process/es...
+		                               https://manybutfinite.com/post/cpu-rings-privilege-and-protection/ */
 
 		mem = kalloc();
 

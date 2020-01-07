@@ -285,39 +285,40 @@ void mouseintr ( void )
 
 	// Temporary tests ---------------
 
-	// Call handler for onMouseMove
-	if ( dx || dy )
-	{
-		updateMouseCursor( dx, - dy );
-
-		highlightSelection();
-	}
-
-	// Call handler for onMousePress or onMouseRelease
-	if ( leftBtn != leftBtn_prev )
-	{
-		// onMousePress
-		if ( leftBtn )
+		// Call handler for onMouseMove
+		if ( dx || dy )
 		{
-			markSelectionStart();
-		}
-		// onMouseRelease
-		else
-		{
-			markSelectionEnd();
+			updateMouseCursor( dx, - dy );
 
-			copySelection();
+			highlightSelection();
 		}
-	}
-	if ( rightBtn != rightBtn_prev )
-	{
-		// onMouseRelease
-		if ( rightBtn_prev )
-		{
-			pasteSelection();
-		}
-	}
 
+		// Call handler for onMousePress or onMouseRelease
+		if ( leftBtn != leftBtn_prev )
+		{
+			// onMousePress
+			if ( leftBtn )
+			{
+				markSelectionStart();
+			}
+			// onMouseRelease
+			else
+			{
+				markSelectionEnd();
+
+				copySelection();
+			}
+		}
+		if ( rightBtn != rightBtn_prev )
+		{
+			// onMouseRelease
+			if ( rightBtn_prev )
+			{
+				pasteSelection();
+			}
+		}
+
+	// -------------------------------
 
 
 	// Save button status

@@ -63,6 +63,9 @@ static inline void stosl ( void* addr, int data, int cnt )
 	);
 }
 
+
+// ________________________________________________________________________
+
 struct segdesc;
 
 // Load global descriptor table
@@ -97,6 +100,54 @@ static inline void ltr ( ushort sel )
 	asm volatile( "ltr %0" : : "r" ( sel ) );
 }
 
+// ?
+static inline void loadgs ( ushort v )
+{
+	asm volatile( "movw %0, %%gs" : : "r" ( v ) );
+}
+
+
+// ________________________________________________________________________
+
+// Disable interrupts
+static inline void cli ( void )
+{
+	asm volatile( "cli" );
+}
+
+// Enable interrupts
+static inline void sti ( void )
+{
+	asm volatile( "sti" );
+}
+
+
+// ________________________________________________________________________
+
+/* Swaps a word in memory (*addr) with the contents of a register (newval),
+   and returns the old contents of the memory location.
+   See xv6 Book - Cox, Kaashoek, and Morris, 2017, p.54
+*/
+static inline uint xchg ( volatile uint* addr, uint newval )
+{
+	uint oldval;
+
+	// The + in "+m" denotes a read-modify-write operand.
+	asm volatile(
+
+		"lock; xchgl %0, %1" :
+		"+m" ( *addr ), "=a" ( oldval ) :
+		"1" ( newval ) :
+		"cc"
+	);
+
+	return oldval;
+}
+
+
+// ________________________________________________________________________
+
+// Read EFLAGS status register
 static inline uint readeflags ( void )
 {
 	uint eflags;
@@ -106,38 +157,9 @@ static inline uint readeflags ( void )
 	return eflags;
 }
 
-static inline void loadgs ( ushort v )
-{
-	asm volatile( "movw %0, %%gs" : : "r" ( v ) );
-}
-
-static inline void cli ( void )
-{
-	asm volatile( "cli" );
-}
-
-static inline void sti ( void )
-{
-	asm volatile( "sti" );
-}
-
-static inline uint xchg ( volatile uint* addr, uint newval )
-{
-	uint result;
-
-	// The + in "+m" denotes a read-modify-write operand.
-	asm volatile(
-
-		"lock; xchgl %0, %1" :
-		"+m" ( *addr ), "=a" ( result ) :
-		"1" ( newval ) :
-		"cc"
-	);
-
-	return result;
-}
-
-// Read CR2
+// Read CR2 control register
+/* Contains address that on attempt to read, triggered page fault
+*/
 static inline uint rcr2 ( void )
 {
 	uint val;
@@ -147,11 +169,16 @@ static inline uint rcr2 ( void )
 	return val;
 }
 
-// Write CR3
+// Write CR3 control register
+/* Points to the current page directory...
+*/
 static inline void lcr3 ( uint val )
 {
 	asm volatile( "movl %0, %%cr3" : : "r" ( val ) );
 }
+
+
+// ________________________________________________________________________
 
 /* Layout of the trap frame built on the stack by the
    hardware and by trapasm.S, and passed to trap().

@@ -737,7 +737,7 @@ char readKey ( void )
 {
 	char c;
 
-	if ( read( stdin, &c, 1 ) < 0 )
+	if ( read( stdin, &c, 1 ) < 0 )  // read blocks
 	{
 		die( "read" );
 	}
