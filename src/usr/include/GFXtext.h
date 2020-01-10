@@ -1,8 +1,8 @@
 #include "types.h"
 
-void GFXText_setCursorPosition ( uint, uint );
-void GFXText_getCursorPosition ( uint*, uint* );
-void GFXText_getDimensions     ( uint*, uint* );
+void GFXText_setCursorPosition ( int, int );
+void GFXText_getCursorPosition ( int*, int* );
+void GFXText_getDimensions     ( int*, int* );
 void GFXText_setTextColor      ( uchar );
 void GFXText_setTextBgColor    ( uchar );
 void GFXText_setCursorColor    ( uchar );

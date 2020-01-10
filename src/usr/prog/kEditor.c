@@ -55,16 +55,16 @@ struct _editorState {
 	struct termios origConsoleAttr;
 
 	// screen dimensions
-	uint nScreenRows;
-	uint nScreenCols;
+	int nScreenRows;
+	int nScreenCols;
 
 	// edit cursor position
-	uint editCursorRow;
-	uint editCursorCol;
+	int editCursorRow;
+	int editCursorCol;
 
 	// render cursor position
-	uint renderCursorRow;
-	uint renderCursorCol;
+	int renderCursorRow;
+	int renderCursorCol;
 
 	//
 	struct _textRow* textRows;  // better name
@@ -167,11 +167,11 @@ void disableRawMode ( void )
 #define ERASELINE_LEFT  1
 #define ERASELINE_ALL   2
 
-void eraseInLine ( uint mode )
+void eraseInLine ( int mode )
 {
-	uint row;
-	uint col;
-	uint savedCol;
+	int row;
+	int col;
+	int savedCol;
 
 	// Invalid mode, ignore
 	if ( mode > 2 )
@@ -223,8 +223,8 @@ void eraseInLine ( uint mode )
 
 void temp_testEraseLine ( void )
 {
-	uint col;
-	uint row;
+	int col;
+	int row;
 
 	row = 0;
 
@@ -277,8 +277,8 @@ void temp_testEraseLine ( void )
 
 void printString ( char* s, int wrap )
 {
-	uint row;
-	uint col;
+	int row;
+	int col;
 
 
 	GFXText_getCursorPosition( &row, &col );
@@ -502,12 +502,12 @@ void openFile ( char* filename )  // better name
 
 // ____________________________________________________________________________________
 
-uint convert_edit_to_renderCursorCol ( struct _textRow* textRow, uint _editCursorCol )
+int convert_edit_to_renderCursorCol ( struct _textRow* textRow, int _editCursorCol )
 {
-	uint _renderCursorCol;
+	int _renderCursorCol;
 	int  j;
-	uint nLeft;
-	uint nRight;
+	int nLeft;
+	int nRight;
 
 	_renderCursorCol = 0;
 
@@ -750,10 +750,11 @@ char readKey ( void )
 void processKeyPress ( void )
 {
 	uchar            c;
-	int              n;
+	// int              n;
 	struct _textRow* curTextRow;
-	// uint             savedEditCursorRow;
-	uint             offsetFromScreenTop;
+	// int              savedEditCursorRow;
+	int              offsetFromScreenTop;
+	int              offsetFromScreenBtm;
 
 	c = ( uchar ) readKey();
 
@@ -772,112 +773,105 @@ void processKeyPress ( void )
 			moveCursor( c, SNAP );
 			break;
 
+		/* TODO: simply KEY_PAGEUP/DOWN logic
+		*/
 		case KEY_PAGEUP:
-		case KEY_PAGEDOWN:
 
-			/* To scroll up or down a page, we position the cursor
-			   at either the top or bottom of the screen, then simulate
-			   nScreenRows key presses
+			// Get cursor's initial row offset
+			offsetFromScreenTop = editorState.editCursorRow - editorState.textRowOffset;
+			offsetFromScreenBtm = editorState.nScreenRows - offsetFromScreenTop - 1;
+
+
+			// Move cursor to top of screen
+			editorState.editCursorRow -= offsetFromScreenTop;
+
+			/* If we have gone past or reached the top of the file,
+			   there is nothing to page-up to... Exit early.
 			*/
-			//
-			// savedEditCursorRow = editorState.editCursorRow;
-
-			// delta = editorState.editCursorRow % editorState.nScreenRows;
-			// printf( 1, "delta %d\n", delta );
-
-			//
-			if ( c == KEY_PAGEUP )
-			{
-				// editorState.editCursorRow = editorState.textRowOffset;
-			}
-			else
-			{
-				// editorState.editCursorRow = editorState.textRowOffset + editorState.nScreenRows - 1;
-
-				// if ( editorState.editCursorRow > editorState.nTextRows )
-				// {
-				// 	editorState.editCursorRow = editorState.nTextRows;
-				// }
-			}
-			//
-			// n = editorState.nScreenRows;
-			// n = editorState.nScreenRows * 2 - 1;
-			// n = editorState.nScreenRows - editorState.editCursorRow + 1;
-
-			/*while ( n )
-			{
-				moveCursor( c == KEY_PAGEUP ? KEY_UP : KEY_DOWN );
-				n -= 1;
-			}*/
-
-			if ( c == KEY_PAGEUP )
-			{
-				// n = delta + 1;  // current to top
-
-				// while ( n )
-				// {
-				// 	moveCursor( KEY_UP );
-				// 	n -= 1;
-				// }
-
-				// scroll();
-
-				// while ( delta )
-				// {
-				// 	moveCursor( KEY_DOWN );
-				// 	n -= 1;
-				// }
-
-				editorState.editCursorRow = 0;  // temp
-			}
-			else  // KEY_PAGEDOWN
+			if ( editorState.editCursorRow <= 0 )
 			{
 				//
-				offsetFromScreenTop = editorState.editCursorRow - editorState.textRowOffset;
-				printf( 1, "delta %d\n", offsetFromScreenTop );
+				editorState.editCursorRow = 0;
 
-				// Move cursor to bottom of screen
-				editorState.editCursorRow = editorState.textRowOffset + editorState.nScreenRows - 1;
+				// Update cursor's column offset
+				moveCursor( 0, SNAP );
 
-				printf( 1, "wtf? %d\n", editorState.editCursorRow );
-
-				if ( editorState.editCursorRow > editorState.nTextRows )
-				{
-					editorState.editCursorRow = editorState.nTextRows;
-				}
-
-				// Nothing to scroll to...
-				if ( editorState.editCursorRow == editorState.nTextRows )
-				{
-					moveCursor( 0, SNAP );  // hmmm... reset col offset
-					break;
-				}
-				printf( 1, ".\n" );
-
-
-				// Scroll down a page...
-				n = editorState.nScreenRows;
-
-				while ( n )
-				{
-					moveCursor( KEY_DOWN, NO_SNAP );
-					n -= 1;
-				}
-
-				scroll();
-
-
-				// Place cursor at initial row offset...
-				n = editorState.nScreenRows - offsetFromScreenTop - 1;  // bottom to previous position
-
-				while ( n )
-				{
-					moveCursor( KEY_UP, NO_SNAP );
-					n -= 1;
-				}
-
-				moveCursor( 0, SNAP );  // Same initial col offset if possible...
+				break;
 			}
+
+
+			// Scroll visible text up a page...
+			editorState.editCursorRow -= editorState.nScreenRows;
+
+			if ( editorState.editCursorRow < 0 )
+			{
+				editorState.editCursorRow = 0;
+			}
+
+			scroll();
+
+
+			// Restore cursor's initial row offset
+			editorState.editCursorRow += offsetFromScreenTop;
+
+			if ( editorState.editCursorRow > editorState.nTextRows )
+			{
+				editorState.editCursorRow = editorState.nTextRows;
+			}
+
+			// Update cursor's column offset
+			moveCursor( 0, SNAP );
+
+			break;
+
+		case KEY_PAGEDOWN:
+
+			// Get cursor's initial row offset
+			offsetFromScreenTop = editorState.editCursorRow - editorState.textRowOffset;
+			offsetFromScreenBtm = editorState.nScreenRows - offsetFromScreenTop - 1;
+
+
+			// Move cursor to bottom of screen
+			editorState.editCursorRow += offsetFromScreenBtm;
+
+			/* If we have gone past or reached the last line of the file,
+			   there is nothing to page-down to... Exit early.
+			*/
+			if ( editorState.editCursorRow >= editorState.nTextRows )
+			{
+				//
+				editorState.editCursorRow = editorState.nTextRows;
+
+				// Update cursor's column offset
+				moveCursor( 0, SNAP );
+
+				printf( 1, "huh\n" );
+
+				break;
+			}
+
+
+			// Scroll visible text down a page...
+			editorState.editCursorRow += editorState.nScreenRows;
+
+			if ( editorState.editCursorRow > editorState.nTextRows )
+			{
+				editorState.editCursorRow = editorState.nTextRows;
+			}
+
+			scroll();
+
+
+			// Restore cursor's initial row offset
+			editorState.editCursorRow -= offsetFromScreenBtm;
+
+			if ( editorState.editCursorRow < 0 )
+			{
+				editorState.editCursorRow = 0;
+			}
+
+			// Update cursor's column offset
+			moveCursor( 0, SNAP );
 
 			break;
 
@@ -912,8 +906,8 @@ void processKeyPress ( void )
 
 void drawRows ( void )
 {
-	uint             screenRow;
-	uint             fileRow;
+	int              screenRow;
+	int              fileRow;
 	struct _textRow* curTextRow;
 	char*            text;
 	int              centerCol;

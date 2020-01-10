@@ -24,12 +24,12 @@
 #define FONT_HEIGHT 11
 
 // Dimensions in characters
-static uint nRows = SCREEN_HEIGHT / FONT_HEIGHT;
-static uint nCols = SCREEN_WIDTH  / FONT_WIDTH;
+static int nRows = SCREEN_HEIGHT / FONT_HEIGHT;
+static int nCols = SCREEN_WIDTH  / FONT_WIDTH;
 
 // Cursor position
-static uint cursorRow;
-static uint cursorCol;
+static int cursorRow;
+static int cursorCol;
 
 // Default colors (standard 256-color VGA palette)
 static uchar textColor   = 24;   // grey
@@ -42,7 +42,7 @@ static uchar* gfxbuffer = ( uchar* ) GFXBUFFER;
 
 // ____________________________________________________________________________________
 
-void GFXText_setCursorPosition ( uint row, uint col )
+void GFXText_setCursorPosition ( int row, int col )
 {
 	if ( ( row >= 0 ) && ( row < nRows ) )
 	{
@@ -55,13 +55,13 @@ void GFXText_setCursorPosition ( uint row, uint col )
 	}
 }
 
-void GFXText_getCursorPosition ( uint* rowPtr, uint* colPtr )
+void GFXText_getCursorPosition ( int* rowPtr, int* colPtr )
 {
 	*rowPtr = cursorRow;
 	*colPtr = cursorCol;
 }
 
-void GFXText_getDimensions ( uint* nRowsPtr, uint* nColsPtr )
+void GFXText_getDimensions ( int* nRowsPtr, int* nColsPtr )
 {
 	*nRowsPtr = nRows;
 	*nColsPtr = nCols;
@@ -100,7 +100,7 @@ void GFXText_invertTextColors ( void )
     . Each byte represents a row
     . A set bit represents a pixel
 */
-static void drawFontChar ( uchar ch, uint x, uint y )
+static void drawFontChar ( uchar ch, int x, int y )
 {
 	uchar* bitmap;
 	uchar  bitmapRow;
@@ -151,14 +151,14 @@ static void drawFontChar ( uchar ch, uint x, uint y )
 
 void GFXText_printChar ( uchar ch )
 {
-	uint x;
-	uint y;
+	int x;
+	int y;
 
 	//
 	x = cursorCol * FONT_WIDTH;
 	y = cursorRow * FONT_HEIGHT;
 
-	// printf( 1, "%d -> %d, %d\n", ( uint ) ch, x, y );
+	// printf( 1, "%d -> %d, %d\n", ( int ) ch, x, y );
 
 	drawFontChar( ch, x, y );
 }
@@ -168,8 +168,8 @@ void GFXText_printChar ( uchar ch )
 
 void GFXText_drawCursor ( void )
 {
-	uint x;
-	uint y;
+	int x;
+	int y;
 
 	//
 	x = cursorCol * FONT_WIDTH;
