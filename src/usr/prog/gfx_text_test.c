@@ -10,12 +10,12 @@ int main ( int argc, char* argv [] )
 {
 	char  uinputbuf [ UINPUTBUFSZ ];
 
-	uint i;
-	uint row;
-	uint col;
-	uint c;
-	uint nRows;
-	uint nCols;
+	int i;
+	int row;
+	int col;
+	int c;
+	int nRows;
+	int nCols;
 
 	GFX_init();
 

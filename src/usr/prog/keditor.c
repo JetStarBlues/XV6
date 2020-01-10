@@ -845,8 +845,6 @@ void processKeyPress ( void )
 				// Update cursor's column offset
 				moveCursor( 0, SNAP );
 
-				printf( 1, "huh\n" );
-
 				break;
 			}
 
