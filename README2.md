@@ -1,3 +1,27 @@
+## Tools
+
+You need the following tools to build and run this project:
+
+```
+sudo apt-get install build-essential
+
+sudo apt-get install qemu
+
+sudo apt-get install gdb
+```
+
+
+## Tools - 64-bit
+
+If you are attemtping to build and run this project on a 64-bit computer, you need to create a compiler toolchain that generates 32-bit code. Please follow the detailed guide in [this link][1] on how to do so.
+
+For the most part, you can get away with the following:
+
+```
+sudo apt-get install gcc-multilib
+```
+
+
 ## Make - Nonexistent folders
 
 When you first run `make`, **it will fail** because the following subdirectories need to be added:
@@ -57,32 +81,6 @@ chmod a+x src/trapvectors.pl
 ```
 
 For more information, see the discussion [here][0].
-
-
-## Build and run tools
-
-You need the following tools to build and run this project:
-
-```
-sudo apt-get install build-essential
-
-sudo apt-get install qemu
-
-sudo apt-get install gdb
-```
-
-
-## Running on 64-bit
-
-Xv6 is 32-bit. If you are attemtping to build and run this project on a 64-bit computer, you need to create a compiler toolchain that generates 32-bit code. Please follow the detailed guide in [this link][1] for how to do so.
-
-For the most part, you can get away with the following:
-
-```
-sudo apt-get install gcc-multilib
-```
-
-
 
 
 
