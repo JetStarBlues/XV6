@@ -27,7 +27,7 @@
 #   . https://www.gnu.org/software/grub/manual/multiboot/html_node/boot_002eS.html#boot_002eS
 #   . https://www.gnu.org/software/grub/manual/multiboot/html_node/multiboot_002eh.html
 
-#include "asm.h"
+#include "segasm.h"
 #include "memlayout.h"
 #include "mmu.h"
 #include "param.h"
