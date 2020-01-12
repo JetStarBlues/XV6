@@ -70,11 +70,8 @@ int main ( void )
 		}
 
 
-		// Adopt orphan processes
-		/* If the shell has exited and there are still processes hanging
-		   around, they must be abandoned.
-
-		   We wait on all such processes...
+		/* Wait on shell to exit...
+		   In the meanwhile, adopt any orphan processes.
 		*/
 		/*
 		   Only the parent (init) reaches this code section because
@@ -85,19 +82,25 @@ int main ( void )
 		{
 			wpid = wait();
 
-			// if ( ( wpid < 0 ) || ( wpid == pid ) )
+			// All of our children have exited (immediate and adopted)...
 			if ( wpid < 0 )
 			{
 				break;
 			}
 
-			printf( 1, "init: found a zombie!\n" );
+			// PID waited for was the shell we launched
+			if ( wpid == pid )
+			{
+				break;
+			}
 
-			/* Why does init handle processes abandoned indirectly by child?
-			   For example, why does it handle grandchildren abandoned by
-			   sh's children?
+			// PID waited for was abandoned by original parent
+			/* init handles all abandoned children.
+			   Why? Because if a process calls 'exit' while it still
+			   has children, the children are passed on to init
+			   ('p->parent = initproc')
 			*/
-			printf( 1, "  handled zombie (pid = %d)\n", wpid );
+			printf( 1, "init: found abandoned zombie (pid = %d)!\n", wpid );
 		}
 	}
 }
