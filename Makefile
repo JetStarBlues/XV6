@@ -1,14 +1,5 @@
 # Useful Makefile reference:
 #   . https://www.gnu.org/software/make/manual/make.html#Automatic-Variables
-#
-# Note:
-#   . Currently, this Makefile does not recognize a need to re-compile
-#     affected files when a header file changes.
-#   . If you want changes to a header file to be appropriately propogated,
-#     you must first 'make clean'
-#   . TODO: implement one of these approaches to resolve
-#            https://stackoverflow.com/q/297514
-#
 
 
 # ___ Paths _________________________________________________________________
@@ -36,6 +27,34 @@ FSUSRBINDIR   = fs/usr/bin/
 
 
 # --- Kernel code -----------------------------------------------------------
+
+_KERN_HEADERS =  \
+	buf.h        \
+	date.h       \
+	defs.h       \
+	display.h    \
+	elf.h        \
+	fcntl.h      \
+	file.h       \
+	fs.h         \
+	kbd.h        \
+	kfonts.h     \
+	memlayout.h  \
+	mmu.h        \
+	mp.h         \
+	param.h      \
+	proc.h       \
+	ps2.h        \
+	segasm.h     \
+	sleeplock.h  \
+	spinlock.h   \
+	stat.h       \
+	syscall.h    \
+	termios.h    \
+	traps.h      \
+	types.h      \
+	vga.h        \
+	x86.h
 
 _KERN_OBJS =        \
 	buf.o           \
@@ -75,6 +94,13 @@ _KERN_OBJS =        \
 
 
 # --- User code -------------------------------------------------------------
+
+_USER_HEADERS = \
+	fonts.h     \
+	GFX.h       \
+	GFXtext.h   \
+	stdarg2.h   \
+	user.h
 
 _ULIB_OBJS =          \
 	GFX.o             \
@@ -134,6 +160,9 @@ ULIB_OBJS       = $(addprefix $(USERBINDIR), $(_ULIB_OBJS))
 UPROGSCORE_OBJS = $(addprefix $(USERBINDIR), $(_UPROGSCORE_OBJS))
 UPROGS_OBJS     = $(addprefix $(USERBINDIR), $(_UPROGS_OBJS))
 
+KERN_HEADERS = $(addprefix $(KERNHEADERDIR), $(_KERN_HEADERS))
+USER_HEADERS = $(addprefix $(USERHEADERDIR), $(_USER_HEADERS))
+
 
 # ___ Configure Tools _______________________________________________________
 
@@ -189,11 +218,11 @@ OBJDUMP = $(TOOLPREFIX)objdump
 
 
 # CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
-# CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer  # JK, remove optimization
-CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer -gdwarf-2  # JK, remove optimization, and
-                                                                                                                            #     resolve gdb "can't compute CFA for this frame"
-                                                                                                                            #     http://staff.ustc.edu.cn/~bjhua/courses/ats/2014/hw/hw-interface.html
-                                                                                                                            #     https://forum.osdev.org/viewtopic.php?f=1&t=30570
+CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer  # JK, remove optimization
+CFLAGS += -gdwarf-2  # JK, resolve gdb "can't compute CFA for this frame"
+                     #     http://staff.ustc.edu.cn/~bjhua/courses/ats/2014/hw/hw-interface.html
+                     #     https://forum.osdev.org/viewtopic.php?f=1&t=30570
+
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
@@ -228,23 +257,23 @@ xv6memfs.img: $(IMGDIR)bootblock $(IMGDIR)kernelmemfs
 	dd if=$(IMGDIR)kernelmemfs of=$(IMGDIR)xv6memfs.img seek=1 conv=notrunc  # second sector
 
 
-$(IMGDIR)bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c
-	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I. -c $(SRCDIR)bootmain.c -o $(KERNBINDIR)bootmain.o
-	# $(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c bootmain.c -o $(KERNBINDIR)bootmain.o  # JK, remove optimization
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(SRCDIR)bootasm.S -o $(KERNBINDIR)bootasm.o
+$(IMGDIR)bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c   $(KERN_HEADERS)
+	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)bootmain.c -o $(KERNBINDIR)bootmain.o
+	# $(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)bootmain.c -o $(KERNBINDIR)bootmain.o  # JK, remove optimization
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)bootasm.S -o $(KERNBINDIR)bootasm.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o $(KERNBINDIR)bootblock.o $(KERNBINDIR)bootasm.o $(KERNBINDIR)bootmain.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblock.o $(IMGDIR)bootblock
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblock.o > $(DEBUGDIR)bootblock.asm
 	$(SRCDIR)bootsign.pl $(IMGDIR)bootblock
 
-$(IMGDIR)entryother: $(SRCDIR)entryother.S
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I. -c $(SRCDIR)entryother.S -o $(KERNBINDIR)entryother.o
+$(IMGDIR)entryother: $(SRCDIR)entryother.S   $(KERN_HEADERS)
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)entryother.S -o $(KERNBINDIR)entryother.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o $(KERNBINDIR)bootblockother.o $(KERNBINDIR)entryother.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblockother.o $(IMGDIR)entryother
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblockother.o > $(DEBUGDIR)entryother.asm
 
-$(IMGDIR)initcode: $(SRCDIR)initcode.S
-	$(CC) $(CFLAGS) -nostdinc -I. -c $(SRCDIR)initcode.S -o $(KERNBINDIR)initcode.o
+$(IMGDIR)initcode: $(SRCDIR)initcode.S   $(KERN_HEADERS)
+	$(CC) $(CFLAGS) -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)initcode.S -o $(KERNBINDIR)initcode.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $(KERNBINDIR)initcode.out $(KERNBINDIR)initcode.o
 	$(OBJCOPY) -S -O binary $(KERNBINDIR)initcode.out $(IMGDIR)initcode
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
@@ -320,11 +349,27 @@ fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROGSCORE_OBJS) $(UPROGS_OBJS)
 # %.o: %.S
 # 	$(CC) $(ASFLAGS) -c $< -o $(BINDIR)$@
 
+# JK - needed a way to trigger recompilation when a header file changes.
+# There is the proper way to do it (https://stackoverflow.com/a/626299),
+# and the hacky way to do it (https://stackoverflow.com/a/44022345).
+# I opted for the hacky way:
+#   . It works by adding the header files to a rule's prerequisites.
+#   . This makes using the -I flag redundant, but leaving it in, in case decide
+#     to use proper way in future
+#   Pros:
+#     . erm...
+#   Cons:
+#     . sledgehammer approach:
+#       Currently adding *all* header files to each object's prerequisites,
+#       regardless of whether the .c file explicitly #includes the header file...
+#       This means, a change to *any* header file will trigger
+#       recompilation of *all* object files.
+
 
 # JK Used to compile kernel code
-$(KERNBINDIR)%.o: $(SRCDIR)%.c
+$(KERNBINDIR)%.o: $(SRCDIR)%.c   $(KERN_HEADERS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
-$(KERNBINDIR)%.o: $(SRCDIR)%.S
+$(KERNBINDIR)%.o: $(SRCDIR)%.S   $(KERN_HEADERS)
 	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
 
 $(KERNBINDIR)trapvectors.o: $(SRCDIR)trapvectors.S
@@ -332,24 +377,24 @@ $(KERNBINDIR)trapvectors.o: $(SRCDIR)trapvectors.S
 
 
 # JK Used to compile user code
-$(USERBINDIR)%.o: $(ULIBDIR)%.c
+$(USERBINDIR)%.o: $(ULIBDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
-$(USERBINDIR)%.o: $(ULIBDIR)%.S 
+$(USERBINDIR)%.o: $(ULIBDIR)%.S    $(KERN_HEADERS) $(USER_HEADERS)
 	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 
-$(USERBINDIR)%.o: $(UPROGCOREDIR)%.c
+$(USERBINDIR)%.o: $(UPROGCOREDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-$(USERBINDIR)%.o: $(UPROGDIR)%.c
+$(USERBINDIR)%.o: $(UPROGDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-$(USERBINDIR)forktest.o: $(UPROGDIR)forktest.c
+$(USERBINDIR)forktest.o: $(UPROGDIR)forktest.c   $(KERN_HEADERS) $(USER_HEADERS)
 	# forktest has less library code linked in
 	# Needs to be small (size?) in order to be able to max out the proc table.
 	# JK, added umalloc.o, hopefully nothing breaks...
