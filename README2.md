@@ -13,7 +13,7 @@ sudo apt-get install gdb
 
 ## Tools - 64-bit
 
-If you are attemtping to build and run this project on a 64-bit computer, you need to create a compiler toolchain that generates 32-bit code. Please follow the detailed guide in [this link][1] on how to do so.
+If you are attemtping to build and run this project on a 64-bit computer, you also need to create a compiler toolchain that generates 32-bit code. Please follow the detailed guide in [this link][1].
 
 For the most part, you can get away with the following:
 
@@ -73,7 +73,7 @@ Ideally, instead of manually adding the folders, they would be present when you 
 
 ## Make - Permission Denied
 
-When you first run `make`, you may get a `permission denied` error when `make` tries to execute the perl files `sign.pl` and `vectors.pl`. To resolve this problem, you need to give the files execute permission. This can be done as follows:
+When you first run `make`, you may get a `permission denied` error when `make` tries to execute the perl files `bootsign.pl` and `trapvectors.pl`. To resolve this problem, you need to give the files execute permission. This can be done as follows:
 
 ```
 chmod a+x src/bootsign.pl
