@@ -70,7 +70,7 @@ start32:
 	movl  ( start - 12 ), %eax
 	movl  %eax, %cr3
 
-	# Turn on paging.
+	# Turn on paging
 	movl  %cr0, %eax
 	orl   $( CR0_PE | CR0_PG | CR0_WP ), %eax
 	movl  %eax, %cr0

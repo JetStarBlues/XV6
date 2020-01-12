@@ -65,7 +65,9 @@ void bootmain ( void )
 	void ( *entry ) ( void );
 
 
-	elf = ( struct elfhdr* ) 0x10000;  // scratch space ??
+	elf = ( struct elfhdr* ) 0x10000;  // allocate in scratch space...
+	                                   /* RAM between 0x0000_7E00 and 0x0007_FFFF is guaranteed available for use.
+	                                       https://wiki.osdev.org/Memory_Map_(x86) */
 
 	// Read 1st page off disk (first sector of kernel?)
 	readseg( ( uchar* ) elf, 4096, 0 );
@@ -111,16 +113,18 @@ void bootmain ( void )
 
 // _______________________________________________________________________
 
-// Read 'count' bytes at 'offset' from kernel into physical address 'pa'.
-// Might copy more than asked.
-void readseg ( uchar* pa, uint count, uint offset )
+/* Read 'count' bytes at 'offset' from disk
+   into memory addresss 'pAddr'.
+   Might copy more than asked.
+*/
+void readseg ( uchar* pAddr, uint count, uint offset )
 {
-	uchar* epa;
+	uchar* endPAddr;
 
-	epa = pa + count;
+	endPAddr = pAddr + count;
 
 	// Round down to sector boundary.
-	pa -= offset % SECTSIZE;
+	pAddr -= offset % SECTSIZE;
 
 	// Translate from bytes to sectors; kernel starts at sector 1.
 	offset = ( offset / SECTSIZE ) + 1;
@@ -128,9 +132,9 @@ void readseg ( uchar* pa, uint count, uint offset )
 	// If this is too slow, we could read lots of sectors at a time.
 	// We'd write more to memory than asked, but it doesn't matter --
 	// we load in increasing order.
-	for ( ; pa < epa; pa += SECTSIZE )
+	for ( ; pAddr < endPAddr; pAddr += SECTSIZE )
 	{
-		readsect( pa, offset );
+		readsect( pAddr, offset );
 
 		offset += 1;
 	}

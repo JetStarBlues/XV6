@@ -44,11 +44,14 @@ Startup process:
 static void startothers ( void );
 static void mpmain      ( void )  __attribute__( ( noreturn ) );
 
-extern pde_t* kpgdir;
+// extern pde_t* kpgdir;
 
 extern char end [];  /* first address after kernel text and data.
                         Label is created by "kernel.ld" when creating the
                         kernel ELF */
+
+pde_t entrypgdir [];  // Used by entry.S and entryothers.S
+
 
 // Bootstrap CPU starts running C code here.
 // Allocate a real stack and switch to it, first
@@ -108,7 +111,6 @@ static void mpmain ( void )
 	scheduler();  // start running processes
 }
 
-pde_t entrypgdir [];  // For entry.S
 
 // Start the non-boot (AP) processors.
 static void startothers ( void )
@@ -117,13 +119,21 @@ static void startothers ( void )
 	extern uchar _binary_img_entryother_start [],
 	             _binary_img_entryother_size  [];  // JK, new path
 
-	uchar*      code;
 	struct cpu* c;
-	char*       stack;
 
-	// Write entry code to unused memory at 0x7000.
-	// The linker has placed the image of entryother.S in
-	// _binary_entryother_start.
+	uchar* code;
+	char*  stack;
+
+	void ( **mpenterPtr ) ( void );  // pointer to function-pointer (function has no return value, no parameters)
+	void** stackTopPtr;              // pointer to void-pointer
+	int**  pgdirPtr;                 // pointer to int-pointer
+
+	/* Write entry code to unused memory at 0x7000.
+	   RAM between 0x0000_0500 and 0x0000_7BFF is guaranteed available for use.
+	    https://wiki.osdev.org/Memory_Map_(x86)
+
+	   The linker has placed the image of entryother.S in _binary_entryother_start.
+	*/
 	code = P2V( 0x7000 );
 
 	memmove(
@@ -135,6 +145,8 @@ static void startothers ( void )
 		( uint ) _binary_img_entryother_size
 	);
 
+
+	// ...
 	for ( c = cpus; c < cpus + ncpu; c += 1 )
 	{
 		if ( c == mycpu() )  // We've started already.
@@ -144,8 +156,8 @@ static void startothers ( void )
 
 		/* Tell entryother.S,
 		     . what stack to use,
-		     . where to enter,
-		     . what pgdir to use
+		     . what pgdir to use,
+		     . where to enter kernel code after cpu startup and setup
 
 		   We cannot use kpgdir yet, because the AP processor
 		   is running in low memory, so we use entrypgdir for the APs too.
@@ -154,12 +166,12 @@ static void startothers ( void )
 
 		    0x7000 + _binary_entryother_size ->  -------------------------
 		                                         contents of entryother.S
-		    0x7000                           ->  -------------------------  <- start
-		                                         address of ...
+		    0x7000                           ->  -------------------------  <- start (see entryother.S)
+		                                         address of stack top
 		    0x7000 - 4                       ->  -------------------------  <- start - 4
 		                                         address of mpenter
 		    0x7000 - 8                       ->  -------------------------  <- start - 8
-		                                         address of ...
+		                                         address of pgdir
 		    0x7000 - 12                      ->  -------------------------  <- start - 12
 
 
@@ -171,11 +183,18 @@ static void startothers ( void )
 		*/
 		stack = kalloc();
 
-		*(                ( void** ) ( code - 4  )  ) = stack + KSTACKSIZE;  // stack top since it grows downwards ?
 
-		*(  ( void ( ** ) ( void ) ) ( code - 8  )  ) = mpenter;
+		stackTopPtr =               ( void** ) ( code - 4  );
+		mpenterPtr  = ( void ( ** ) ( void ) ) ( code - 8  );
+		pgdirPtr    =                ( int** ) ( code - 12 );
 
-		*(                 ( int** ) ( code - 12 )  ) = ( void* ) V2P( entrypgdir );  // pdgdir to use
+
+		*stackTopPtr = stack + KSTACKSIZE;        // address of stack top
+
+		*mpenterPtr = mpenter;                    // address of mpenter
+
+		*pgdirPtr = ( void* ) V2P( entrypgdir );  // address of pgdir to use
+
 
 		lapicstartap( c->apicid, V2P( code ) );
 
