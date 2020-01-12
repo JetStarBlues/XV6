@@ -170,8 +170,6 @@ static void bfree ( int dev, uint blocknum )
 	int         bitidx,
 	            bitmask;
 
-	readsb( dev, &sb );
-
 	buffer = bread( dev, BBLOCK( blocknum, sb ) );
 
 	bitidx = blocknum % BITS_PER_BLOCK;
