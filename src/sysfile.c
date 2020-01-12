@@ -304,7 +304,6 @@ int sys_unlink ( void )
 	struct dirent  direntry;
 	char           name [ FILENAMESZ ];
 	char*          path;
-	uint           off;
 	int            nbytes;
 
 	if ( argstr( 0, &path ) < 0 )
@@ -333,7 +332,7 @@ int sys_unlink ( void )
 
 
 	// Get inode associated with 'name'
-	ip = dirlookup( parentdir, name, &off );
+	ip = dirlookup( parentdir, name, 0 );
 
 	if ( ip == 0 )
 	{
