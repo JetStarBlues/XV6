@@ -1,30 +1,43 @@
-# Useful Makefile info:
+# Useful Makefile reference:
 #   . https://www.gnu.org/software/make/manual/make.html#Automatic-Variables
+#
+# Note:
+#   . Currently, this Makefile does not recognize a need to re-compile
+#     affected files when a header file changes.
+#   . If you want changes to a header file to be appropriately propogated,
+#     you must first 'make clean'
+#   . TODO: implement one of these approaches to resolve
+#            https://stackoverflow.com/q/297514
 #
 
 
-# Paths
-SRCDIR       = src/
-UHEADERDIR   = src/usr/include/
-UPROGDIR     = src/usr/prog/
-UPROGCOREDIR = src/usr/prog/core/
-ULIBDIR      = src/usr/lib/
-KERNBINDIR   = bin/kern/
-UTILBINDIR   = bin/util/
-USERBINDIR   = bin/user/
-IMGDIR       = img/
-DEBUGDIR     = debug/
-DOCDIR       = doc/
+# ___ Paths _________________________________________________________________
 
-FSDIR       = fs/
-FSBINDIR    = fs/bin/
-FSDEVDIR    = fs/dev/
-FSUSRDIR    = fs/usr/
-FSUSRBINDIR = fs/usr/bin/
+# --- Directories -----------------------------------------------------------
+
+SRCDIR        = src/
+KERNHEADERDIR = src/
+USERHEADERDIR = src/usr/include/
+UPROGDIR      = src/usr/prog/
+UPROGCOREDIR  = src/usr/prog/core/
+ULIBDIR       = src/usr/lib/
+KERNBINDIR    = bin/kern/
+UTILBINDIR    = bin/util/
+USERBINDIR    = bin/user/
+DEBUGDIR      = debug/
+DOCDIR        = doc/
+IMGDIR        = img/
+
+FSDIR         = fs/
+FSBINDIR      = fs/bin/
+FSDEVDIR      = fs/dev/
+FSUSRDIR      = fs/usr/
+FSUSRBINDIR   = fs/usr/bin/
 
 
-# Kernel code
-KERNOBJS =          \
+# --- Kernel code -----------------------------------------------------------
+
+_KERN_OBJS =        \
 	buf.o           \
 	console.o       \
 	debug.o         \
@@ -60,8 +73,10 @@ KERNOBJS =          \
 	vga.o           \
 	vm.o
 
-# User code
-ULIB =                \
+
+# --- User code -------------------------------------------------------------
+
+_ULIB_OBJS =          \
 	GFX.o             \
 	GFXtext.o         \
 	printf.o          \
@@ -70,7 +85,7 @@ ULIB =                \
 	umalloc.o         \
 	usys.o
 
-UPROGSCORE =          \
+_UPROGSCORE_OBJS =    \
 	cat.o             \
 	echo.o            \
 	grep.o            \
@@ -83,7 +98,7 @@ UPROGSCORE =          \
 	sh.o              \
 	wc.o
 
-UPROGS =              \
+_UPROGS_OBJS =        \
 	exists.o          \
 	forktest.o        \
 	gets_test.o       \
@@ -111,12 +126,16 @@ UPROGS =              \
 	wisc_spinner.o    \
 	zombie.o
 
+# --- ... -------------------------------------------------------------------
 
 # JK... stackoverflow.com/a/4481931
-KERNOBJS_BINS   = $(addprefix $(KERNBINDIR), $(KERNOBJS))
-ULIB_BINS       = $(addprefix $(USERBINDIR), $(ULIB))
-UPROGSCORE_BINS = $(addprefix $(USERBINDIR), $(UPROGSCORE))
-UPROGS_BINS     = $(addprefix $(USERBINDIR), $(UPROGS))
+KERN_OBJS       = $(addprefix $(KERNBINDIR), $(_KERN_OBJS))
+ULIB_OBJS       = $(addprefix $(USERBINDIR), $(_ULIB_OBJS))
+UPROGSCORE_OBJS = $(addprefix $(USERBINDIR), $(_UPROGSCORE_OBJS))
+UPROGS_OBJS     = $(addprefix $(USERBINDIR), $(_UPROGS_OBJS))
+
+
+# ___ Configure Tools _______________________________________________________
 
 # Cross-compiling (e.g., on Mac OS X)
 # TOOLPREFIX = i386-jos-elf
@@ -161,11 +180,13 @@ QEMU = $(shell if which qemu > /dev/null; \
 	echo "***" 1>&2; exit 1)
 endif
 
+
 CC      = $(TOOLPREFIX)gcc
 AS      = $(TOOLPREFIX)gas
 LD      = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
+
 
 # CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -O2 -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer
 # CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb -m32 -Werror -fno-omit-frame-pointer  # JK, remove optimization
@@ -174,9 +195,6 @@ CFLAGS = -fno-pic -static -fno-builtin -fno-strict-aliasing -Wall -MD -ggdb -m32
                                                                                                                             #     http://staff.ustc.edu.cn/~bjhua/courses/ats/2014/hw/hw-interface.html
                                                                                                                             #     https://forum.osdev.org/viewtopic.php?f=1&t=30570
 CFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
-ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
-# FreeBSD ld wants ``elf_i386_fbsd''
-LDFLAGS += -m $(shell $(LD) -V | grep elf_i386 2>/dev/null | head -n 1)
 
 # Disable PIE when possible (for Ubuntu 16.10 toolchain)
 ifneq ($(shell $(CC) -dumpspecs 2>/dev/null | grep -e '[^f]no-pie'),)
@@ -187,7 +205,15 @@ CFLAGS += -fno-pie -nopie
 endif
 
 
-# --- OS image --------------------------------------------------------------
+ASFLAGS = -m32 -gdwarf-2 -Wa,-divide
+
+# FreeBSD ld wants ``elf_i386_fbsd''
+LDFLAGS = -m $(shell $(LD) -V | grep elf_i386 2>/dev/null | head -n 1)
+
+
+# ___ Compile images ______________________________________________________
+
+# --- xv6.img -------------------------------------------------------------
 
 xv6.img: $(IMGDIR)bootblock $(IMGDIR)kernel
 	dd if=/dev/zero          of=$(IMGDIR)xv6.img count=10000          # zero out 512*count bytes
@@ -224,7 +250,7 @@ $(IMGDIR)initcode: $(SRCDIR)initcode.S
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
 
 # The kernel ELF is a composite of:
-#    $(KERNOBJS_BINS)
+#    $(KERN_OBJS)
 #    entry.o
 #    entryother
 #    initcode
@@ -236,8 +262,8 @@ $(IMGDIR)initcode: $(SRCDIR)initcode.S
 #    _binary_img_initcode_start   .. _binary_img_initcode_end
 #    _binary_img_entryother_start .. _binary_img_entryother_end
 #
-$(IMGDIR)kernel: $(KERNOBJS_BINS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld
-	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERNOBJS_BINS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
+$(IMGDIR)kernel: $(KERN_OBJS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld
+	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERN_OBJS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
 	$(OBJDUMP) -S -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel.asm
 	$(OBJDUMP) -D -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel_all.asm
 	$(OBJDUMP) -t $(IMGDIR)kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernel.sym
@@ -249,22 +275,41 @@ $(IMGDIR)kernel: $(KERNOBJS_BINS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMG
 # exploring disk buffering implementations, but it is
 # great for testing the kernel on real hardware without
 # needing a scratch disk.
-MEMFSOBJS = $(filter-out ide.o, $(KERNOBJS)) memide.o
-MEMFSOBJS_BINS = $(addprefix $(KERNBINDIR), $(MEMFSOBJS))  # JK
+_MEMFS_OBJS = $(filter-out ide.o, $(_KERN_OBJS)) memide.o
+MEMFS_OBJS = $(addprefix $(KERNBINDIR), $(_MEMFS_OBJS))  # JK
 
-$(IMGDIR)kernelmemfs: $(MEMFSOBJS_BINS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld fs.img
-	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernelmemfs $(KERNBINDIR)entry.o $(MEMFSOBJS_BINS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother $(IMGDIR)fs.img
+$(IMGDIR)kernelmemfs: $(MEMFS_OBJS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld fs.img
+	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernelmemfs $(KERNBINDIR)entry.o $(MEMFS_OBJS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother $(IMGDIR)fs.img
 	$(OBJDUMP) -S -M intel $(IMGDIR)kernelmemfs > $(DEBUGDIR)kernelmemfs.asm
 	$(OBJDUMP) -t $(IMGDIR)kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernelmemfs.sym
-
-
-# http://manpages.ubuntu.com/manpages/trusty/man1/etags.xemacs21.1.html
-# tags: $(KERNOBJS) entryother.S _init
-# 	etags *.S *.c
 
 # ...
 $(SRCDIR)trapvectors.S: $(SRCDIR)trapvectors.pl
 	$(SRCDIR)trapvectors.pl > $(SRCDIR)trapvectors.S
+
+
+# http://manpages.ubuntu.com/manpages/trusty/man1/etags.xemacs21.1.html
+# tags: $(_KERN_OBJS) entryother.S _init
+# 	etags *.S *.c
+
+
+# --- fs.img ----------------------------------------------------------------
+
+$(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
+	gcc -Werror -Wall -o $(UTILBINDIR)mkfs $(SRCDIR)mkfs.c
+
+
+# mkfs will clone an exisiting directory '$(FSDIR)' into 'fs.img'
+# Based on:
+#  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
+#  https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
+#
+fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROGSCORE_OBJS) $(UPROGS_OBJS)
+
+	# Keep copy up to date
+	cp README $(FSDIR)
+
+	$(UTILBINDIR)mkfs $(IMGDIR)fs.img $(FSDIR)
 
 
 # --- ... -------------------------------------------------------------------
@@ -278,9 +323,9 @@ $(SRCDIR)trapvectors.S: $(SRCDIR)trapvectors.pl
 
 # JK Used to compile kernel code
 $(KERNBINDIR)%.o: $(SRCDIR)%.c
-	$(CC) $(CFLAGS) -c $< -o $(KERNBINDIR)$(@F)
+	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
 $(KERNBINDIR)%.o: $(SRCDIR)%.S
-	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)
+	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
 
 $(KERNBINDIR)trapvectors.o: $(SRCDIR)trapvectors.S
 	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)  # JK, stackoverflow.com/q/53348134
@@ -288,19 +333,19 @@ $(KERNBINDIR)trapvectors.o: $(SRCDIR)trapvectors.S
 
 # JK Used to compile user code
 $(USERBINDIR)%.o: $(ULIBDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
-$(USERBINDIR)%.o: $(ULIBDIR)%.S
-	$(CC) $(ASFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+$(USERBINDIR)%.o: $(ULIBDIR)%.S 
+	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 
 $(USERBINDIR)%.o: $(UPROGCOREDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_BINS)
+	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
 $(USERBINDIR)%.o: $(UPROGDIR)%.c
-	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_BINS)
+	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
@@ -308,15 +353,12 @@ $(USERBINDIR)forktest.o: $(UPROGDIR)forktest.c
 	# forktest has less library code linked in
 	# Needs to be small (size?) in order to be able to max out the proc table.
 	# JK, added umalloc.o, hopefully nothing breaks...
-	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(UHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
+	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)ulib.o $(USERBINDIR)usys.o $(USERBINDIR)umalloc.o
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)forktest > $(DEBUGDIR)forktest.asm
 
 
-# --- fs --------------------------------------------------------------------
-
-$(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
-	gcc -Werror -Wall -o $(UTILBINDIR)mkfs $(SRCDIR)mkfs.c
+# --- ? ---------------------------------------------------------------------
 
 # Prevent deletion of intermediate files, e.g. cat.o, after first build, so
 # that disk image changes after first build are persistent until clean.
@@ -326,20 +368,6 @@ $(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 .PRECIOUS: $(USERBINDIR)%.o
 .PRECIOUS: $(UTILBINDIR)%.o
 # .PRECIOUS: %.o
-
-# fs.img: mkfs README $(ULIB) $(UPROGS)
-# 	$(BINDIR)mkfs $(IMGDIR)fs.img README $(UPROG_BINS)
-
-# mkfs will clone an exisiting directory (fs). Based on,
-#  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
-#  https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
-#
-fs.img: $(UTILBINDIR)mkfs $(ULIB_BINS) $(UPROGSCORE_BINS) $(UPROGS_BINS)
-
-	# Keep copy up to date
-	cp README $(FSDIR)
-
-	$(UTILBINDIR)mkfs $(IMGDIR)fs.img $(FSDIR)
 
 
 # --- ? ---------------------------------------------------------------------
@@ -393,11 +421,11 @@ print: xv6.pdf
 
 # ___ Run in emulators ______________________________________________________
 
-bochs: fs.img xv6.img
-	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
-	bochs -q
+# bochs: fs.img xv6.img
+# 	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
+# 	bochs -q
 
-# try to generate a unique GDB port
+# Try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
 # QEMU's gdb stub command line changed in 0.11
 QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
@@ -433,4 +461,3 @@ qemu-gdb: fs.img xv6.img .gdbinit
 qemu-nox-gdb: fs.img xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
-
