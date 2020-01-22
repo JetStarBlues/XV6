@@ -26,7 +26,40 @@ static uchar textBgColor = 15;   // white
 static uchar cursorColor = 112;  // brown
 
 //
-#define TABSIZE 3  // tab size in spaces
+#define TABSIZE 3   // tab size in spaces
+
+
+/* For now using fixed value. Ideally would use runtime value of
+   'editorState.nScreenCols + 1'
+*/
+#define STATUSBUFSZ 81
+
+/* Key macros from 'kbd.h'
+
+   QEMU window has to be in focus to use the associated keys.
+
+   If the terminal/console/command-prompt that launched QEMU is
+   instead in focus, you'll get a multibyte escape sequence that
+   needs to be decoded. See explanation here:
+    . https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#arrow-keys 
+
+   I think the code in 'kbd.c' does this decoding for you...
+   TODO: confirm 
+*/
+#define KEY_HOME     0xE0  // Doesn't seem to work =(
+#define KEY_END      0xE1
+#define KEY_UP       0xE2
+#define KEY_DOWN     0xE3
+#define KEY_LEFT     0xE4
+#define KEY_RIGHT    0xE5
+#define KEY_PAGEUP   0xE6
+#define KEY_PAGEDOWN 0xE7
+#define KEY_DELETE   0xE9
+
+
+//
+#define K_BACKSPACE  8
+#define K_ESCAPE    27
 
 
 //
@@ -74,6 +107,8 @@ struct _editorState {
 
 	//
 	char* filename;
+	char  message [ STATUSBUFSZ ];
+	int   messageTime;
 };
 
 static struct _editorState editorState;
@@ -81,6 +116,9 @@ static struct _editorState editorState;
 
 //
 void die ( char* );
+void updateTextRowRender ( struct _textRow* );
+void insertChar ( int );
+void appendTextRow ( char*, int );
 
 
 // ____________________________________________________________________________________
@@ -322,6 +360,7 @@ void printString ( char* s, int wrap )
 }
 
 
+// ____________________________________________________________________________________
 
 
 
@@ -333,6 +372,55 @@ void printString ( char* s, int wrap )
 
 
 
+
+
+
+void insertCharIntoTextRow ( struct _textRow* textRow, int idx, int c )
+{
+	if ( ( idx < 0 ) || ( idx > textRow->len ) )
+	{
+		idx = textRow->len;  /* idx is allowed to go one character past
+		                        the end of the string, to allow insertion
+		                        at the end... */
+	}
+
+	textRow->chars = realloc( textRow->chars, textRow->len + 2 );  // +1 for c, +1 for null terminal
+
+	// Move chars currently at idx..len, one char over to idx+1..len+1
+	memmove(
+
+		textRow->chars + idx + 1,
+		textRow->chars + idx,
+		textRow->len + 1 - idx  // +1 for null terminal?
+	);
+
+	textRow->len += 1;  // update to reflect new space added for c
+
+	textRow->chars[ idx ] = c;  // place c in array
+
+
+	// Update textRow's render fields...
+	updateTextRowRender( textRow );
+}
+
+void insertChar ( int c )
+{
+	struct _textRow* curTextRow;
+
+	/* If cursor is at end of file, append a new row before
+	   we begin inserting a character
+	*/
+	if ( editorState.editCursorRow == editorState.nTextRows )
+	{
+		appendTextRow( "", 0 );
+	}
+
+	curTextRow = editorState.textRows + editorState.editCursorRow;
+
+	insertCharIntoTextRow( curTextRow, editorState.editCursorCol, c );
+
+	editorState.editCursorCol += 1;
+}
 
 
 // ____________________________________________________________________________________
@@ -401,7 +489,7 @@ void updateTextRowRender ( struct _textRow* textRow )  // better name
 
 // ____________________________________________________________________________________
 
-void appendTextRow ( char*line, int lineLen )
+void appendTextRow ( char* line, int lineLen )
 {
 	struct _textRow* ptr;
 	struct _textRow* curTextRow;
@@ -445,6 +533,8 @@ void appendTextRow ( char*line, int lineLen )
 	editorState.nTextRows += 1;
 }
 
+
+// ____________________________________________________________________________________
 
 void openFile ( char* filename )  // better name
 {
@@ -588,34 +678,37 @@ void scroll ( void )
 
 // ____________________________________________________________________________________
 
-/* Key macros from 'kbd.h'
-
-   QEMU window has to be in focus to use the associated keys.
-
-   If the terminal/console/command-prompt that launched QEMU is
-   instead in focus, you'll get a multibyte escape sequence that
-   needs to be decoded. See explanation here:
-    . https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#arrow-keys 
-
-   I think the code in 'kbd.c' does this decoding for you...
-   TODO: confirm 
+/* Snap cursor to end of line.
+   I.e. if on row update, col position is now invalid (past end of line)
 */
-#define KEY_HOME     0xE0  // Doesn't seem to work =(
-#define KEY_END      0xE1
-#define KEY_UP       0xE2
-#define KEY_DOWN     0xE3
-#define KEY_LEFT     0xE4
-#define KEY_RIGHT    0xE5
-#define KEY_PAGEUP   0xE6
-#define KEY_PAGEDOWN 0xE7
-#define KEY_DELETE   0xE9
+void snapCursor ( void )
+{
+	struct _textRow* curTextRow;
 
-//
-#define SNAP    0
-#define NO_SNAP 1
+	if ( editorState.editCursorRow < editorState.nTextRows )
+	{
+		curTextRow = editorState.textRows + editorState.editCursorRow;
+	}
+	else
+	{
+		curTextRow = NULL;
+	}
 
-//
-void moveCursor ( uchar key, int snap )
+	if ( curTextRow )
+	{
+		if ( editorState.editCursorCol > curTextRow->len )  // past end of line
+		{
+			editorState.editCursorCol = curTextRow->len;
+		}
+	}
+	else  // empty line
+	{
+		editorState.editCursorCol = 0;
+	}
+}
+
+
+void moveCursor ( uchar key )
 {
 	struct _textRow* curTextRow;
 
@@ -701,79 +794,20 @@ void moveCursor ( uchar key, int snap )
 	}
 
 
-	/* Snap cursor to end of line.
-	   I.e. if on row update, col position is now invalid (past end of line)
-	*/
-
-	if ( snap == SNAP )
-	{
-		if ( editorState.editCursorRow < editorState.nTextRows )
-		{
-			curTextRow = editorState.textRows + editorState.editCursorRow;
-		}
-		else
-		{
-			curTextRow = NULL;
-		}
-
-		if ( curTextRow )
-		{
-			if ( editorState.editCursorCol > curTextRow->len )  // past end of line
-			{
-				editorState.editCursorCol = curTextRow->len;
-			}
-		}
-		else  // empty line
-		{
-			editorState.editCursorCol = 0;
-		}
-	}
+	// Snap cursor to end of line
+	snapCursor();
 }
 
 
-// ____________________________________________________________________________________
-
-char readKey ( void )
+void moveCursor2 ( uchar key )
 {
-	char c;
-
-	if ( read( stdin, &c, 1 ) < 0 )  // read blocks
-	{
-		die( "read" );
-	}
-
-	// printf( stdout, "(%d, %c)\n", c, c );
-
-	return c;
-}
-
-void processKeyPress ( void )
-{
-	uchar            c;
-	// int              n;
 	struct _textRow* curTextRow;
-	// int              savedEditCursorRow;
 	int              offsetFromScreenTop;
 	int              offsetFromScreenBtm;
 
-	c = ( uchar ) readKey();
-
-	switch ( c )
+	switch ( key )
 	{
-		case CTRL( 'q' ):
-
-			die( NULL );
-			break;
-
-		case KEY_LEFT:
-		case KEY_RIGHT:
-		case KEY_UP:
-		case KEY_DOWN:
-
-			moveCursor( c, SNAP );
-			break;
-
-		/* TODO: simply KEY_PAGEUP/DOWN logic
+		/* TODO: simplify KEY_PAGEUP/DOWN logic
 		*/
 		case KEY_PAGEUP:
 
@@ -794,7 +828,7 @@ void processKeyPress ( void )
 				editorState.editCursorRow = 0;
 
 				// Update cursor's column offset
-				moveCursor( 0, SNAP );
+				snapCursor();
 
 				break;
 			}
@@ -820,7 +854,7 @@ void processKeyPress ( void )
 			}
 
 			// Update cursor's column offset
-			moveCursor( 0, SNAP );
+			snapCursor();
 
 			break;
 
@@ -843,7 +877,7 @@ void processKeyPress ( void )
 				editorState.editCursorRow = editorState.nTextRows;
 
 				// Update cursor's column offset
-				moveCursor( 0, SNAP );
+				snapCursor();
 
 				break;
 			}
@@ -869,7 +903,7 @@ void processKeyPress ( void )
 			}
 
 			// Update cursor's column offset
-			moveCursor( 0, SNAP );
+			snapCursor();
 
 			break;
 
@@ -890,11 +924,99 @@ void processKeyPress ( void )
 
 			break;
 
-		// case KEY_DELETE:
-			// break;
+		default:
+
+			break;
+	}
+}
+
+
+// ____________________________________________________________________________________
+
+char readKey ( void )
+{
+	char c;
+
+	if ( read( stdin, &c, 1 ) < 0 )  // read blocks
+	{
+		die( "read" );
+	}
+
+	// printf( stdout, "(%d, %c)\n", c, c );
+
+	return c;
+}
+
+void processKeyPress ( void )
+{
+	uchar            c;
+
+	c = ( uchar ) readKey();
+
+	switch ( c )
+	{
+		case CTRL( 'q' ):
+
+			die( NULL );
+			break;
+
+
+		case CTRL( 'g' ):  // ctrl-h clashing with backspace
+
+			// TODO
+			break;
+
+
+		case CTRL( 'f' ):
+
+			// TODO
+			break;
+
+
+		case KEY_LEFT:
+		case KEY_RIGHT:
+		case KEY_UP:
+		case KEY_DOWN:
+
+			moveCursor( c );
+			break;
+
+
+		case KEY_PAGEUP:
+		case KEY_PAGEDOWN:
+		case KEY_HOME:
+		case KEY_END:
+
+			moveCursor2( c );
+			break;
+
+
+		case '\n':
+
+			// TODO
+			break;
+
+
+		case KEY_DELETE:
+
+			// TODO
+			break;
+
+
+		case K_BACKSPACE:
+
+			// TODO
+			break;
+
+
+		case K_ESCAPE:
+
+			break;
+
 
 		default:
 
+			insertChar( c );
 			break;
 	}
 }
@@ -979,8 +1101,7 @@ void drawStatusBar ( void )
 	int  posTextCol;
 	int  slen;
 	int  slen2;
-	char status [ 81 ];  /* if nScreenCols was compile time constant, would use it
-	                        instead to allocate space */
+	char status [ STATUSBUFSZ ];
 
 	GFXText_invertTextColors();
 
@@ -1043,6 +1164,35 @@ void drawStatusBar ( void )
 	GFXText_invertTextColors();
 }
 
+void setMessage ( const char* fmt, ... )
+{
+	va_list argp;
+
+	va_start( argp, fmt );
+
+	vsnprintf( editorState.message, STATUSBUFSZ, fmt, argp );
+
+	va_end( argp );
+
+	// editor.messageTime = time();  // seconds since epoch
+	editorState.messageTime = uptime();  // "ticks" since kernel started...
+}
+
+void drawMessageBar ( void )
+{
+	int curTime;
+
+	curTime = uptime();
+
+	// Display message if less than x ticks old
+	if ( ( curTime - editorState.messageTime ) < 300 )
+	{
+		GFXText_setCursorPosition( editorState.nScreenRows + 1, 0 );
+
+		printString( editorState.message, NO_WRAP );
+	}
+}
+
 
 // ____________________________________________________________________________________
 
@@ -1057,6 +1207,7 @@ void refreshScreen ( void )
 	//
 	drawRows();
 	drawStatusBar();
+	drawMessageBar();
 
 	//
 	GFXText_setCursorPosition(
@@ -1083,6 +1234,7 @@ void initEditor ( void )
 	GFXText_getDimensions( &editorState.nScreenRows, &editorState.nScreenCols );
 
 	editorState.nScreenRows -= 1;  // reserve space for status bar
+	editorState.nScreenRows -= 1;  // reserve space for message bar
 
 
 	//
@@ -1093,7 +1245,9 @@ void initEditor ( void )
 
 
 	//
-	editorState.filename = NULL;
+	editorState.filename     = NULL;
+	editorState.message[ 0 ] = 0;
+	editorState.messageTime  = 0;
 }
 
 
@@ -1144,6 +1298,8 @@ int main ( int argc, char* argv [] )
 	{
 		openFile( argv[ 1 ] );
 	}
+
+	setMessage( "Type <Ctrl-q> to quit" );
 
 	while ( 1 )
 	{
