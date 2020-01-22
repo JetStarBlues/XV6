@@ -100,6 +100,7 @@ _USER_HEADERS = \
 	GFX.h       \
 	GFXtext.h   \
 	stdarg2.h   \
+	time.h      \
 	user.h
 
 _ULIB_OBJS =          \
@@ -107,6 +108,7 @@ _ULIB_OBJS =          \
 	GFXtext.o         \
 	printf.o          \
 	termios.o         \
+	time.o            \
 	ulib.o            \
 	umalloc.o         \
 	usys.o
@@ -125,6 +127,7 @@ _UPROGSCORE_OBJS =    \
 	wc.o
 
 _UPROGS_OBJS =        \
+    clock.o           \
 	exists.o          \
 	forktest.o        \
 	gets_test.o       \
@@ -138,7 +141,6 @@ _UPROGS_OBJS =        \
 	realloc_test.o    \
 	stackoverflow.o   \
 	stressfs.o        \
-	time.o            \
 	temptest.o        \
 	usertests.o       \
 	wisc_exec.o       \

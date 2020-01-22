@@ -48,7 +48,7 @@
    receive timer interrupts independently...
 */
 #define CMOS_PORT     0x70
-#define CMOS_RETURN   0x71
+#define CMOS_DATA     0x71
 #define CMOS_STATA    0x0A
 #define CMOS_STATB    0x0B
 #define CMOS_UIP    ( 1 << 7 )  // RTC update in progress
@@ -56,7 +56,8 @@
 #define SECS          0x00
 #define MINS          0x02
 #define HOURS         0x04
-#define DAY           0x07
+#define WEEKDAY       0x06  // https://wiki.osdev.org/CMOS#Getting_Current_Date_and_Time_from_RTC
+#define MONTHDAY      0x07
 #define MONTH         0x08
 #define YEAR          0x09
 
@@ -94,6 +95,7 @@ void lapicinit ( void )
 	// from lapic[TICR] and then issues an interrupt.
 	// If xv6 cared more about precise timekeeping,
 	// TICR would be calibrated using an external time source.
+	// https://wiki.osdev.org/APIC_timer#Periodic_Mode
 	lapicw( TDCR, X1 );
 	lapicw( TIMER, PERIODIC | ( T_IRQ0 + IRQ_TIMER ) );
 	lapicw( TICR, 10000000 );
@@ -172,7 +174,7 @@ void lapicstartap ( uchar apicid, uint addr )
 	// and the warm reset vector ( DWORD based at 40:67 ) to point at
 	// the AP startup code prior to the [universal startup algorithm]."
 	outb( CMOS_PORT, 0xF );  // offset 0xF is shutdown code
-	outb( CMOS_PORT + 1, 0x0A );
+	outb( CMOS_DATA, 0x0A );
 
 	wrv = ( ushort* ) P2V( ( 0x40 << 4 | 0x67 ) );  // Warm reset vector
 	wrv[ 0 ] = 0;
@@ -209,20 +211,21 @@ static uint cmos_read ( uint reg )
 
 	microdelay( 200 );
 
-	return inb( CMOS_RETURN );
+	return inb( CMOS_DATA );
 }
 
 static void fill_rtcdate ( struct rtcdate* r )
 {
-	r->second = cmos_read( SECS );
-	r->minute = cmos_read( MINS );
-	r->hour   = cmos_read( HOURS );
-	r->day    = cmos_read( DAY );
-	r->month  = cmos_read( MONTH );
-	r->year   = cmos_read( YEAR );
+	r->second   = cmos_read( SECS );
+	r->minute   = cmos_read( MINS );
+	r->hour     = cmos_read( HOURS );
+	r->weekday  = cmos_read( WEEKDAY );
+	r->monthday = cmos_read( MONTHDAY );
+	r->month    = cmos_read( MONTH );
+	r->year     = cmos_read( YEAR );
 }
 
-// QEMU seems to use 24-hour GWT and the values are BCD encoded
+// QEMU seems to use 24-hour GMT and the values are BCD encoded
 void cmostime ( struct rtcdate* r )
 {
 	struct rtcdate t1,
@@ -241,7 +244,7 @@ void cmostime ( struct rtcdate* r )
 
 		if ( cmos_read( CMOS_STATA ) & CMOS_UIP )
 		{
-				continue;
+			continue;
 		}
 
 		fill_rtcdate( &t2 );
@@ -257,17 +260,18 @@ void cmostime ( struct rtcdate* r )
 	{
 		#define CONV( x ) ( t1.x = ( ( t1.x >> 4 ) * 10 ) + ( t1.x & 0xf ) )
 
-			CONV( second );
-			CONV( minute );
-			CONV( hour   );
-			CONV( day    );
-			CONV( month  );
-			CONV( year   );
+			CONV( second   );
+			CONV( minute   );
+			CONV( hour     );
+			CONV( weekday  );
+			CONV( monthday );
+			CONV( month    );
+			CONV( year     );
 
 		#undef CONV
 	}
 
 	*r = t1;
 
-	r->year += 2000;
+	r->year += 2000;  // 2000 + (0..99)
 }
