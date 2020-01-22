@@ -80,7 +80,7 @@ SECTIONS
 	}
 
 
-	/* Adjust the address for the data segment to the next page
+	/* Adjust the address for the data segment to start of next page
 	 */
 	. = ALIGN(0x1000);
 
