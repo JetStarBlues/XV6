@@ -126,7 +126,7 @@ int main ( int argc, char* argv [] )
 
 
 	// Prepare superblock
-	nbitmapblocks = FSSIZE / ( BLOCKSIZE * 8 ) + 1;
+	nbitmapblocks = ( FSSIZE / BITS_PER_BLOCK ) + 1;
 	ninodeblocks  = ( FSNINODE / INODES_PER_BLOCK ) + 1;
 	nlogblocks    = LOGSIZE;
 
@@ -231,6 +231,18 @@ int main ( int argc, char* argv [] )
 
 	// Create bitmap
 	balloc( freeblock );
+
+
+	//
+	printf(
+
+		"\n"
+		"ialloc: first %d inodes have been allocated.\n"
+		"        %d remain\n",
+		freeinode,
+		FSNINODE - freeinode
+	);
+
 
 	//
 	exit( 0 );
@@ -543,9 +555,15 @@ void balloc ( int used )
 	uchar buf [ BLOCKSIZE ];
 	int   i;
 
-	printf( "balloc: first %d blocks have been allocated\n", used );
+	printf(
 
-	assert( used < BLOCKSIZE * 8 );
+		"balloc: first %d blocks have been allocated.\n"
+		"        %d remain\n",
+		used,
+		FSSIZE - used
+	);
+
+	assert( used < BITS_PER_BLOCK );  // 1 bitmap block...
 
 	bzero( buf, BLOCKSIZE );  // clear all bits
 

@@ -11,6 +11,5 @@ struct stat
 	short          type;   // Inode type
 	short          nlink;  // Number of links to file
 	uint           size;   // Size of file in bytes
-	struct rtcdate ctime;  // Time created
 	struct rtcdate mtime;  // Time of last modification
 };

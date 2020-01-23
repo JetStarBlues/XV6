@@ -465,9 +465,13 @@ static struct inode* create ( char* path, short type, short major, short minor )
 
 	ilock( ip );
 
+
+	// Initialize the inode
 	ip->major = major;
 	ip->minor = minor;
 	ip->nlink = 1;
+
+	cmostime( &( ip->mtime ) );  // set current time as mtime
 
 	iupdate( ip );
 
@@ -509,7 +513,7 @@ static struct inode* create ( char* path, short type, short major, short minor )
 int sys_open ( void )
 {
 	struct inode* ip;
-	struct file * f;
+	struct file*  f;
 	char*         path;
 	int           fd,
 	              omode;
@@ -520,7 +524,6 @@ int sys_open ( void )
 		return - 1;
 	}
 
-	foffset = 0;
 
 	begin_op();
 
@@ -531,6 +534,8 @@ int sys_open ( void )
 
 		if ( ip == 0 )
 		{
+			cprintf( "sys_open: create '%s' failed\n", path );
+
 			end_op();
 
 			return - 1;
@@ -544,44 +549,71 @@ int sys_open ( void )
 
 		if ( ip == 0 )
 		{
+			// cprintf( "sys_open: file '%s' not found\n", path );
+
 			end_op();
-			
+
 			return - 1;
 		}
 
 		ilock( ip );  // unlike 'create', 'namei' does not return a locked inode
-
-		// Make sure only reading directories
-		if ( ip->type == T_DIR && omode != O_RDONLY )
-		{
-			iunlockput( ip );
-
-			end_op();
-
-			return - 1;
-		}
 	}
 
-	// JK
-	if ( omode != O_RDONLY )
+
+	/* By default, 'foffset' points to start of file.
+	   stackoverflow.com/a/59886657
+	*/
+	foffset = 0;
+
+	// If opened for writing, place 'foffset' based on flags
+	if ( ( omode & O_WRONLY ) || ( omode & O_RDWR ) )
 	{
-		// If O_TRUNC, set file size to zero
-		// (and free previously allocated data blocks)
-		if ( ( omode & O_TRUNC ) && ( ip->type == T_FILE ) )
+		if ( ip->type == T_FILE )
 		{
-			// cprintf( "O_TRUNC\n" );
+			/* If O_TRUNC, set file size to zero
+			   (and free previously allocated data blocks)
+			*/
+			if ( omode & O_TRUNC )
+			{
+				itrunc( ip );
+			}
 
-			itrunc( ip );
+			// If O_APPEND, set file offset to EOF
+			else if ( omode & O_APPEND )
+			{
+				foffset = ip->size;
+			}
 		}
 
-		// If O_APPEND, set file offset to EOF
-		if ( ( omode & O_APPEND ) && ( ip->type != T_DIR ) )
+		// Hmm...
+		else if ( ip->type == T_DEV )
 		{
-			// cprintf( "O_APPEND\n" );
+			if ( omode & O_TRUNC )
+			{
+				cprintf( "sys_open: T_DEV cannot be opened with O_TRUNC\n" );
 
-			foffset = ip->size;
+				goto bad;
+			}
+
+			/* TODO: O_APPEND seems to be persistent flag that follows 'struct file'.
+			         Then each device, can choose whether to handle or ignore...
+			          https://stackoverflow.com/q/20268627
+			*/
+			else if ( omode & O_APPEND )
+			{
+				foffset = ip->size;
+			}
+		}
+
+		// Can only read directories
+		else if ( ip->type == T_DIR )
+		{
+			cprintf( "sys_open: T_DIR cannot be opened with O_WRONLY or O_RDWR\n" );
+
+			goto bad;
 		}
 	}
+
 
 	// Allocate a file structure and file descriptor
 	f = filealloc();
@@ -595,11 +627,7 @@ int sys_open ( void )
 			fileclose( f );
 		}
 
-		iunlockput( ip );
-
-		end_op();
-
-		return - 1;
+		goto bad;
 	}
 
 	iunlock( ip );
@@ -614,6 +642,14 @@ int sys_open ( void )
 	f->writable = ( omode & O_WRONLY ) || ( omode & O_RDWR );
 
 	return fd;
+
+bad:
+
+	iunlockput( ip );
+
+	end_op();
+
+	return - 1;
 }
 
 
@@ -684,6 +720,9 @@ int sys_mkdir ( void )
 
 	return 0;
 }
+
+
+// ___________________________________________________________________________
 
 int sys_chdir ( void )
 {
@@ -898,6 +937,11 @@ int sys_ioctl ( void )
    https://github.com/DoctorWkt/xv6-freebsd/blob/master/kern/sysfile.c
 
    TODO: Write a proper test, and check works as expected
+
+   TODO: O_APPEND is persistent. If file opened with this flag,
+         position set by lseek is ignored, and all writes occur at EOF.
+           https://stackoverflow.com/a/59886657
+           https://stackoverflow.com/a/24223731
 */
 int sys_lseek ( void )
 {
