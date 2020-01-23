@@ -38,7 +38,6 @@ struct dinode
 
 
 	// http://panda.moyix.net/~moyix/cs3224/fall16/hw7/hw7.html
-	struct rtcdate ctime;                  // Time created
 	struct rtcdate mtime;                  // Time of last modification
 	/* "Because they need to fit neatly into one disk block,
 	    the size of the 'struct dinode' must divide the
@@ -46,10 +45,17 @@ struct dinode
 
 	    JK...
 	       Assuming, sizeof( struct rtcdate ) == 7
-	       Then, 16 + ( 2x7 ) + 2 = 32
+	       Then, 16 + ( 1x7 ) + 9 = 32
 	*/
 	uint padding0;
 	uint padding1;
+	uint padding2;
+	uint padding3;
+	uint padding4;
+	uint padding5;
+	uint padding6;
+	uint padding7;
+	uint padding8;
 };
 
 // Inodes per block.

@@ -404,6 +404,8 @@ void iupdate ( struct inode* ip )
 
 	memmove( diskinode->addrs, ip->addrs, sizeof( ip->addrs ) );
 
+	memmove( &( diskinode->mtime ), &( ip->mtime ), sizeof( struct rtcdate ) );
+
 	log_write( buffer );  // write changes to disk
 
 	brelse( buffer );
@@ -669,6 +671,8 @@ void ilock ( struct inode* ip )
 		ip->size  = diskinode->size;
 
 		memmove( ip->addrs, diskinode->addrs, sizeof( ip->addrs ) );
+
+		memmove( &( ip->mtime ), &( diskinode->mtime ), sizeof( struct rtcdate ) );
 
 		brelse( buffer );
 
@@ -1061,8 +1065,8 @@ void stati ( struct inode* ip, struct stat* st )
 	st->type  = ip->type;
 	st->nlink = ip->nlink;
 	st->size  = ip->size;
-	st->ctime = ip->ctime;
-	st->mtime = ip->mtime;
+
+	memmove( &( st->mtime ), &( ip->mtime ), sizeof( struct rtcdate ) );
 }
 
 

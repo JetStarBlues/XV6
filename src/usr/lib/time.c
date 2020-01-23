@@ -1,6 +1,10 @@
 #include "types.h"
 #include "date.h"
 
+/* TODO: When precision is implemented for printf,
+         no need for short versions. Can just use "%.3s"
+*/
+
 static char* weekdays [ 7 ] = {
 
 	"Sunday",
@@ -36,7 +40,7 @@ static char* months [ 12 ] = {
 	"September",
 	"October",
 	"November",
-	"December",
+	"December"
 };
 
 static char* monthsShort [ 12 ] = {
@@ -57,20 +61,40 @@ static char* monthsShort [ 12 ] = {
 
 char* stringify_weekday ( uint weekday )
 {
-	return weekdays[ weekday - 1 ];
+	if ( ( weekday >= 1 ) && ( weekday <= 7 ) )
+	{
+		return weekdays[ weekday - 1 ];
+	}
+
+	return 0;
 }
 
 char* stringify_weekdayShort ( uint weekday )
 {
-	return weekdaysShort[ weekday - 1 ];
+	if ( ( weekday >= 1 ) && ( weekday <= 7 ) )
+	{
+		return weekdaysShort[ weekday - 1 ];
+	}
+
+	return 0;
 }
 
 char* stringify_month ( uint month )
 {
-	return months[ month - 1 ];
+	if ( ( month >= 1 ) && ( month <= 12 ) )
+	{
+		return months[ month - 1 ];
+	}
+
+	return 0;
 }
 
 char* stringify_monthShort ( uint month )
 {
-	return monthsShort[ month - 1 ];
+	if ( ( month >= 1 ) && ( month <= 12 ) )
+	{
+		return monthsShort[ month - 1 ];
+	}
+
+	return 0;
 }

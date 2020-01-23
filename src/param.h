@@ -9,7 +9,7 @@
 #define NINODE          50                   // max number of active inodes
 
 #define NDEV            10                   // max major device number
-#define ROOTDEV         1                    // device number of file system root disk
+#define ROOTDEV         1                    // device number of file system root disk ??
 
 #define MAXARG          32                   // max exec arguments
 

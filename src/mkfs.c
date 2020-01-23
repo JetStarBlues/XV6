@@ -7,6 +7,7 @@
 #include <dirent.h>     // addDirectory
 #include <sys/types.h>  // addDirectory
 #include <sys/stat.h>   // addDirectory
+#include <time.h>       // mtime
 
 #define stat   xv6_stat    // avoid clash with host struct stat
 #define dirent xv6_dirent  // avoid clash with host struct dirent
@@ -45,15 +46,15 @@ uint              freeblock;  // max can be is ?? FSSIZE
 void balloc  ( int );
 void wsect   ( uint, void* );
 void winode  ( uint, struct dinode* );
-void rinode  ( uint inum, struct dinode* ip );
-void rsect   ( uint sec, void* buf );
-uint ialloc  ( ushort type );
-void iappend ( uint inum, void* p, int n );
+void rinode  ( uint, struct dinode* );
+void rsect   ( uint, void* );
+uint ialloc  ( ushort, struct rtcdate* );
+void iappend ( uint, void*, int );
 
 void addDirectoryEntry ( int, char*, int );
-void addFile           ( int, char* );
+void addFile           ( int, char*, struct rtcdate* );
 void addDirectory      ( int, char* );
-int  makeDirectory     ( int, char* );
+int  makeDirectory     ( int, char*, struct rtcdate* );
 
 
 // ___________________________________________________________________
@@ -90,11 +91,14 @@ uint xint ( uint x )
 
 int main ( int argc, char* argv [] )
 {
-	int           i;
-	uint          root_inum,
-	              off;
-	char          buf [ BLOCKSIZE ];
-	struct dinode din;
+	int            i;
+	uint           root_inum;
+	uint           off;
+	char           buf [ BLOCKSIZE ];
+	struct dinode  diskinode;
+	time_t         curTimeLx_;
+	struct tm*     curTimeLx;
+	struct rtcdate curTime;
 
 
 	if ( argc < 2 )
@@ -177,8 +181,28 @@ int main ( int argc, char* argv [] )
 	wsect( 1, buf );
 
 
+	// Get current time
+	curTimeLx_ = time( 0 );
+	curTimeLx  = gmtime( &curTimeLx_ );
+
+	if ( curTimeLx == NULL )
+	{
+		perror( "gmtime" );
+
+		exit( 1 );
+	}
+
+	curTime.second   = curTimeLx->tm_sec;
+	curTime.minute   = curTimeLx->tm_min;
+	curTime.hour     = curTimeLx->tm_hour;
+	curTime.weekday  = curTimeLx->tm_wday + 1;     // 1..7
+	curTime.monthday = curTimeLx->tm_mday;
+	curTime.month    = curTimeLx->tm_mon + 1;      // 1..12
+	curTime.year     = curTimeLx->tm_year + 1900;
+
+
 	// Create root inode
-	root_inum = ialloc( T_DIR );
+	root_inum = ialloc( T_DIR, &curTime );
 
 	assert( root_inum == ROOTINUM );
 
@@ -195,14 +219,14 @@ int main ( int argc, char* argv [] )
 
 
 	// Fix size of root inode dir ??
-	rinode( root_inum, &din );
+	rinode( root_inum, &diskinode );
 
-	off = xint( din.size );
+	off = xint( diskinode.size );
 	off = ( ( off / BLOCKSIZE ) + 1 ) * BLOCKSIZE;
 
-	din.size = xint( off );
+	diskinode.size = xint( off );
 
-	winode( root_inum, &din );
+	winode( root_inum, &diskinode );
 
 
 	// Create bitmap
@@ -238,12 +262,12 @@ void addDirectoryEntry ( int dir_inum, char* name, int file_inum )
 /* Make a new directory entry in the directory specified by
    the given i-number. Return the new directory's i-number
 */
-int makeDirectory ( int parentdir_inum, char* newdir_name )
+int makeDirectory ( int parentdir_inum, char* newdir_name, struct rtcdate* mtime )
 {
 	int newdir_inum;
 
 	// Allocate an inode number for the directory
-	newdir_inum = ialloc( T_DIR );
+	newdir_inum = ialloc( T_DIR, mtime );
 
 	// Set up the "." and ".." entries
 	addDirectoryEntry( newdir_inum, ".",  newdir_inum );     // self
@@ -256,7 +280,7 @@ int makeDirectory ( int parentdir_inum, char* newdir_name )
 }
 
 // Add a file to the directory specified by the given i-number
-void addFile ( int dir_inum, char* filename )
+void addFile ( int dir_inum, char* filename, struct rtcdate* mtime )
 {
 	char buf [ BLOCKSIZE ];
 	int  cc,
@@ -274,7 +298,7 @@ void addFile ( int dir_inum, char* filename )
 	}
 
 	// Create an i-node for the file
-	file_inum = ialloc( T_FILE );
+	file_inum = ialloc( T_FILE, mtime );
 
 	// Create a directory entry for the file
 	addDirectoryEntry( dir_inum, filename, file_inum );
@@ -305,6 +329,8 @@ void addDirectory ( int dir_inum, char* localdirname )
 	struct dirent* dent;
 	struct stat    st;
 	int            newdir_inum;
+	struct tm*     mtimeLx;
+	struct rtcdate mtime;
 
 	dir = opendir( localdirname );
 
@@ -346,17 +372,47 @@ void addDirectory ( int dir_inum, char* localdirname )
 			exit( 1 );
 		}
 
+		// Get file's last modified time
+		mtimeLx = gmtime( &( st.st_mtime ) );
+
+		if ( mtimeLx == NULL )
+		{
+			perror( "gmtime" );
+
+			exit( 1 );
+		}
+
+		/*printf( "%14s - year: %4d, month %2d, day %2d, time %02d:%02d:%02d\n",
+
+			dent->d_name,
+			mtimeLx->tm_year + 1900,
+			mtimeLx->tm_mon + 1,
+			mtimeLx->tm_mday,
+			mtimeLx->tm_hour,
+			mtimeLx->tm_min,
+			mtimeLx->tm_sec
+		);*/
+
+		mtime.second   = mtimeLx->tm_sec;
+		mtime.minute   = mtimeLx->tm_min;
+		mtime.hour     = mtimeLx->tm_hour;
+		mtime.weekday  = mtimeLx->tm_wday + 1;     // 1..7
+		mtime.monthday = mtimeLx->tm_mday;
+		mtime.month    = mtimeLx->tm_mon + 1;      // 1..12
+		mtime.year     = mtimeLx->tm_year + 1900;
+
+
 		// File is a directory
 		if ( S_ISDIR( st.st_mode ) )
 		{
-			newdir_inum = makeDirectory( dir_inum, dent->d_name );
+			newdir_inum = makeDirectory( dir_inum, dent->d_name, &mtime );
 
 			addDirectory( newdir_inum, dent->d_name );
 		}
 		// File is a regular file
 		else if ( S_ISREG( st.st_mode ) )
 		{
-			addFile( dir_inum, dent->d_name );
+			addFile( dir_inum, dent->d_name, &mtime );
 		}
 	}
 
@@ -451,9 +507,9 @@ void rinode ( uint inum, struct dinode* ip )
 
 // ___________________________________________________________________
 
-uint ialloc ( ushort type )
+uint ialloc ( ushort type, struct rtcdate* mtime )
 {
-	struct dinode din;
+	struct dinode diskinode;
 	uint          inum;
 
 	if ( freeinode >= FSNINODE )
@@ -469,13 +525,15 @@ uint ialloc ( ushort type )
 
 	freeinode += 1;
 
-	bzero( &din, sizeof( din ) );
+	bzero( &diskinode, sizeof( diskinode ) );
 
-	din.type  = xshort( type );
-	din.nlink = xshort( 1 );
-	din.size  = xint( 0 );
+	diskinode.type  = xshort( type );
+	diskinode.nlink = xshort( 1 );
+	diskinode.size  = xint( 0 );
 
-	winode( inum, &din );
+	memmove( &( diskinode.mtime ), mtime, sizeof( struct rtcdate ) );
+
+	winode( inum, &diskinode );
 
 	return inum;
 }
@@ -531,16 +589,16 @@ void iappend ( uint inum, void* xp, int n )
 	uint  n1;
 	uint  _freeblock;
 
-	struct dinode  din;
-	char           buf      [ BLOCKSIZE ];
-	uint           indirect [ NINDIRECT ];
-	uint           x;
+	struct dinode diskinode;
+	char          buf      [ BLOCKSIZE ];
+	uint          indirect [ NINDIRECT ];
+	uint          x;
 
 	p = ( char* ) xp;
 
-	rinode( inum, &din );
+	rinode( inum, &diskinode );
 
-	off = xint( din.size );
+	off = xint( diskinode.size );
 
 	// printf( "append inum %d at off %d sz %d\n", inum, off, n );
 
@@ -553,28 +611,28 @@ void iappend ( uint inum, void* xp, int n )
 		// Direct blocks
 		if ( fbn < NDIRECT )
 		{
-			if ( xint( din.addrs[ fbn ] ) == 0 )
+			if ( xint( diskinode.addrs[ fbn ] ) == 0 )
 			{
 				_freeblock = getfreeblock();
 
-				din.addrs[ fbn ] = xint( _freeblock );
+				diskinode.addrs[ fbn ] = xint( _freeblock );
 			}
 
-			x = xint( din.addrs[ fbn ] );
+			x = xint( diskinode.addrs[ fbn ] );
 		}
 		// Indirect blocks
 		else
 		{
 			// Indirect block
-			if ( xint( din.addrs[ NDIRECT ] ) == 0 )
+			if ( xint( diskinode.addrs[ NDIRECT ] ) == 0 )
 			{
 				_freeblock = getfreeblock();
 
-				din.addrs[ NDIRECT ] = xint( _freeblock );
+				diskinode.addrs[ NDIRECT ] = xint( _freeblock );
 			}
 
 			// Block pointed to by indirect block
-			rsect( xint( din.addrs[ NDIRECT ] ), ( char* ) indirect );
+			rsect( xint( diskinode.addrs[ NDIRECT ] ), ( char* ) indirect );
 
 			if ( indirect[ fbn - NDIRECT ] == 0 )
 			{
@@ -582,7 +640,7 @@ void iappend ( uint inum, void* xp, int n )
 
 				indirect[ fbn - NDIRECT ] = xint( _freeblock );
 
-				wsect( xint( din.addrs[ NDIRECT ] ), ( char* ) indirect );
+				wsect( xint( diskinode.addrs[ NDIRECT ] ), ( char* ) indirect );
 			}
 
 			x = xint( indirect[ fbn - NDIRECT ] );
@@ -601,7 +659,7 @@ void iappend ( uint inum, void* xp, int n )
 		p   += n1;
 	}
 
-	din.size = xint( off );
+	diskinode.size = xint( off );
 
-	winode( inum, &din );
+	winode( inum, &diskinode );
 }

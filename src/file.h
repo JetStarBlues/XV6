@@ -41,7 +41,6 @@ struct inode
 	                                            the on-disk inode */
 	uint             size;                   // Size of file (bytes)
 	uint             addrs [ NDIRECT + 1 ];  // Data block addresses
-	struct rtcdate   ctime;                  // Time created
 	struct rtcdate   mtime;                  // Time of last modification
 };
 
@@ -58,8 +57,8 @@ struct devsw
 extern struct devsw devsw [];
 
 // Major device numbers
-#define CONSOLE 1
-#define DISPLAY 2
+#define CONSOLE 2
+#define DISPLAY 3
 // DEVNULL  // (minor0: null, minor1: zero)
 // MOUSE
 // KEYBOARD
