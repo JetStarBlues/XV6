@@ -49,6 +49,7 @@
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
+#include "date.h"  // exists
 #include "stat.h"  // exists
 #include "fs.h"    // exists
 

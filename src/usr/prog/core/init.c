@@ -1,7 +1,6 @@
 // init: The initial user-level program
 
 #include "types.h"
-#include "stat.h"
 #include "user.h"
 #include "fcntl.h"
 /* JK, following includes are needed to get
@@ -10,6 +9,7 @@
 */
 #include "spinlock.h"
 #include "sleeplock.h"
+#include "date.h"
 #include "fs.h"
 #include "file.h"
 

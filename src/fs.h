@@ -27,14 +27,29 @@ struct superblock
 // On-disk inode structure
 struct dinode
 {
-	short type;                   // File type
-	short major;                  // Major device number (T_DEV only)
-	short minor;                  // Minor device number (T_DEV only)
-	short nlink;                  // Number of links to inode in file system
-	                              /* I.e. number of directory entries that refer to
-	                                 the on-disk inode */
-	uint  size;                   // Size of file (bytes)
-	uint  addrs [ NDIRECT + 1 ];  // Data block addresses
+	short          type;                   // File type
+	short          major;                  // Major device number (T_DEV only)
+	short          minor;                  // Minor device number (T_DEV only)
+	short          nlink;                  // Number of links to inode in file system
+	                                       /* I.e. number of directory entries that refer to
+	                                          the on-disk inode */
+	uint           size;                   // Size of file (bytes)
+	uint           addrs [ NDIRECT + 1 ];  // Data block addresses
+
+
+	// http://panda.moyix.net/~moyix/cs3224/fall16/hw7/hw7.html
+	struct rtcdate ctime;                  // Time created
+	struct rtcdate mtime;                  // Time of last modification
+	/* "Because they need to fit neatly into one disk block,
+	    the size of the 'struct dinode' must divide the
+	    block size evenly"
+
+	    JK...
+	       Assuming, sizeof( struct rtcdate ) == 7
+	       Then, 16 + ( 2x7 ) + 2 = 32
+	*/
+	uint padding0;
+	uint padding1;
 };
 
 // Inodes per block.

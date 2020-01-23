@@ -59,11 +59,12 @@
 #include "types.h"
 #include "defs.h"
 #include "param.h"
-#include "stat.h"
 #include "mmu.h"
 #include "proc.h"
 #include "spinlock.h"
 #include "sleeplock.h"
+#include "date.h"
+#include "stat.h"
 #include "fs.h"
 #include "buf.h"
 #include "file.h"
@@ -1060,6 +1061,8 @@ void stati ( struct inode* ip, struct stat* st )
 	st->type  = ip->type;
 	st->nlink = ip->nlink;
 	st->size  = ip->size;
+	st->ctime = ip->ctime;
+	st->mtime = ip->mtime;
 }
 
 

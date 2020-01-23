@@ -2,7 +2,6 @@
 // https://youtu.be/uMXGjayZ9DE
 
 #include "types.h"
-#include "stat.h"
 #include "user.h"
 
 int stack [ 4096 ] __attribute__ ( ( aligned ( 4096 ) ) );

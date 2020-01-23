@@ -1,4 +1,5 @@
 #include "types.h"
+#include "date.h"
 #include "stat.h"
 #include "user.h"
 #include "fs.h"
@@ -98,7 +99,12 @@ void ls ( char* path )
 	{
 		case T_FILE:
 
-			printf( 1, "%s %d %d %d\n", fmtname( path ), st.type, st.ino, st.size );
+			printf( 1,
+
+				"%s %6d %6d %9d\n",
+				fmtname( path ),
+				st.type, st.ino, st.size
+			);
 
 			break;
 
@@ -146,7 +152,12 @@ void ls ( char* path )
 					continue;
 				}
 
-				printf( 1, "%s %d %d %d\n", fmtname( buf ), st.type, st.ino, st.size );
+				printf( 1,
+
+					"%s %6d %6d %9d\n",
+					fmtname( buf ),
+					st.type, st.ino, st.size
+				);
 			}
 
 			break;
@@ -159,8 +170,8 @@ int main ( int argc, char* argv [] )
 {
 	int i;
 
-	printf( 1, "name | type | inum | size\n" );
-	printf( 1, "-------------------------\n" );
+	printf( 1, "name          | type | inum |    size | mtime | ctime\n" );
+	printf( 1, "-----------------------------------------------------\n" );
 
 	if ( argc < 2 )
 	{

@@ -41,6 +41,8 @@ struct inode
 	                                            the on-disk inode */
 	uint             size;                   // Size of file (bytes)
 	uint             addrs [ NDIRECT + 1 ];  // Data block addresses
+	struct rtcdate   ctime;                  // Time created
+	struct rtcdate   mtime;                  // Time of last modification
 };
 
 

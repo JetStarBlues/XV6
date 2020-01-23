@@ -12,6 +12,7 @@
 #define dirent xv6_dirent  // avoid clash with host struct dirent
 
 	#include "types.h"
+	#include "date.h"
 	#include "fs.h"
 	#include "stat.h"
 	#include "param.h"

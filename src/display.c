@@ -2,6 +2,7 @@
 #include "defs.h"
 #include "spinlock.h"
 #include "sleeplock.h"
+#include "date.h"
 #include "fs.h"
 #include "file.h"
 #include "display.h"
