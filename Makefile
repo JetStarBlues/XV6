@@ -246,13 +246,13 @@ LDFLAGS = -m $(shell $(LD) -V | grep elf_i386 2>/dev/null | head -n 1)
 
 # --- xv6.img -------------------------------------------------------------
 
-xv6.img: $(IMGDIR)bootblock $(IMGDIR)kernel
+$(IMGDIR)xv6.img: $(IMGDIR)bootblock $(IMGDIR)kernel
 	dd if=/dev/zero          of=$(IMGDIR)xv6.img count=10000          # zero out 512*count bytes
 
 	dd if=$(IMGDIR)bootblock of=$(IMGDIR)xv6.img        conv=notrunc  # first sector (512 bytes)
 	dd if=$(IMGDIR)kernel    of=$(IMGDIR)xv6.img seek=1 conv=notrunc  # second sector
 
-xv6memfs.img: $(IMGDIR)bootblock $(IMGDIR)kernelmemfs
+$(IMGDIR)xv6memfs.img: $(IMGDIR)bootblock $(IMGDIR)kernelmemfs
 	dd if=/dev/zero            of=$(IMGDIR)xv6memfs.img count=10000          # zero out 512*count bytes
 
 	dd if=$(IMGDIR)bootblock   of=$(IMGDIR)xv6memfs.img        conv=notrunc  # first sector (512 bytes)
@@ -326,7 +326,7 @@ $(SRCDIR)trapvectors.S: $(SRCDIR)trapvectors.pl
 
 # --- fs.img ----------------------------------------------------------------
 
-$(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
+$(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c   $(SRCDIR)types.h $(SRCDIR)date.h $(SRCDIR)fs.h $(SRCDIR)stat.h $(SRCDIR)param.h
 	gcc -Werror -Wall -o $(UTILBINDIR)mkfs $(SRCDIR)mkfs.c
 
 
@@ -335,7 +335,7 @@ $(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c $(SRCDIR)fs.h
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
 #
-fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROGSCORE_OBJS) $(UPROGS_OBJS)
+$(IMGDIR)fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROGSCORE_OBJS) $(UPROGS_OBJS)
 
 	# Keep copy up to date
 	cp README $(FSDIR)
@@ -485,26 +485,26 @@ endif
 
 QEMUOPTS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
 
-qemu: fs.img xv6.img
+qemu: $(IMGDIR)fs.img $(IMGDIR)xv6.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)
 	# $(QEMU) -display curses $(QEMUOPTS)
 
-qemu-nox: fs.img xv6.img
+qemu-nox: $(IMGDIR)fs.img $(IMGDIR)xv6.img
 	$(QEMU) -nographic $(QEMUOPTS)
 
-qemu-memfs: xv6memfs.img
+qemu-memfs: $(IMGDIR)xv6memfs.img
 	$(QEMU) -drive file=$(IMGDIR)xv6memfs.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256
 
-qemu-memfs-nox: xv6memfs.img
+qemu-memfs-nox: $(IMGDIR)xv6memfs.img
 	$(QEMU) -nographic -drive file=$(IMGDIR)xv6memfs.img,index=0,media=disk,format=raw -smp $(CPUS) -m 256
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
-qemu-gdb: fs.img xv6.img .gdbinit
+qemu-gdb: $(IMGDIR)fs.img $(IMGDIR)xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -serial mon:stdio $(QEMUOPTS) -S $(QEMUGDB)
 
-qemu-nox-gdb: fs.img xv6.img .gdbinit
+qemu-nox-gdb: $(IMGDIR)fs.img $(IMGDIR)xv6.img .gdbinit
 	@echo "*** Now run 'gdb'." 1>&2
 	$(QEMU) -nographic $(QEMUOPTS) -S $(QEMUGDB)
