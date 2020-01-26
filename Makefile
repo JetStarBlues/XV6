@@ -343,6 +343,10 @@ $(IMGDIR)fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROGSCORE_OBJS) $(UPROGS_OBJS
 	$(UTILBINDIR)mkfs $(IMGDIR)fs.img $(FSDIR)
 
 
+# JK TODO: find way to save file edits made within xv6, such
+# that cleared only explicitly, instead of each time mkfs is called
+
+
 # --- ... -------------------------------------------------------------------
 
 # JK override implicit rule, so that binaries stored in BINDIR
@@ -384,24 +388,24 @@ $(USERBINDIR)%.o: $(ULIBDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
 $(USERBINDIR)%.o: $(ULIBDIR)%.S    $(KERN_HEADERS) $(USER_HEADERS)
 	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 
-$(USERBINDIR)%.o: $(UPROGCOREDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
+$(USERBINDIR)%.o: $(UPROGCOREDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-$(USERBINDIR)%.o: $(UPROGDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
+$(USERBINDIR)%.o: $(UPROGDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-$(USERBINDIR)forktest.o: $(UPROGDIR)forktest.c   $(KERN_HEADERS) $(USER_HEADERS)
+$(USERBINDIR)forktest.o: $(UPROGDIR)forktest.c   $(KERNHEADERDIR)types.h $(USERHEADERDIR)user.h
 	# forktest has less library code linked in
 	# Needs to be small (size?) in order to be able to max out the proc table.
 	# JK, added umalloc.o, hopefully nothing breaks...
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)ulib.o $(USERBINDIR)usys.o $(USERBINDIR)umalloc.o
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)usys.o $(USERBINDIR)ulib.o $(USERBINDIR)umalloc.o
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)forktest > $(DEBUGDIR)forktest.asm
 
 

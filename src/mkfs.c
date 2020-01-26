@@ -252,7 +252,7 @@ int main ( int argc, char* argv [] )
 // ___________________________________________________________________
 
 /* Clone an exisiting directory.
-   Code by Warren Toomey,
+   Based on code by Warren Toomey:
     https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
     https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
 */
