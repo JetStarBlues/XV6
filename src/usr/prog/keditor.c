@@ -4,6 +4,11 @@
   https://viewsourcecode.org/snaptoken/kilo/index.html
 */
 
+/* NOTE: QEMU window has to be in focus for
+         navigation keys to work (UP/DOWN/HOME etc)
+*/
+
+
 /*
 
 TODO:
@@ -21,9 +26,11 @@ TODO:
 
 
 // Default colors (standard 256-color VGA palette)
-static uchar textColor   = 24;   // grey
-static uchar textBgColor = 15;   // white
-static uchar cursorColor = 112;  // brown
+static uchar textColor          = 24;   // grey
+static uchar textBgColor        = 15;   // white
+static uchar cursorColor        = 112;  // brown
+static uchar warningTextColor   = 15;   // white
+static uchar warningTextBgColor = 12;   // red;
 
 //
 #define TABSIZE 3   // tab size in spaces
@@ -36,15 +43,14 @@ static uchar cursorColor = 112;  // brown
 
 /* Key macros from 'kbd.h'
 
-   QEMU window has to be in focus to use the associated keys.
+   QEMU window has to be in focus to use the keys below.
 
    If the terminal/console/command-prompt that launched QEMU is
    instead in focus, you'll get a multibyte escape sequence that
    needs to be decoded. See explanation here:
-    . https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#arrow-keys 
+    . https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#arrow-keys
 
-   I think the code in 'kbd.c' does this decoding for you...
-   TODO: confirm 
+   I haven't bothered to do this decoding...
 */
 #define KEY_HOME     0xE0  // Doesn't seem to work =(
 #define KEY_END      0xE1
@@ -69,14 +75,14 @@ static uchar cursorColor = 112;  // brown
 //
 struct _textRow {
 
-	int   len;    // not null-terminated
-	char* chars;  // better name
+	int   len;    // does not include null-terminal
+	char* chars;  // has space for null-terminal...
 
 	/* What rendered might be different length than bytes on file.
 	   For example tabs.
 	*/
-	int   len_render;    // not null-terminated
-	char* chars_render;
+	int   len_render;    // does not include null-terminal
+	char* chars_render;  // has space for null-terminal...
 };
 
 // typedef struct _textRow textRow;
@@ -109,6 +115,11 @@ struct _editorState {
 	char* filename;
 	char  message [ STATUSBUFSZ ];
 	int   messageTime;
+	int   messageIsWarning;  // will use fancy formatting to emphasize
+
+	//
+	int dirty;       // unsaved changes
+	int promptQuit;  // prompt on quit with unsaved changes
 };
 
 static struct _editorState editorState;
@@ -118,7 +129,10 @@ static struct _editorState editorState;
 void die ( char* );
 void updateTextRowRender ( struct _textRow* );
 void insertChar ( int );
+void deleteChar ( void );
 void appendTextRow ( char*, int );
+void setMessage ( const char*, ... );
+void refreshScreen ( void );
 
 
 // ____________________________________________________________________________________
@@ -375,18 +389,240 @@ void printString ( char* s, int wrap )
 
 
 
-void insertCharIntoTextRow ( struct _textRow* textRow, int idx, int c )
+
+
+
+// ____________________________________________________________________________________
+
+char* textRowsToString ( int* bufLen )
 {
-	if ( ( idx < 0 ) || ( idx > textRow->len ) )
+	struct _textRow* curTextRow;
+	int              len;
+	int              i;
+	char*            buf;
+	char*            p;
+
+	// Determine total length
+	len = 0;
+
+	for ( i = 0; i < editorState.nTextRows; i += 1 )
 	{
-		idx = textRow->len;  /* idx is allowed to go one character past
-		                        the end of the string, to allow insertion
-		                        at the end... */
+		curTextRow = editorState.textRows + i;
+
+		len += curTextRow->len + 1;  // +1 for newline
 	}
 
+	*bufLen = len;
+
+
+	// Create and fill buffer
+	buf = ( char* ) malloc( len );
+
+	p = buf;
+
+	for ( i = 0; i < editorState.nTextRows; i += 1 )
+	{
+		curTextRow = editorState.textRows + i;
+
+		memcpy( p, curTextRow->chars, curTextRow->len );
+
+		p += curTextRow->len;
+
+		*p = '\n';
+
+		p += 1;
+	}
+
+	return buf;
+}
+
+
+void save ( void )
+{
+	int   len;
+	char* buf;
+	int   fd;
+	int   nWritten;
+	char* msg;
+
+	if ( editorState.filename == NULL )
+	{
+		return;
+	}
+	
+	buf = textRowsToString( &len );
+
+	/* Instead of opening 'filename' with O_TRUNC (to zero), a
+	   safer approach would be to first write to a temporary file.
+	   This way, if the write fails, the original file still has
+	   all its contents...
+	*/
+	fd = open( editorState.filename, O_RDWR | O_CREATE | O_TRUNC );
+
+	if ( fd == - 1 )
+	{
+		msg = "Error: save failed (can't open)";
+	}
+	else
+	{
+		nWritten = write( fd, buf, len );
+
+		if ( nWritten != len )
+		{
+			msg = "Error: save failed (can't write)";
+		}
+		else
+		{
+			msg = "File saved!";
+
+			// Mark as up-to-date
+			editorState.dirty = 0;
+		}
+
+		close( fd );
+	}
+
+	free( buf );
+
+	setMessage( msg );
+}
+
+
+// ____________________________________________________________________________________
+
+void freeTextRow ( struct _textRow* textRow )
+{
+	.
+}
+
+void deleteTextRow ( int idx )
+{
+	.
+}
+
+void appendStringToTextRow ( struct _textRow* textRow, char* s, int len )
+{
+	.
+}
+
+
+// ____________________________________________________________________________________
+
+void deleteCharFromTextRow ( struct _textRow* textRow, int idx )
+{
+	/* Why is this check necessary?
+	   What would trigger idx to be out of bounds?
+	*/
+	if ( ( idx < 0 ) || ( idx > textRow->len ) )
+	{
+		return;
+	}
+
+	// Move chars currently at idx+1..len to idx..len-1
+	/* Ex:
+	      start:
+	         chars = [ a, b, c, 0 ], len = 3
+
+	      delete:
+	         1
+
+	         chars = [ a, b, c, 0 ]
+	                      ^  ^
+	                      |  |--------- src: idx + 1 = 2
+	                      |------------ dst: idx     = 1
+
+	         n: len - idx = 2
+
+	      end:
+	         chars = [ a, c, 0, 0 ]
+	*/
+	memmove(
+
+		textRow->chars + idx,
+		textRow->chars + idx + 1,
+		textRow->len - idx
+	);
+
+	// Update to reflect deletion
+	textRow->len -= 1;
+
+
+	// Update textRow's render fields...
+	updateTextRowRender( textRow );
+}
+
+void deleteChar ( void )
+{
+	struct _textRow* curTextRow;
+
+	// If cursor is at end of file, nothing to delete
+	if ( editorState.editCursorRow < editorState.nTextRows )
+	{
+		curTextRow = editorState.textRows + editorState.editCursorRow;
+	}
+	else
+	{
+		return;
+	}
+
+
+	// If there is a character to the left of the cursor, delete it
+	if ( editorState.editCursorCol > 0 )
+	{
+		deleteCharFromTextRow( curTextRow, editorState.editCursorCol - 1 );
+
+		// Update pos
+		editorState.editCursorCol -= 1;
+	}
+
+	//
+	else
+	{
+		.
+	}
+
+
+	// Mark dirty
+	editorState.dirty += 1;
+}
+
+
+// ____________________________________________________________________________________
+
+void insertCharIntoTextRow ( struct _textRow* textRow, int idx, int c )
+{
+	/* Why is this check necessary?
+	   What would trigger idx to be out of bounds?
+	*/
+	if ( ( idx < 0 ) || ( idx > textRow->len ) )
+	{
+		idx = textRow->len;
+	}
+
+	// Grow buffer to hold new char
 	textRow->chars = realloc( textRow->chars, textRow->len + 2 );  // +1 for c, +1 for null terminal
 
-	// Move chars currently at idx..len, one char over to idx+1..len+1
+	// Move chars currently at idx..len+1, one char over to idx+1..len+2
+	/* Ex:
+	      start:
+	         chars = [ a, b, c, 0 ], len = 3
+
+	      realloc:
+	         chars = [ a, b, c, 0, . ]
+
+	      insert:
+	         d, 1
+
+	         chars = [ a, b, c, 0, . ]
+	                      ^  ^
+	                      |  |--------- dst: idx + 1 = 2
+	                      |------------ src: idx     = 1
+
+	         n: len + 1 - idx = 3
+
+	      end:
+	         chars = [ a, ., b, c, 0 ]
+	*/
 	memmove(
 
 		textRow->chars + idx + 1,
@@ -394,9 +630,11 @@ void insertCharIntoTextRow ( struct _textRow* textRow, int idx, int c )
 		textRow->len + 1 - idx  // +1 for null terminal?
 	);
 
-	textRow->len += 1;  // update to reflect new space added for c
+	// Place c in array
+	textRow->chars[ idx ] = c;
 
-	textRow->chars[ idx ] = c;  // place c in array
+	// Update to reflect new space added for c
+	textRow->len += 1;
 
 
 	// Update textRow's render fields...
@@ -407,7 +645,7 @@ void insertChar ( int c )
 {
 	struct _textRow* curTextRow;
 
-	/* If cursor is at end of file, append a new row before
+	/* If cursor is at end of file, append a new text row before
 	   we begin inserting a character
 	*/
 	if ( editorState.editCursorRow == editorState.nTextRows )
@@ -419,7 +657,12 @@ void insertChar ( int c )
 
 	insertCharIntoTextRow( curTextRow, editorState.editCursorCol, c );
 
+
+	// Update pos
 	editorState.editCursorCol += 1;
+
+	// Mark dirty
+	editorState.dirty += 1;
 }
 
 
@@ -531,6 +774,9 @@ void appendTextRow ( char* line, int lineLen )
 
 	// Update count
 	editorState.nTextRows += 1;
+
+	// Mark dirty
+	editorState.dirty += 1;
 }
 
 
@@ -582,6 +828,11 @@ void openFile ( char* filename )  // better name
 		//
 		appendTextRow( line, lineLen );
 	}
+
+
+	// 'appendTextRow' sets dirty flag, clear it
+	editorState.dirty = 0;
+
 
 	//
 	free( line );
@@ -949,7 +1200,7 @@ char readKey ( void )
 
 void processKeyPress ( void )
 {
-	uchar            c;
+	uchar c;
 
 	c = ( uchar ) readKey();
 
@@ -957,9 +1208,30 @@ void processKeyPress ( void )
 	{
 		case CTRL( 'q' ):
 
-			die( NULL );
-			break;
+			if ( editorState.dirty && editorState.promptQuit )
+			{
+				setMessage( "Unsaved changes. <Ctrl-q> again to quit" );
+				editorState.messageIsWarning = 1;
 
+				//
+				editorState.promptQuit = 0;
+
+				// Force screen refresh so message appears
+				refreshScreen();
+
+				//
+				return;
+			}
+			else
+			{
+				die( NULL );
+				break;
+			}
+
+		case CTRL( 's' ):
+
+			save();
+			break;
 
 		case CTRL( 'g' ):  // ctrl-h clashing with backspace
 
@@ -998,14 +1270,15 @@ void processKeyPress ( void )
 
 
 		case KEY_DELETE:
-
-			// TODO
-			break;
-
-
 		case K_BACKSPACE:
 
-			// TODO
+			if ( c == KEY_DELETE )
+			{
+				moveCursor( KEY_RIGHT );
+			}
+
+			deleteChar();
+
 			break;
 
 
@@ -1019,6 +1292,10 @@ void processKeyPress ( void )
 			insertChar( c );
 			break;
 	}
+
+
+	//
+	editorState.promptQuit = 1;
 }
 
 
@@ -1101,15 +1378,33 @@ void drawStatusBar ( void )
 	int  posTextCol;
 	int  slen;
 	int  slen2;
-	char status [ STATUSBUFSZ ];
+	char statusMsg [ STATUSBUFSZ ];
 
 	GFXText_invertTextColors();
 
 
-	// Draw file info
-	slen = snprintf(
+	// Draw dirty marker
+	if ( editorState.dirty )
+	{
+		GFXText_setCursorPosition( editorState.nScreenRows, 0 );
 
-		status,
+		GFXText_printChar( '*' );
+
+		slen = 1;
+	}
+	else
+	{
+		slen = 0;
+	}
+
+
+	// Draw file info
+	/* TODO: either show just filename (exclude path),
+	   or scroll animation to show full path...
+	*/
+	slen2 = snprintf(
+
+		statusMsg,
 		editorState.nScreenCols + 1,  // +1 for null terminal
 
 		"\"%s\" %dL",
@@ -1117,15 +1412,17 @@ void drawStatusBar ( void )
 		editorState.nTextRows
 	);
 
-	GFXText_setCursorPosition( editorState.nScreenRows, 0 );
+	GFXText_setCursorPosition( editorState.nScreenRows, slen );
 
-	printString( status, NO_WRAP );
+	printString( statusMsg, NO_WRAP );
+
+	slen += slen2;
 
 
 	// Get cursor position
 	slen2 = snprintf(
 
-		status,
+		statusMsg,
 		editorState.nScreenCols + 1,  // +1 for null terminal
 
 		"%dL,%dC",
@@ -1137,25 +1434,22 @@ void drawStatusBar ( void )
 
 
 	// Draw the rest...
-	if ( ( slen + slen2 ) < editorState.nScreenCols )
+	for ( col = slen; col < editorState.nScreenCols; col += 1 )
 	{
-		for ( col = slen; col < editorState.nScreenCols; col += 1 )
+		GFXText_setCursorPosition( editorState.nScreenRows, col );
+
+		// Draw spaces
+		if ( col < posTextCol )
 		{
-			GFXText_setCursorPosition( editorState.nScreenRows, col );
+			GFXText_printChar( ' ' );
+		}
 
-			// Draw spaces
-			if ( col < posTextCol )
-			{
-				GFXText_printChar( ' ' );
-			}
+		// Draw cursor position
+		else
+		{
+			printString( statusMsg, NO_WRAP );
 
-			// Draw cursor position
-			else
-			{
-				printString( status, NO_WRAP );
-
-				break;
-			}
+			break;
 		}
 	}
 
@@ -1174,22 +1468,45 @@ void setMessage ( const char* fmt, ... )
 
 	va_end( argp );
 
-	// editor.messageTime = time();  // seconds since epoch
+
 	editorState.messageTime = uptime();  // "ticks" since kernel started...
+	// editor.messageTime = time();      // seconds since epoch
+
+
+	editorState.messageIsWarning = 0;  // Hmmm... for now set default here
 }
 
 void drawMessageBar ( void )
 {
-	int curTime;
+	int   curTime;
+	uchar curTextColor;
+	uchar curTextBgColor;
 
 	curTime = uptime();
 
 	// Display message if less than x ticks old
 	if ( ( curTime - editorState.messageTime ) < 300 )
 	{
+		// Change colors
+		if ( editorState.messageIsWarning )
+		{
+			curTextColor   = GFXText_getTextColor(); 
+			curTextBgColor = GFXText_getTextBgColor();
+
+			GFXText_setTextColor( warningTextColor );
+			GFXText_setTextBgColor( warningTextBgColor );
+		}
+
 		GFXText_setCursorPosition( editorState.nScreenRows + 1, 0 );
 
 		printString( editorState.message, NO_WRAP );
+
+		// Restore colors
+		if ( editorState.messageIsWarning )
+		{
+			GFXText_setTextColor( curTextColor );
+			GFXText_setTextBgColor( curTextBgColor );
+		}
 	}
 }
 
@@ -1248,6 +1565,11 @@ void initEditor ( void )
 	editorState.filename     = NULL;
 	editorState.message[ 0 ] = 0;
 	editorState.messageTime  = 0;
+
+
+	//
+	editorState.dirty      = 0;
+	editorState.promptQuit = 1;
 }
 
 
@@ -1299,7 +1621,7 @@ int main ( int argc, char* argv [] )
 		openFile( argv[ 1 ] );
 	}
 
-	setMessage( "Type <Ctrl-q> to quit" );
+	setMessage( "<Ctrl-q> quit, <Ctrl-g> help" );
 
 	while ( 1 )
 	{

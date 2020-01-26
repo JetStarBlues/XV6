@@ -42,6 +42,15 @@ static uchar* gfxbuffer = ( uchar* ) GFXBUFFER;
 
 // ____________________________________________________________________________________
 
+void GFXText_getDimensions ( int* nRowsPtr, int* nColsPtr )
+{
+	*nRowsPtr = nRows;
+	*nColsPtr = nCols;
+}
+
+
+// ____________________________________________________________________________________
+
 void GFXText_setCursorPosition ( int row, int col )
 {
 	if ( ( row >= 0 ) && ( row < nRows ) )
@@ -61,12 +70,6 @@ void GFXText_getCursorPosition ( int* rowPtr, int* colPtr )
 	*colPtr = cursorCol;
 }
 
-void GFXText_getDimensions ( int* nRowsPtr, int* nColsPtr )
-{
-	*nRowsPtr = nRows;
-	*nColsPtr = nCols;
-}
-
 
 // ____________________________________________________________________________________
 
@@ -82,6 +85,20 @@ void GFXText_setCursorColor ( uchar color )
 {
 	cursorColor = color;
 }
+
+uchar GFXText_getTextColor ( void )
+{
+	return textColor;
+}
+uchar GFXText_getTextBgColor ( void )
+{
+	return textBgColor;
+}
+uchar GFXText_getCursorColor ( void )
+{
+	return cursorColor;
+}
+
 void GFXText_invertTextColors ( void )
 {
 	uchar tmp;
