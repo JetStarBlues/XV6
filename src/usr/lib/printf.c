@@ -177,8 +177,10 @@ int vprintf ( int fd, const char* fmt, va_list argp )
 	//
 	pState.dstFd = fd;
 
+
 	//
 	_printf( &pState, fd_putc, fmt, &argp );
+
 
 	//
 	return pState.nWritten;
@@ -191,8 +193,14 @@ int vsprintf ( char* str, const char* fmt, va_list argp )
 	//
 	pState.dstString = str;
 
+
 	//
 	_printf( &pState, str_putc, fmt, &argp );
+
+
+	// Null terminate
+	str[ pState.nWritten ] = 0;
+
 
 	//
 	return pState.nWritten;
@@ -205,12 +213,19 @@ int vsnprintf ( char* str, int size, const char* fmt, va_list argp )
 	//
 	pState.dstString = str;
 	pState.nToWrite  = size;
+	pState.nExcess   = 0;
+
 
 	//
 	_printf( &pState, strn_putc, fmt, &argp );
 
+
+	// Null terminate
+	str[ pState.nWritten ] = 0;
+
+
 	//
-	return pState.nWritten;
+	return pState.nWritten + pState.nExcess;
 }
 
 
