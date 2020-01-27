@@ -18,10 +18,12 @@
 // ____________________________________________________________________________________
 
 // Font
-#define FONT        g_8x11_font__Gohu
-// #define FONT_BOLD   g_8x11_font__Gohu_bold
-#define FONT_WIDTH  8
-#define FONT_HEIGHT 11
+#define FONT_REGULAR g_8x11_font__Gohu
+#define FONT_BOLD    g_8x11_font__Gohu_bold
+#define FONT_WIDTH   8
+#define FONT_HEIGHT  11
+
+static char* font = FONT_REGULAR;
 
 // Dimensions in characters
 static int nRows = SCREEN_HEIGHT / FONT_HEIGHT;
@@ -111,6 +113,21 @@ void GFXText_invertTextColors ( void )
 
 // ____________________________________________________________________________________
 
+void GFXText_useBoldface ( int use )
+{
+	if ( use )
+	{
+		font = FONT_BOLD;
+	}
+	else
+	{
+		font = FONT_REGULAR;
+	}
+}
+
+
+// ____________________________________________________________________________________
+
 // Simple, terrible performance.
 
 /* Assumes the following bitmap encoding:
@@ -133,7 +150,7 @@ static void drawFontChar ( uchar ch, int x, int y )
 	y2 = y;
 
 	// Base location of character's bitmap
-	bitmap = ( uchar* ) FONT + ( ch * FONT_HEIGHT );
+	bitmap = ( uchar* ) font + ( ch * FONT_HEIGHT );
 
 
 	// For each row in the character...

@@ -14,6 +14,8 @@ uchar GFXText_getCursorColor   ( void );
 
 void GFXText_invertTextColors  ( void );
 
+void GFXText_useBoldface       ( int );
+
 void GFXText_printChar         ( uchar );
 void GFXText_drawCursor        ( void );
 void GFXText_clearScreen       ( void );
