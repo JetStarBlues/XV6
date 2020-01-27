@@ -20,9 +20,15 @@ struct superblock
 	uint bmapstart;    // Block number of first free map block
 };
 
-#define NDIRECT   12
+/* TODO: A downside of having a large NDIRECT value is that most files
+   are small, so this space is wasted per inode.
+   A better solution for supporting large file sizes is to use
+   multiple indirection. See:
+    https://en.wikipedia.org/w/index.php?title=Inode_pointer_structure&oldid=912616146#Structure
+*/
+#define NDIRECT   14
 #define NINDIRECT ( BLOCKSIZE / sizeof( uint ) )  // 128
-#define MAXFILESZ ( NDIRECT + NINDIRECT )         // 140 blocks ( 71680 bytes)
+#define MAXFILESZ ( NDIRECT + NINDIRECT )         // 142 blocks ( 72704 bytes)
 
 // On-disk inode structure
 struct dinode
@@ -45,7 +51,8 @@ struct dinode
 
 	    JK...
 	       Assuming, sizeof( struct rtcdate ) == 7
-	       Then, 16 + ( 1x7 ) + 9 = 32
+	                 size of entries above == 18; ( 0.5 x 4 + 1 + ( 14 + 1 ) )
+	       Then, 18 + ( 1 x 7 ) + 7 = 32
 	*/
 	uint padding0;
 	uint padding1;
@@ -54,8 +61,6 @@ struct dinode
 	uint padding4;
 	uint padding5;
 	uint padding6;
-	uint padding7;
-	uint padding8;
 };
 
 // Inodes per block.
