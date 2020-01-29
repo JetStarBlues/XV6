@@ -92,7 +92,7 @@ void* memmove ( void* dst, const void* src, uint n )
 /* Returns zero if the two strings are equal.
 
    Returns a value less than zero, if first non equal
-   character of p is less than of q. Ditto greater than.
+   character of 'p' is less than of 'q'. Ditto greater than.
    Possible use of the non-zero values is sorting.
 */
 int strcmp ( const char* p, const char* q )
@@ -123,8 +123,8 @@ int strncmp ( const char* p, const char* q, int n )
 	return ( uchar ) *p - ( uchar ) *q;
 }
 
-/* Copies the string pointed to by src, including the
-   terminating null byte, to the buffer pointed to by dst
+/* Copies the string pointed to by 'src', including the
+   terminating null byte, to the buffer pointed to by 'dst'
 */
 char* strcpy ( char* dst, const char* src )
 {
@@ -182,6 +182,23 @@ char* strncpy ( char* dst, const char* src, int n )
 	return odst;
 }
 
+/* Returns a pointer to a new string which is a duplicate
+   of string 's'.
+*/
+char* strdup ( const char* s )
+{
+	int   slen;
+	char* sdup;
+
+	slen = strlen( s );
+
+	sdup = ( char* ) malloc( slen + 1 );  // +1 for null terminal
+
+	strcpy( sdup, s );
+
+	return sdup;
+}
+
 // Length excluding null terminal
 uint strlen ( const char* s )
 {
@@ -196,7 +213,7 @@ uint strlen ( const char* s )
 }
 
 /* Returns a pointer to the first occurrence of
-   character c in string s. If not found, returns NULL
+   character 'c' in string 's'. If not found, returns NULL
 */
 char* strchr ( const char* s, char c )
 {
@@ -208,24 +225,77 @@ char* strchr ( const char* s, char c )
 		}
 	}
 
-	return 0;
+	return NULL;
 }
 
-/* Returns a pointer to a new string which is a duplicate
-   of string s.
-*/
-char* strdup ( const char* s )
+/* Returns a pointer to the first occurence of substring
+   'subs' in string 's'. If not found, returns NULl
+*/ 
+char* strstr ( const char* s, const char* sub )
 {
-	int   slen;
-	char* sdup;
+	const char* subp;
+	const char* ret;
+	int         subLen;
+	int         n;
 
-	slen = strlen( s );
+	// Early exit if substring is empty
+	if ( *sub == 0 )
+	{
+		return NULL;
+	}
 
-	sdup = ( char* ) malloc( slen + 1 );  // +1 for null terminal
+	subLen = strlen( sub );
 
-	strcpy( sdup, s );
+	while ( *s )
+	{
+		// If matches first char of substring, check for full match
+		if ( *s == *sub )
+		{
+			ret  = s;
+			subp = sub;
 
-	return sdup;
+			s    += 1;
+			subp += 1;
+
+			// Check if matches other chars
+			n = 1;
+
+			while ( *subp )
+			{
+				// Reached end of string without finding a match
+				if ( *s == 0 )
+				{
+					return NULL;
+				}
+
+				// Mismatch before end of substring
+				if ( *s != *subp )
+				{
+					break;
+				}
+
+				// Char matched, evaluate next
+				n    += 1;
+				s    += 1;
+				subp += 1;
+			}
+
+			// If all chars matched, return pointer to beginning of match
+			if ( n == subLen )
+			{
+				return ( char* ) ret;
+			}
+		}
+
+		// Else, evaluate next char
+		else
+		{
+			s += 1;
+		}
+	}
+
+	// Reached end of string without finding a match
+	return NULL;
 }
 
 

@@ -54,6 +54,7 @@ char* strdup  ( const char* );
 uint  strlen  ( const char* );
 int   strncmp ( const char*, const char*, int );
 char* strncpy ( char*, const char*, int );
+char* strstr  ( const char*, const char* );
 
 // umalloc.c
 void  free    ( void* );
