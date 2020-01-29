@@ -11,6 +11,8 @@ KERNHEADERDIR = src/
 USERHEADERDIR = src/usr/include/
 UPROGDIR      = src/usr/prog/
 UPROGCOREDIR  = src/usr/prog/core/
+UPROGTESTDIR  = src/usr/prog/test/
+UPROGWISCDIR  = src/usr/prog/wisc/
 ULIBDIR       = src/usr/lib/
 KERNBINDIR    = bin/kern/
 UTILBINDIR    = bin/util/
@@ -103,17 +105,27 @@ _USER_HEADERS = \
 	time.h      \
 	user.h
 
-_ULIB_OBJS =          \
-	GFX.o             \
-	GFXtext.o         \
-	printf.o          \
-	termios.o         \
-	time.o            \
-	ulib.o            \
-	umalloc.o         \
+_ULIB_OBJS =   \
+	GFX.o      \
+	GFXtext.o  \
+	printf.o   \
+	termios.o  \
+	time.o     \
+	ulib.o     \
+	umalloc.o  \
 	usys.o
 
-_UPROGSCORE_OBJS =    \
+# TODO - Currently each folder is explicitly spelled out in Makefile
+#        Would be great if somehow traversed directory and
+#        generated paths automatically
+
+_UPROG_OBJS =         \
+	clock.o           \
+	exists.o          \
+	hexdump.o         \
+	keditor.o
+
+_UPROG_CORE_OBJS =    \
 	cat.o             \
 	echo.o            \
 	grep.o            \
@@ -126,23 +138,23 @@ _UPROGSCORE_OBJS =    \
 	sh.o              \
 	wc.o
 
-_UPROGS_OBJS =        \
-    clock.o           \
-	exists.o          \
+_UPROG_TEST_OBJS =    \
 	forktest.o        \
 	gets_test.o       \
 	gets_test2.o      \
 	gfx_text_test.o   \
 	graphics_test.o   \
-	hexdump.o         \
-	keditor.o         \
 	poke_disp_test.o  \
 	printf_test.o     \
 	realloc_test.o    \
 	stackoverflow.o   \
 	stressfs.o        \
+	string_test.o     \
 	temptest.o        \
 	usertests.o       \
+	zombie_test.o
+
+_UPROG_WISC_OBJS =    \
 	wisc_exec.o       \
 	wisc_fault.o      \
 	wisc_fmode.o      \
@@ -152,15 +164,17 @@ _UPROGS_OBJS =        \
 	wisc_hello.o      \
 	wisc_pipe.o       \
 	wisc_spinner.o    \
-	zombie.o
+
 
 # --- ... -------------------------------------------------------------------
 
 # JK... stackoverflow.com/a/4481931
 KERN_OBJS       = $(addprefix $(KERNBINDIR), $(_KERN_OBJS))
 ULIB_OBJS       = $(addprefix $(USERBINDIR), $(_ULIB_OBJS))
-UPROGSCORE_OBJS = $(addprefix $(USERBINDIR), $(_UPROGSCORE_OBJS))
-UPROGS_OBJS     = $(addprefix $(USERBINDIR), $(_UPROGS_OBJS))
+UPROG_OBJS      = $(addprefix $(USERBINDIR), $(_UPROG_OBJS))
+UPROG_CORE_OBJS = $(addprefix $(USERBINDIR), $(_UPROG_CORE_OBJS))
+UPROG_TEST_OBJS = $(addprefix $(USERBINDIR), $(_UPROG_TEST_OBJS))
+UPROG_WISC_OBJS = $(addprefix $(USERBINDIR), $(_UPROG_WISC_OBJS))
 
 KERN_HEADERS = $(addprefix $(KERNHEADERDIR), $(_KERN_HEADERS))
 USER_HEADERS = $(addprefix $(USERHEADERDIR), $(_USER_HEADERS))
@@ -335,7 +349,7 @@ $(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c   $(SRCDIR)types.h $(SRCDIR)date.h $(SRCDIR)f
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/Makefile
 #  https://github.com/DoctorWkt/xv6-freebsd/blob/master/tools/mkfs.c
 #
-$(IMGDIR)fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROGSCORE_OBJS) $(UPROGS_OBJS)
+$(IMGDIR)fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROG_CORE_OBJS) $(UPROG_OBJS) $(UPROG_TEST_OBJS) $(UPROG_WISC_OBJS)
 
 	# Keep copy up to date
 	cp README $(FSDIR)
@@ -372,21 +386,25 @@ $(IMGDIR)fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROGSCORE_OBJS) $(UPROGS_OBJS
 #       recompilation of *all* object files.
 
 
-# JK Used to compile kernel code
+# Used to compile kernel code -------------------------------------
 $(KERNBINDIR)%.o: $(SRCDIR)%.c   $(KERN_HEADERS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
+
 $(KERNBINDIR)%.o: $(SRCDIR)%.S   $(KERN_HEADERS)
 	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
+
 
 $(KERNBINDIR)trapvectors.o: $(SRCDIR)trapvectors.S
 	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)  # JK, stackoverflow.com/q/53348134
 
 
-# JK Used to compile user code
+# Used to compile user code -------------------------------------
 $(USERBINDIR)%.o: $(ULIBDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+
 $(USERBINDIR)%.o: $(ULIBDIR)%.S    $(KERN_HEADERS) $(USER_HEADERS)
 	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+
 
 $(USERBINDIR)%.o: $(UPROGCOREDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
@@ -394,13 +412,27 @@ $(USERBINDIR)%.o: $(UPROGCOREDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OB
 	$(OBJDUMP) -S -M intel $(FSBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
+
 $(USERBINDIR)%.o: $(UPROGDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-$(USERBINDIR)forktest.o: $(UPROGDIR)forktest.c   $(KERNHEADERDIR)types.h $(USERHEADERDIR)user.h
+$(USERBINDIR)%.o: $(UPROGTESTDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
+	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
+	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
+	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
+
+$(USERBINDIR)%.o: $(UPROGWISCDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
+	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
+	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
+	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
+
+
+$(USERBINDIR)forktest.o: $(UPROGTESTDIR)forktest.c   $(KERNHEADERDIR)types.h $(USERHEADERDIR)user.h
 	# forktest has less library code linked in
 	# Needs to be small (size?) in order to be able to max out the proc table.
 	# JK, added umalloc.o, hopefully nothing breaks...

@@ -1455,11 +1455,10 @@ char* promptUser ( char* prompt )
 
 	inputBuf[ 0 ] = 0;
 
-	//
+
+	// Gather user input
 	inputLen = 0;
 
-	/* ...
-	*/
 	while ( 1 )
 	{
 		// Prompt user
