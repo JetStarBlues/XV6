@@ -12,8 +12,21 @@
 /*
 
 TODO:
-	. Help menu <Ctrl-g>
+    . Text wrapping
 
+    . Highlight search match
+
+    . Help menu <Ctrl-g>
+         - <Ctrl-s> to save
+              <esc> to cancel
+         - <Ctrl-t> to save as
+              <esc>    to cancel
+              <enter>  to accept
+         - <Ctrl-f> to find
+              <esc>    to cancel
+              <arrows> to jump to next/prev match
+              <enter>  to accept
+         - <Ctrl-q> to quit
 */
 
 
@@ -92,6 +105,9 @@ struct _textRow {
 
 
 //
+#define SEARCHDIR_FORWARD      1    // increment
+#define SEARCHDIR_BACKWARD ( - 1 )  // decrement
+
 struct _editorState {
 
 	struct termios origConsoleAttr;
@@ -124,6 +140,10 @@ struct _editorState {
 	//
 	int dirty;       // unsaved changes
 	int promptQuit;  // prompt on quit with unsaved changes
+
+	//
+	int lastMatchRowIdx;  // -1 if no last match        
+	int searchDirection;
 };
 
 static struct _editorState editorState;
@@ -132,49 +152,16 @@ static struct _editorState editorState;
 //
 void die ( char* );
 void updateTextRowRender ( struct _textRow* );
-void insertChar ( int );
+void insertChar ( uchar );
 void deleteChar ( void );
 void insertTextRow ( int, char*, int );
 void setMessage ( const char*, ... );
-char* promptUser ( char* );
+char* promptUser (
+	char*,
+	void ( * ) ( char*, uchar )
+);
 void refreshScreen ( void );
-
-
-// ____________________________________________________________________________________
-
-//
-/*struct charBuffer {
-
-	char* buf;
-	int   len;
-};*/
-
-/*void appendToBuffer ( struct charBuffer* cBuf, const char* s, int slen )
-{
-	char* new;
-
-	// Grow region pointed to by cBuf.buf
-	new = realloc( cBuf->buf, cBuf->len + slen );
-
-	if ( new == NULL )
-	{
-		return;
-	}
-
-
-	// Append 's' to region
-	memcpy( &( new[ cBuf->len ] ), s, slen );
-
-
-	// Update
-	cBuf->buf = new;
-	cBuf->len += slen;
-}
-
-void freeUnderlyingBuffer ( struct charBuffer* cBuf )
-{
-	free( cBuf->buf );
-}*/
+int convert_render_to_editCursorCol ( struct _textRow*, int );
 
 
 // ____________________________________________________________________________________
@@ -207,121 +194,6 @@ void disableRawMode ( void )
 	{
 		die( "setConsoleAttr" );
 	}
-}
-
-
-// ____________________________________________________________________________________
-
-/* Emulate the "Erase In Line" behaviour.
-
-   mode 0 - erase part of line to the right of cursor (inclusive)
-   mode 1 - erase part of line to the left of cursor (inclusive)
-   mode 2 - erases entire line
-
-   https://viewsourcecode.org/snaptoken/kilo/03.rawInputAndOutput.html#clear-lines-one-at-a-time
-*/
-#define ERASELINE_RIGHT 0
-#define ERASELINE_LEFT  1
-#define ERASELINE_ALL   2
-
-void eraseInLine ( int mode )
-{
-	int row;
-	int col;
-	int savedCol;
-
-	// Invalid mode, ignore
-	if ( mode > 2 )
-	{
-		return;
-	}
-
-
-	GFXText_getCursorPosition( &row, &col );
-
-	savedCol = col;  // save
-
-
-	if ( mode == ERASELINE_RIGHT )
-	{
-		while ( col < editorState.nScreenCols )
-		{
-			GFXText_setCursorPosition( row, col );
-			GFXText_printChar( ' ' );
-
-			col += 1;
-		}
-	}
-	else if ( mode == ERASELINE_LEFT )
-	{
-		while ( col >= 0 )
-		{
-			GFXText_setCursorPosition( row, col );
-			GFXText_printChar( ' ' );
-
-			if ( col == 0 ) { break; }  // unsigned, avoid negatives...
-
-			col -= 1;
-		}
-	}
-	else if ( ERASELINE_ALL )
-	{
-		for ( col = 0; col < editorState.nScreenCols; col += 1 )
-		{
-			GFXText_setCursorPosition( row, col );
-			GFXText_printChar( ' ' );
-		}
-	}
-
-
-	// Restore
-	GFXText_setCursorPosition( row, savedCol );
-}
-
-void temp_testEraseLine ( void )
-{
-	int col;
-	int row;
-
-	row = 0;
-
-	for ( col = 0; col < editorState.nScreenCols; col += 1 )
-	{
-		GFXText_setCursorPosition( row, col );
-		GFXText_printChar( '$' );
-	}
-
-	GFXText_setCursorPosition( 0, 20 );
-
-	eraseInLine( 0 );
-
-
-
-	row = 1;
-
-	for ( col = 0; col < editorState.nScreenCols; col += 1 )
-	{
-		GFXText_setCursorPosition( row, col );
-		GFXText_printChar( '&' );
-	}
-
-	GFXText_setCursorPosition( 1, 20 );
-
-	eraseInLine( 1 );
-
-
-
-	row = 2;
-
-	for ( col = 0; col < editorState.nScreenCols; col += 1 )
-	{
-		GFXText_setCursorPosition( row, col );
-		GFXText_printChar( '#' );
-	}
-
-	GFXText_setCursorPosition( 2, 20 );
-
-	eraseInLine( 2 );
 }
 
 
@@ -399,6 +271,130 @@ void printString ( char* s, int wrap )
 
 // ____________________________________________________________________________________
 
+// Incremental search acheived by using callback
+void findCallback ( char* query, uchar key )
+{
+	struct _textRow* textRow;
+	int              rowIdx;
+	int              colIdx;
+	char*            match;
+	int              i;
+
+	// Configure search direction
+	if ( ( key == KEY_RIGHT ) || ( key == KEY_DOWN ) )
+	{
+		editorState.searchDirection = SEARCHDIR_FORWARD;
+	}
+	else if ( ( key == KEY_LEFT ) || ( key == KEY_UP ) )
+	{
+		editorState.searchDirection = SEARCHDIR_BACKWARD;
+	}
+	else
+	{
+		editorState.lastMatchRowIdx = - 1;                // clear
+		editorState.searchDirection = SEARCHDIR_FORWARD;  // restore default
+	}
+
+
+	// If user has left search mode, return early
+	if ( ( key == '\n' ) || ( key == K_ESCAPE ) )
+	{
+		return;
+	}
+
+
+	/* TODO - start seach at current row, instead of first, then wrap...
+	*/
+	// Perform search
+	rowIdx = editorState.lastMatchRowIdx;
+
+	for ( i = 0; i < editorState.nTextRows; i += 1 )
+	{
+		// Get row
+		rowIdx += editorState.searchDirection;
+
+		// Wrap around
+		if ( rowIdx == - 1 )
+		{
+			rowIdx = editorState.nTextRows - 1;
+		}
+		else if ( rowIdx == editorState.nTextRows )
+		{
+			rowIdx = 0;
+		}
+
+
+		//
+		textRow = editorState.textRows + rowIdx;
+
+		match = strstr( textRow->chars_render, query );
+
+		if ( match )
+		{
+			//
+			editorState.lastMatchRowIdx = rowIdx;
+
+
+			//
+			colIdx = match - textRow->chars_render;
+
+			editorState.editCursorCol = convert_render_to_editCursorCol( textRow, colIdx );
+			editorState.editCursorRow = rowIdx;
+
+
+			/* Want matching line to be at the top of screen
+			   on next refresh. Accomplish this by ?
+			   which causes 'editorScroll()' to scroll upwards
+			   on next screen refresh...
+
+			   TODO - change this behaviour to standard pgdown into view 
+			        - also scroll across if offscreen horiz...
+			*/
+//			editorState.textRowOffset = editorState.nTextRows;
+
+			//
+			break;
+		}
+	}
+}
+
+void find ( void )
+{
+	char* query;
+	int   savedEditCursorRow;
+	int   savedEditCursorCol;
+	int   savedTextRowOffset;
+	int   savedTextColOffset;
+
+	// Save cursor and scroll position
+	savedEditCursorRow = editorState.editCursorRow;
+	savedEditCursorCol = editorState.editCursorCol;
+	savedTextRowOffset = editorState.textRowOffset;
+	savedTextColOffset = editorState.textColOffset;
+
+
+	// Start search
+	query = promptUser( "Search: %s", findCallback );
+
+
+	// User 'escaped' input
+	if ( query == NULL )
+	{
+		// Restore cursor and scroll position
+		editorState.editCursorRow = savedEditCursorRow;
+		editorState.editCursorCol = savedEditCursorCol;
+		editorState.textRowOffset = savedTextRowOffset;
+		editorState.textColOffset = savedTextColOffset;
+	}
+	else
+	{
+		free( query );
+	}
+}
+
+
+// ____________________________________________________________________________________
+
 char* textRowsToString ( int* bufLen )
 {
 	struct _textRow* textRow;
@@ -444,8 +440,9 @@ char* textRowsToString ( int* bufLen )
 
 void save ( void )
 {
-	int   len;
+	char* filename;
 	char* buf;
+	int   bufLen;
 	int   fd;
 	int   nWritten;
 	char* msg;
@@ -453,16 +450,18 @@ void save ( void )
 	if ( editorState.filename == NULL )
 	{
 		// TODO: Check that valid filename before assigning...
-		editorState.filename = promptUser( "Save as: %s" );
+		filename = promptUser( "Save as: %s", NULL );
 
 		// User 'escaped' input
-		if ( editorState.filename == NULL )
+		if ( filename == NULL )
 		{
 			return;
 		}
+
+		editorState.filename = filename;
 	}
 
-	buf = textRowsToString( &len );
+	buf = textRowsToString( &bufLen );
 
 	/* Instead of opening 'filename' with O_TRUNC (to zero), a
 	   safer approach would be to first write to a temporary file.
@@ -477,9 +476,9 @@ void save ( void )
 	}
 	else
 	{
-		nWritten = write( fd, buf, len );
+		nWritten = write( fd, buf, bufLen );
 
-		if ( nWritten != len )
+		if ( nWritten != bufLen )
 		{
 			msg = "Error: save failed (can't write)";
 		}
@@ -497,6 +496,25 @@ void save ( void )
 	free( buf );
 
 	setMessage( msg );
+}
+
+void saveAs ( void )
+{
+	char* filename;
+
+	// TODO: Check that valid filename before assigning...
+	filename = promptUser( "Save as: %s", NULL );
+
+	// User 'escaped' input
+	if ( filename == NULL )
+	{
+		return;
+	}
+
+	editorState.filename = filename;
+
+
+	save();
 }
 
 
@@ -713,7 +731,7 @@ void insertNewline ( void )
 
 // ____________________________________________________________________________________
 
-void insertCharIntoTextRow ( struct _textRow* textRow, int idx, int c )
+void insertCharIntoTextRow ( struct _textRow* textRow, int idx, uchar c )
 {
 	// Check idx within bounds
 	if ( ( idx < 0 ) || ( idx > textRow->len ) )
@@ -763,7 +781,7 @@ void insertCharIntoTextRow ( struct _textRow* textRow, int idx, int c )
 	updateTextRowRender( textRow );
 }
 
-void insertChar ( int c )
+void insertChar ( uchar c )
 {
 	struct _textRow* curTextRow;
 
@@ -1007,6 +1025,46 @@ int convert_edit_to_renderCursorCol ( struct _textRow* textRow, int _editCursorC
 
 	return _renderCursorCol;
 }
+
+int convert_render_to_editCursorCol ( struct _textRow* textRow, int target_renderCursorCol )
+{
+	int _editCursorCol;
+	int _renderCursorCol;
+	int nLeft;
+	int nRight;
+
+	_renderCursorCol = 0;
+
+	for ( _editCursorCol = 0; _editCursorCol < textRow->len; _editCursorCol += 1 )
+	{
+		//
+		if ( textRow->chars[ _editCursorCol ] == '\t' )
+		{
+			// Number of columns we are to the right of the previous tab stop...
+			nRight = _renderCursorCol % TABSIZE;
+
+			// Number of columns we are to the left of the next tab stop...
+			nLeft = ( TABSIZE - 1 ) - nRight;
+
+			//
+			_renderCursorCol += nLeft;
+		}
+
+		// Stop when reach target...
+		if ( _renderCursorCol == target_renderCursorCol )
+		{
+			break;
+		}
+
+		//
+		_renderCursorCol += 1;
+	}
+
+	return _editCursorCol;
+}
+
+
+// ____________________________________________________________________________________
 
 void scroll ( void )
 {
@@ -1366,6 +1424,11 @@ void processKeyPress ( void )
 			save();
 			break;
 
+		case CTRL( 't' ):
+
+			saveAs();
+			break;
+
 		case CTRL( 'g' ):  // ctrl-h clashing with backspace
 
 			// TODO
@@ -1374,7 +1437,7 @@ void processKeyPress ( void )
 
 		case CTRL( 'f' ):
 
-			// TODO
+			find();
 			break;
 
 
@@ -1440,13 +1503,17 @@ void processKeyPress ( void )
    'prompt' is expected to be a format string containing a %s,
    which is where the user's input will be displayed
 */
-char* promptUser ( char* prompt )
+char* promptUser (
+
+	char* prompt,
+	void ( *callback ) ( char*, uchar )
+)
 {
-	char* inputBuf;
-	char* ptr;
-	int   inputBufSize;  // size of buffer
-	int   inputLen;      // length of input given by user
-	char  c;
+	char*  inputBuf;
+	char*  ptr;
+	int    inputBufSize;  // size of buffer
+	int    inputLen;      // length of input given by user
+	uchar  c;
 
 	//
 	inputBufSize = 128;  // arbitrary size
@@ -1469,13 +1536,18 @@ char* promptUser ( char* prompt )
 
 
 		// Wait for user input
-		c = readKey();
+		c = ( uchar ) readKey();
 
 
 		// User has pressed escape
 		if ( c == K_ESCAPE )
 		{
 			setMessage( "" );  // clear
+
+			if ( callback != NULL )
+			{
+				callback( inputBuf, c );
+			}
 
 			free( inputBuf );
 
@@ -1488,6 +1560,11 @@ char* promptUser ( char* prompt )
 			if ( inputLen > 0 )
 			{
 				setMessage( "" );  // clear
+
+				if ( callback != NULL )
+				{
+					callback( inputBuf, c );
+				}
 
 				return inputBuf;
 			}
@@ -1528,6 +1605,21 @@ char* promptUser ( char* prompt )
 			inputLen += 1;
 
 			inputBuf[ inputLen ] = 0;  // null terminate
+		}
+
+
+		// Call callback after each keypress
+		// if ( inputLen > 0 )
+		if ( ( ( c >= 32 ) && ( c <= 126 ) ) ||
+		     ( c == KEY_LEFT )               ||
+		     ( c == KEY_RIGHT )              ||
+		     ( c == KEY_UP )                 ||
+		     ( c == KEY_DOWN ) )
+		{
+			if ( callback != NULL )
+			{
+				callback( inputBuf, c );
+			}
 		}
 	}
 }
@@ -1819,6 +1911,11 @@ void initEditor ( void )
 	//
 	editorState.dirty      = 0;
 	editorState.promptQuit = 1;
+
+
+	//
+	editorState.lastMatchRowIdx = - 1;
+	editorState.searchDirection = SEARCHDIR_FORWARD;
 }
 
 
