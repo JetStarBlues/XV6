@@ -12,21 +12,16 @@
 /*
 
 TODO:
-    . Text wrapping
-
     . Highlight search match
 
-    . Help menu <Ctrl-g>
-         - <Ctrl-s> to save
-              <esc> to cancel
-         - <Ctrl-t> to save as
-              <esc>    to cancel
-              <enter>  to accept
-         - <Ctrl-f> to find
-              <esc>    to cancel
-              <arrows> to jump to next/prev match
-              <enter>  to accept
-         - <Ctrl-q> to quit
+    . Text wrapping
+
+    . Mouse select
+       . Plus thing where auto scrolls
+
+    . Copy and paste
+
+    . Rearrange code
 */
 
 
@@ -88,6 +83,32 @@ static uchar promptTextBgColor  = 0x5C;  // light yellow
 #define CTRL( k ) ( ( k ) & 0x1F )  // https://en.wikipedia.org/wiki/ASCII#Control_characters
 
 
+// Help message
+static char* helpMsg [] = {
+
+	"-- Shortcuts --",
+	"",
+	". [ctrl-g] to view help (this page)",
+	"    . [esc] to cancel",
+	// "",
+	". [ctrl-s] to save",
+	"    . [esc] to cancel",
+	// "",
+	". [ctrl-t] to save as",
+	"    . [esc]   to cancel",
+	"    . [enter] to accept",
+	// "",
+	". [ctrl-f] to find",
+	"    . [esc]   to cancel",
+	"    . [arrow] to jump to next/prev match",
+	"    . [enter] to accept",
+	// "",
+	". [ctrl-q] to quit",
+};
+
+static int helpMsgLen = sizeof( helpMsg ) / sizeof( char* );
+
+
 //
 struct _textRow {
 
@@ -142,8 +163,10 @@ struct _editorState {
 	int promptQuit;  // prompt on quit with unsaved changes
 
 	//
-	int lastMatchRowIdx;  // -1 if no last match        
 	int searchDirection;
+	int lastMatchRowIdx;  // -1 if no last match
+	int lastMatchColIdx;
+	int lastMatchLen;
 };
 
 static struct _editorState editorState;
@@ -158,10 +181,12 @@ void insertTextRow ( int, char*, int );
 void setMessage ( const char*, ... );
 char* promptUser (
 	char*,
-	void ( * ) ( char*, uchar )
+	void ( * ) ( char*, int, uchar )
 );
 void refreshScreen ( void );
 int convert_render_to_editCursorCol ( struct _textRow*, int );
+void scroll ( void );
+void drawHelpScreen ( void );
 
 
 // ____________________________________________________________________________________
@@ -271,14 +296,93 @@ void printString ( char* s, int wrap )
 
 // ____________________________________________________________________________________
 
-// Incremental search acheived by using callback
-void findCallback ( char* query, uchar key )
+/* Returns a pointer to the beginning of the last occurrence
+   of substring 'sub' in string 's'.
+   If not found, returns NULl.
+
+   'slen' as parameter because...
+*/ 
+char* reverseStrstr ( char* sEnd, int searchLen, char* sub )
+{
+	int subLen;
+	int i;
+	int j;
+	int jLast;
+	int n;
+
+	// Early exit if substring is empty
+	if ( *sub == 0 )
+	{
+		return NULL;
+	}
+
+	//
+	subLen = strlen( sub );
+	jLast  = subLen - 1;
+
+	//
+	i = 1;
+
+	while ( i <= searchLen )
+	{
+		// If matches last char of substring, check for full match
+		if ( *( sEnd - i ) == *( sub + jLast ) )
+		{
+			i += 1;
+			j = jLast - 1;
+
+			// Check if matches other chars
+			n = 1;
+
+			while ( j >= 0 )
+			{
+				// Reached end of search without finding a match
+				if ( i > searchLen )
+				{
+					return NULL;
+				}
+
+				// Mismatch before end of substring
+				if ( *( sEnd - i ) != *( sub + j ) )
+				{
+					break;
+				}
+
+				// Char matched, evaluate next
+				n += 1;
+				i += 1;
+				j -= 1;
+			}
+
+			// If all chars matched, return pointer to beginning of match in string
+			if ( n == subLen )
+			{
+				return sEnd - i + 1;
+			}
+		}
+
+		// Else, evaluate next char
+		else
+		{
+			i += 1;
+		}
+	}
+
+	// Reached end of search without finding a match
+	return NULL;
+}
+
+
+// Incremental search achieved by using callback
+void findCallback ( char* query, int queryLen, uchar key )
 {
 	struct _textRow* textRow;
 	int              rowIdx;
 	int              colIdx;
 	char*            match;
 	int              i;
+	char*            startPos;
+	int              searchLen;
 
 	// Configure search direction
 	if ( ( key == KEY_RIGHT ) || ( key == KEY_DOWN ) )
@@ -292,6 +396,7 @@ void findCallback ( char* query, uchar key )
 	else
 	{
 		editorState.lastMatchRowIdx = - 1;                // clear
+		editorState.lastMatchColIdx = - 1;                // clear
 		editorState.searchDirection = SEARCHDIR_FORWARD;  // restore default
 	}
 
@@ -303,58 +408,119 @@ void findCallback ( char* query, uchar key )
 	}
 
 
-	/* TODO - start seach at current row, instead of first, then wrap...
-	*/
 	// Perform search
+	match  = NULL;
 	rowIdx = editorState.lastMatchRowIdx;
+	colIdx = editorState.lastMatchColIdx;
 
-	for ( i = 0; i < editorState.nTextRows; i += 1 )
+
+	// Search remainder of previous row for another match
+	if ( rowIdx != - 1 )
 	{
-		// Get row
-		rowIdx += editorState.searchDirection;
+		textRow = editorState.textRows + rowIdx;
 
-		// Wrap around
+		// Find next occurrence in row
+		if ( editorState.searchDirection == SEARCHDIR_FORWARD )
+		{
+			startPos = textRow->chars_render + colIdx + editorState.lastMatchLen;
+
+			match = strstr( startPos, query	);
+		}
+		// Find previous occurrence in row
+		else
+		{
+			startPos = textRow->chars_render + colIdx;
+
+			searchLen = textRow->len_render - strlen( startPos );
+
+			match = reverseStrstr( startPos, searchLen, query );
+		}
+	}
+
+
+	// Search next rows for match
+	if ( match == NULL )
+	{
+		// Start search at cursor location
 		if ( rowIdx == - 1 )
 		{
-			rowIdx = editorState.nTextRows - 1;
-		}
-		else if ( rowIdx == editorState.nTextRows )
-		{
-			rowIdx = 0;
+			if ( editorState.searchDirection == SEARCHDIR_FORWARD )
+			{
+				rowIdx = editorState.editCursorRow - 1;  // will be +1'd below
+			}
+			else
+			{
+				rowIdx = editorState.editCursorRow + 1;  // will be -1'd below
+			}
 		}
 
 
 		//
-		textRow = editorState.textRows + rowIdx;
-
-		match = strstr( textRow->chars_render, query );
-
-		if ( match )
+		for ( i = 0; i < editorState.nTextRows; i += 1 )
 		{
+			// Get next row
+			rowIdx += editorState.searchDirection;
+
+			// Wrap around
+			if ( rowIdx == - 1 )
+			{
+				rowIdx = editorState.nTextRows - 1;
+			}
+			else if ( rowIdx == editorState.nTextRows )
+			{
+				rowIdx = 0;
+			}
+
+
+			// Search row for occurrence
+			textRow = editorState.textRows + rowIdx;
+
+			// Find first occurrence in row
+			if ( editorState.searchDirection == SEARCHDIR_FORWARD )
+			{
+				match = strstr( textRow->chars_render, query );
+			}
+			// Find last occurrence in row
+			else
+			{
+				startPos = textRow->chars_render + textRow->len_render;
+
+				searchLen = textRow->len_render;
+
+				match = reverseStrstr( startPos, searchLen, query );
+			}
+
 			//
-			editorState.lastMatchRowIdx = rowIdx;
-
-
-			//
-			colIdx = match - textRow->chars_render;
-
-			editorState.editCursorCol = convert_render_to_editCursorCol( textRow, colIdx );
-			editorState.editCursorRow = rowIdx;
-
-
-			/* Want matching line to be at the top of screen
-			   on next refresh. Accomplish this by ?
-			   which causes 'editorScroll()' to scroll upwards
-			   on next screen refresh...
-
-			   TODO - change this behaviour to standard pgdown into view 
-			        - also scroll across if offscreen horiz...
-			*/
-//			editorState.textRowOffset = editorState.nTextRows;
-
-			//
-			break;
+			if ( match )
+			{
+				break;
+			}
 		}
+	}
+
+
+	// If we found a match...
+	if ( match )
+	{
+		// Move cursor to match
+		colIdx = match - textRow->chars_render;
+
+		editorState.editCursorCol = convert_render_to_editCursorCol( textRow, colIdx );
+		editorState.editCursorRow = rowIdx;
+
+
+		// Save match location
+		editorState.lastMatchRowIdx = rowIdx;
+		editorState.lastMatchColIdx = colIdx;
+		editorState.lastMatchLen    = queryLen;
+
+
+		/* Trigger horizontal scroll to ensure full match is visible,
+		   not just first char...
+		*/
+		editorState.editCursorCol += queryLen;
+		scroll();
+		editorState.editCursorCol -= queryLen;
 	}
 }
 
@@ -1401,7 +1567,7 @@ void processKeyPress ( void )
 
 			if ( editorState.dirty && editorState.promptQuit )
 			{
-				setMessage( "Unsaved changes. <Ctrl-q> again to quit" );
+				setMessage( "Unsaved changes. <ctrl-q> again to quit" );
 				editorState.messageIsWarning = 1;
 
 				//
@@ -1431,7 +1597,7 @@ void processKeyPress ( void )
 
 		case CTRL( 'g' ):  // ctrl-h clashing with backspace
 
-			// TODO
+			drawHelpScreen();
 			break;
 
 
@@ -1506,7 +1672,7 @@ void processKeyPress ( void )
 char* promptUser (
 
 	char* prompt,
-	void ( *callback ) ( char*, uchar )
+	void ( *callback ) ( char*, int, uchar )
 )
 {
 	char*  inputBuf;
@@ -1546,7 +1712,7 @@ char* promptUser (
 
 			if ( callback != NULL )
 			{
-				callback( inputBuf, c );
+				callback( inputBuf, inputLen, c );
 			}
 
 			free( inputBuf );
@@ -1563,7 +1729,7 @@ char* promptUser (
 
 				if ( callback != NULL )
 				{
-					callback( inputBuf, c );
+					callback( inputBuf, inputLen, c );
 				}
 
 				return inputBuf;
@@ -1618,7 +1784,7 @@ char* promptUser (
 		{
 			if ( callback != NULL )
 			{
-				callback( inputBuf, c );
+				callback( inputBuf, inputLen, c );
 			}
 		}
 	}
@@ -1644,6 +1810,40 @@ void setMessage ( const char* fmt, ... )
 	// Hmmm... for now set default here
 	editorState.messageIsWarning = 0;
 	editorState.messageIsPrompt  = 0;
+}
+
+
+// ____________________________________________________________________________________
+
+void drawHelpScreen ( void )
+{
+	uchar c;
+	int   i;
+
+	// Draw message
+	GFXText_clearScreen();
+
+	for ( i = 0; i < helpMsgLen; i += 1 )
+	{
+		GFXText_setCursorPosition( i, 0 );
+
+		printString( helpMsg[ i ], NO_WRAP );
+	}
+
+
+	// Block until user presses escape
+	while ( 1 )
+	{
+		// Wait for user input
+		c = ( uchar ) readKey();
+
+
+		// User has pressed escape
+		if ( c == K_ESCAPE )
+		{
+			return;
+		}
+	}
 }
 
 
@@ -1967,7 +2167,7 @@ int main ( int argc, char* argv [] )
 		openFile( argv[ 1 ] );
 	}
 
-	setMessage( "<Ctrl-q> quit, <Ctrl-g> help" );
+	setMessage( "<ctrl-q> quit, <ctrl-g> help" );
 
 	while ( 1 )
 	{
