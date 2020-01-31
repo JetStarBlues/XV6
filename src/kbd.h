@@ -20,13 +20,13 @@
 #define KEY_HOME     0xE0
 #define KEY_END      0xE1
 #define KEY_UP       0xE2
-#define KEY_DN       0xE3
-#define KEY_LF       0xE4
-#define KEY_RT       0xE5
-#define KEY_PGUP     0xE6
-#define KEY_PGDN     0xE7
-#define KEY_INS      0xE8
-#define KEY_DEL      0xE9
+#define KEY_DOWN     0xE3
+#define KEY_LEFT     0xE4
+#define KEY_RIGHT    0xE5
+#define KEY_PAGEUP   0xE6
+#define KEY_PAGEDOWN 0xE7
+#define KEY_INSERT   0xE8
+#define KEY_DELETE   0xE9
 
 // C('A') == Control-A
 #define C( x ) ( x - '@' )
@@ -65,11 +65,11 @@ static uchar normalmap [ 256 ] = {
 	[ 0x9C ] '\n',  // KP_Enter
 	[ 0xB5 ] '/',   // KP_Div
 
-	[ 0xC8 ] KEY_UP,    [ 0xD0 ] KEY_DN,
-	[ 0xC9 ] KEY_PGUP,  [ 0xD1 ] KEY_PGDN,
-	[ 0xCB ] KEY_LF,    [ 0xCD ] KEY_RT,
-	[ 0xC7 ] KEY_HOME,  [ 0xCF ] KEY_END,
-	[ 0xD2 ] KEY_INS,   [ 0xD3 ] KEY_DEL
+	[ 0xC8 ] KEY_UP,      [ 0xD0 ] KEY_DOWN,
+	[ 0xC9 ] KEY_PAGEUP,  [ 0xD1 ] KEY_PAGEDOWN,
+	[ 0xCB ] KEY_LEFT,    [ 0xCD ] KEY_RIGHT,
+	[ 0xC7 ] KEY_HOME,    [ 0xCF ] KEY_END,
+	[ 0xD2 ] KEY_INSERT,  [ 0xD3 ] KEY_DELETE
 };
 
 static uchar shiftmap [ 256 ] = {
@@ -89,11 +89,11 @@ static uchar shiftmap [ 256 ] = {
 	[ 0x9C ] '\n',  // KP_Enter
 	[ 0xB5 ] '/',   // KP_Div
 
-	[ 0xC8 ] KEY_UP,    [ 0xD0 ] KEY_DN,
-	[ 0xC9 ] KEY_PGUP,  [ 0xD1 ] KEY_PGDN,
-	[ 0xCB ] KEY_LF,    [ 0xCD ] KEY_RT,
-	[ 0xC7 ] KEY_HOME,  [ 0xCF ] KEY_END,
-	[ 0xD2 ] KEY_INS,   [ 0xD3 ] KEY_DEL
+	[ 0xC8 ] KEY_UP,      [ 0xD0 ] KEY_DOWN,
+	[ 0xC9 ] KEY_PAGEUP,  [ 0xD1 ] KEY_PAGEDOWN,
+	[ 0xCB ] KEY_LEFT,    [ 0xCD ] KEY_RIGHT,
+	[ 0xC7 ] KEY_HOME,    [ 0xCF ] KEY_END,
+	[ 0xD2 ] KEY_INSERT,  [ 0xD3 ] KEY_DELETE
 };
 
 static uchar ctlmap [ 256 ] = {
@@ -109,10 +109,10 @@ static uchar ctlmap [ 256 ] = {
 	[ 0x9C ] '\r',      // KP_Enter
 	[ 0xB5 ] C( '/' ),  // KP_Div
 
-	[ 0xC8 ] KEY_UP,    [ 0xD0 ] KEY_DN,
-	[ 0xC9 ] KEY_PGUP,  [ 0xD1 ] KEY_PGDN,
-	[ 0xCB ] KEY_LF,    [ 0xCD ] KEY_RT,
-	[ 0xC7 ] KEY_HOME,  [ 0xCF ] KEY_END,
-	[ 0xD2 ] KEY_INS,   [ 0xD3 ] KEY_DEL
+	[ 0xC8 ] KEY_UP,      [ 0xD0 ] KEY_DOWN,
+	[ 0xC9 ] KEY_PAGEUP,  [ 0xD1 ] KEY_PAGEDOWN,
+	[ 0xCB ] KEY_LEFT,    [ 0xCD ] KEY_RIGHT,
+	[ 0xC7 ] KEY_HOME,    [ 0xCF ] KEY_END,
+	[ 0xD2 ] KEY_INSERT,  [ 0xD3 ] KEY_DELETE
 };
 

@@ -228,8 +228,9 @@ char* strchr ( const char* s, char c )
 	return NULL;
 }
 
-/* Returns a pointer to the first occurence of substring
-   'subs' in string 's'. If not found, returns NULl
+/* Returns a pointer to the beginning of the first occurrence
+   of substring 'sub' in string 's'.
+   If not found, returns NULl
 */ 
 char* strstr ( const char* s, const char* sub )
 {
@@ -244,8 +245,10 @@ char* strstr ( const char* s, const char* sub )
 		return NULL;
 	}
 
+	//
 	subLen = strlen( sub );
 
+	//
 	while ( *s )
 	{
 		// If matches first char of substring, check for full match
@@ -333,7 +336,7 @@ char* gets ( char* buf, int max )
 	return buf;
 }
 
-// JK, crude implmentation
+// JK, crude implementation
 int getc ( int fd )
 {
 	char c;
@@ -355,7 +358,7 @@ int getc ( int fd )
 
 /* Description from man pages:
 
-    Reads an entire line from 'fd', and stores the charcters
+    Reads an entire line from 'fd', and stores the characters
     into the buffer pointed to by '*bufPtr'.
     The buffer is null-terminated and includes any found
     newline characters.

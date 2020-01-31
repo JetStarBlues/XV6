@@ -80,8 +80,8 @@ int kbdgetc ( void )
 	return c;
 }
 
-/* Keyboard interrupt is sent when a key changes
-   state (press or release)
+/* Keyboard interrupt is sent when a key changes state
+   (press or release)
 */
 void kbdintr ( void )
 {
