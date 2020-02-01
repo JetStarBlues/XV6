@@ -54,6 +54,7 @@ char* strdup  ( const char* );
 uint  strlen  ( const char* );
 int   strncmp ( const char*, const char*, int );
 char* strncpy ( char*, const char*, int );
+char* strrchr ( const char*, char );
 char* strstr  ( const char*, const char* );
 
 // umalloc.c
@@ -63,7 +64,14 @@ void* realloc ( void*, uint );
 
 
 // ctype...
+#define ISALNUM( C ) ( ISALPHA( c ) || ISDIGIT( c ) )
+#define ISALPHA( c ) ( ISLOWER( c ) || ISUPPER( c ) )
+#define ISBLANK( c ) ( ( ( c ) == ' ' ) || ( ( c ) == '\t' ) )
+#define ISCNTRL( c ) ( ( ( c ) >= 0 ) && ( ( c ) <= 31 ) )  // https://en.wikipedia.org/wiki/ASCII#Control_characters
 #define ISDIGIT( c ) ( ( ( c ) >= '0' ) && ( ( c ) <= '9' ) )
+#define ISLOWER( c ) ( ( ( c ) >= 'a' ) && ( ( c ) <= 'z' ) )
+#define ISSPACE( c ) ( ( ISBLANK( c ) || ( ( c ) == '\n' ) || ( ( c ) == '\r' ) )
+#define ISUPPER( c ) ( ( ( c ) >= 'A' ) && ( ( c ) <= 'Z' ) )
 
 
 /* Chuck these here for now, since almost everything

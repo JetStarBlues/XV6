@@ -12,11 +12,9 @@
 /*
 
 TODO:
-    . Highlight search match
-
     . Text wrapping
 
-    . Mouse select
+    . Mouse select ?
        . Plus thing where auto scrolls
 
     . Copy and paste
@@ -41,6 +39,15 @@ static uchar warningTextColor   = 0x0F;  // white
 static uchar warningTextBgColor = 0x0C;  // red
 static uchar promptTextColor    = 0x18;  // grey
 static uchar promptTextBgColor  = 0x5C;  // light yellow
+
+static uchar hlColor_searchResult = 0x09;  // blue
+static uchar hlColor_number       = 0x26;  // pink
+// static uchar color1 = 0x0A;  // green
+// static uchar color2 = 0x13;  // purple
+// static uchar color3 = 0x2B;  // orange
+// static uchar color4 = 0x1A;  // lighter grey
+
+
 
 //
 #define TABSIZE 3   // tab size in spaces
@@ -110,19 +117,36 @@ static int helpMsgLen = sizeof( helpMsg ) / sizeof( char* );
 
 
 //
+#define HL_NORMAL      0
+#define HL_SEARCHMATCH 1
+#define HL_NUMBER      2
+
+#define FLAG_HL_NUMBERS ( 1 << 0 )
+
+struct _syntax {
+
+	char*  name;
+	char** fileExtensions;  // list of file extensions that use this syntax
+	int    flags;           // bit field of what to highlight
+};
+
+
+//
 struct _textRow {
 
-	int   len;    // excluding null-terminal
 	char* chars;  // null terminated
+	int   len;    // excluding null-terminal
 
 	/* What rendered might be different length than bytes on file.
 	   For example tabs.
 	*/
-	int   len_render;    // excluding null-terminal
 	char* chars_render;  // null terminated
-};
+	int   len_render;    // excluding null-terminal
 
-// typedef struct _textRow textRow;
+	/* Store byte of highlight info for each byte of chars_render
+	*/
+	char* highlightInfo;
+};
 
 
 //
@@ -146,7 +170,7 @@ struct _editorState {
 	int renderCursorCol;
 
 	//
-	struct _textRow* textRows;  // better name
+	struct _textRow* textRows;
 	int              nTextRows;
 	int              textRowOffset;  // vertical scroll offset
 	int              textColOffset;  // horizontal scroll offset
@@ -163,10 +187,15 @@ struct _editorState {
 	int promptQuit;  // prompt on quit with unsaved changes
 
 	//
-	int searchDirection;
-	int lastMatchRowIdx;  // -1 if no last match
-	int lastMatchColIdx;
-	int lastMatchLen;
+	int   searchDirection;
+	int   lastMatchRowIdx;       // -1 if no last match
+	int   lastMatchColIdx;
+	int   lastMatchLen;
+	char* savedHighlightInfo;    // restore after exit search
+	int   savedHighlightRowIdx;
+
+	//
+	struct _syntax* currentSyntax;  // specifies which (if any) syntax should be used for highlighting
 };
 
 static struct _editorState editorState;
@@ -174,7 +203,7 @@ static struct _editorState editorState;
 
 //
 void die ( char* );
-void updateTextRowRender ( struct _textRow* );
+void updateRowRender ( struct _textRow* );
 void insertChar ( uchar );
 void deleteChar ( void );
 void insertTextRow ( int, char*, int );
@@ -187,6 +216,9 @@ void refreshScreen ( void );
 int convert_render_to_editCursorCol ( struct _textRow*, int );
 void scroll ( void );
 void drawHelpScreen ( void );
+uchar getHighlightColor ( int );
+void setFileSyntaxHighlight ( void );
+void updateRowSyntaxHighlight ( struct _textRow* );
 
 
 // ____________________________________________________________________________________
@@ -205,7 +237,7 @@ void enableRawMode ( void )
 	memcpy( &newConsoleAttr, &( editorState.origConsoleAttr ), sizeof( struct termios ) );
 
 	newConsoleAttr.echo   = 0;  // disable echoing
-	newConsoleAttr.icanon = 0;  // disiable canonical mode input
+	newConsoleAttr.icanon = 0;  // disable canonical mode input
 
 	if ( setConsoleAttr( stdin, &newConsoleAttr ) < 0 )
 	{
@@ -229,16 +261,57 @@ void disableRawMode ( void )
 #define WRAP    0
 #define NO_WRAP 1
 
-void printString ( char* s, int wrap )
+/* TODO - If performance is a problem, can reduce per character
+   calls to 'GFXText_setTextColor' and co. by tracking
+   current color and changing only if different.
+*/
+void printString ( char* s, int wrap, char* hlInfo )
 {
-	int row;
-	int col;
+	int   row;
+	int   col;
+	int   i;
+	uchar curTextColor;
+	char  hlSyntax;
+	uchar hlSyntaxColor;
 
+	//
+	if ( wrap == WRAP )
+	{
+		die( "printString: text wrapping currently unsupported" );
+	}
 
+	// Save
+	if ( hlInfo != NULL )
+	{
+		curTextColor = GFXText_getTextColor();
+	}
+
+	// Get current position
 	GFXText_getCursorPosition( &row, &col );
+
+	//
+	hlSyntax      = 0;
+	hlSyntaxColor = 0;
+	i             = 0;
 
 	while ( *s )
 	{
+		// Set color
+		if ( hlInfo != NULL )
+		{
+			hlSyntax      = hlInfo[ i ];
+			hlSyntaxColor = getHighlightColor( hlSyntax );
+
+			GFXText_setTextColor( hlSyntaxColor );
+
+			// Draw with different bg color so stands out...
+			if ( hlSyntax == HL_SEARCHMATCH )
+			{
+				GFXText_invertTextColors();
+			}
+		}
+
+
 		//
 		GFXText_printChar( *s );
 		// printf( 1, "%c", *s );
@@ -247,9 +320,15 @@ void printString ( char* s, int wrap )
 		// Advance cursor
 		col += 1;
 
-		// Handle horizontal overflow... erm...
+		// Handle horizontal overflow
 		if ( col == editorState.nScreenCols )
 		{
+			// If wrapping enabled, draw overflow characters in newline
+			/* TODO: for this to properly work, would need a "render cursor"
+			   or somehow update/track in 'chars_render' such that editor logic
+			   is aware of screen location of character...
+			*/
+			/*
 			if ( wrap == WRAP )
 			{
 				col  = 0;
@@ -261,17 +340,44 @@ void printString ( char* s, int wrap )
 					row -= 1;
 				}
 			}
+
+			// Otherwise, don't draw overflow characters
 			else
 			{
-				break;  // erm...
+				break;
 			}
+			*/
+
+			// Before we break, restore...
+			if ( ( hlInfo != NULL ) && ( hlSyntax == HL_SEARCHMATCH ) )
+			{
+				GFXText_invertTextColors();
+			}
+
+			//
+			break;
 		}
 
 		GFXText_setCursorPosition( row, col );
 
 
-		//
+		// Before we draw next char, restore...
+		if ( ( hlInfo != NULL ) && ( hlSyntax == HL_SEARCHMATCH ) )
+		{
+			GFXText_invertTextColors();
+		}
+
+
+		// Evaluate next char
 		s += 1;
+		i += 1;
+	}
+
+
+	// Restore
+	if ( hlInfo != NULL )
+	{
+		GFXText_setTextColor( curTextColor );
 	}
 }
 
@@ -297,10 +403,8 @@ void printString ( char* s, int wrap )
 // ____________________________________________________________________________________
 
 /* Returns a pointer to the beginning of the last occurrence
-   of substring 'sub' in string 's'.
+   of substring 'sub' in string 'sEnd - searchLen'.
    If not found, returns NULl.
-
-   'slen' as parameter because...
 */ 
 char* reverseStrstr ( char* sEnd, int searchLen, char* sub )
 {
@@ -372,7 +476,6 @@ char* reverseStrstr ( char* sEnd, int searchLen, char* sub )
 	return NULL;
 }
 
-
 // Incremental search achieved by using callback
 void findCallback ( char* query, int queryLen, uchar key )
 {
@@ -383,6 +486,25 @@ void findCallback ( char* query, int queryLen, uchar key )
 	int              i;
 	char*            startPos;
 	int              searchLen;
+
+
+	// Restore colors of line containing previous match
+	if ( editorState.savedHighlightInfo != NULL )
+	{
+		textRow = editorState.textRows + editorState.savedHighlightRowIdx;
+
+		memcpy(
+
+			textRow->highlightInfo,
+			editorState.savedHighlightInfo,
+			textRow->len_render
+		);
+
+		free( editorState.savedHighlightInfo );
+
+		editorState.savedHighlightInfo = NULL;
+	}
+
 
 	// Configure search direction
 	if ( ( key == KEY_RIGHT ) || ( key == KEY_DOWN ) )
@@ -401,7 +523,9 @@ void findCallback ( char* query, int queryLen, uchar key )
 	}
 
 
-	// If user has left search mode, return early
+	/* If user has left search mode, return early
+	   (after above free and resets)
+	*/
 	if ( ( key == '\n' ) || ( key == K_ESCAPE ) )
 	{
 		return;
@@ -521,6 +645,21 @@ void findCallback ( char* query, int queryLen, uchar key )
 		editorState.editCursorCol += queryLen;
 		scroll();
 		editorState.editCursorCol -= queryLen;
+
+
+		// Save line's current colors
+		editorState.savedHighlightRowIdx = rowIdx;
+		editorState.savedHighlightInfo = malloc( textRow->len_render );
+		memcpy(
+
+			editorState.savedHighlightInfo,
+			textRow->highlightInfo,
+			textRow->len_render
+		);
+
+
+		// Highlight match
+		memset( textRow->highlightInfo + colIdx, HL_SEARCHMATCH, queryLen );
 	}
 }
 
@@ -625,6 +764,9 @@ void save ( void )
 		}
 
 		editorState.filename = filename;
+
+		// Update to reflect new filename
+		setFileSyntaxHighlight();
 	}
 
 	buf = textRowsToString( &bufLen );
@@ -679,6 +821,9 @@ void saveAs ( void )
 
 	editorState.filename = filename;
 
+	// Update to reflect new filename
+	setFileSyntaxHighlight();
+
 
 	save();
 }
@@ -690,6 +835,7 @@ void freeTextRow ( struct _textRow* textRow )
 {
 	free( textRow->chars );
 	free( textRow->chars_render );
+	free( textRow->highlightInfo );
 }
 
 void deleteTextRow ( int idx )
@@ -748,7 +894,7 @@ void appendStringToTextRow ( struct _textRow* textRow, char* s, int slen )
 
 
 	// Update
-	updateTextRowRender( textRow );
+	updateRowRender( textRow );
 
 	// Mark dirty
 	editorState.dirty += 1;
@@ -795,7 +941,7 @@ void deleteCharFromTextRow ( struct _textRow* textRow, int idx )
 
 
 	// Update textRow's render fields...
-	updateTextRowRender( textRow );
+	updateRowRender( textRow );
 }
 
 void deleteChar ( void )
@@ -886,7 +1032,7 @@ void insertNewline ( void )
 
 		curTextRow->chars[ curTextRow->len ] = 0;  // null terminate
 
-		updateTextRowRender( curTextRow );
+		updateRowRender( curTextRow );
 	}
 
 	// Update pos
@@ -944,7 +1090,7 @@ void insertCharIntoTextRow ( struct _textRow* textRow, int idx, uchar c )
 
 
 	// Update textRow's render fields...
-	updateTextRowRender( textRow );
+	updateRowRender( textRow );
 }
 
 void insertChar ( uchar c )
@@ -974,7 +1120,216 @@ void insertChar ( uchar c )
 
 // ____________________________________________________________________________________
 
-void updateTextRowRender ( struct _textRow* textRow )  // better name
+/* TEMP - place C syntax highlight functions over here for now...
+          TODO: move to separate file...
+*/
+
+char* CLikeFileExtensions [] = {
+
+	".c", ".h", ".cpp", NULL
+};
+
+struct _syntax syntaxDatabase [] = {
+
+	{
+		"C",
+		CLikeFileExtensions,
+		FLAG_HL_NUMBERS
+	},
+};
+
+static int syntaxDatabaseLen = sizeof( syntaxDatabase ) / sizeof( struct _syntax );
+
+
+int isSeparator ( int c )
+{
+	return (
+
+		ISBLANK( c )                            ||  // whitespace
+		c == 0                                  ||  // ??
+		strchr( ",.()+-/*=~%<>[];", c ) != NULL
+	);
+}
+
+
+
+// ____________________________________________________________________________________
+
+void setFileSyntaxHighlight ( void )
+{
+	char*            fileExtension;
+	uint             i;
+	uint             j;
+	struct _syntax*  syntax;
+	char*            syntaxExtension;
+	int              rowIdx;
+	struct _textRow* textRow;
+
+	// Default, no syntax highlighting
+	editorState.currentSyntax = NULL;
+
+	if ( editorState.filename == NULL )
+	{
+		return;
+	}
+
+
+	// Get file's extension
+	fileExtension = strrchr( editorState.filename, '.' );
+
+
+	/* If file has an extension, loop through database
+	   looking for a match.
+	*/
+	if ( fileExtension )
+	{
+		for ( j = 0; j < syntaxDatabaseLen; j += 1 )
+		{
+			syntax = syntaxDatabase + j;
+
+			i = 0;
+
+			while ( 1 )
+			{
+				syntaxExtension = syntax->fileExtensions[ i ];
+
+				// Reached end of list
+				if ( syntaxExtension == NULL )
+				{
+					break;  // evaluate next entry in database
+				}
+
+				// Found a match!
+				if ( strcmp( fileExtension, syntaxExtension ) == 0 )
+				{
+					//
+					editorState.currentSyntax = syntax;
+
+					// Re-highlight file. For example when filename changes.
+					for ( rowIdx = 0; rowIdx < editorState.nTextRows; rowIdx += 1 )
+					{
+						textRow = editorState.textRows + rowIdx;
+
+						updateRowSyntaxHighlight( textRow );
+					}
+
+					// Done
+					return;
+				}
+
+				i += 1;
+			}
+		}
+	}
+}
+
+uchar getHighlightColor ( int snytaxType )
+{
+	switch ( snytaxType )
+	{
+		case HL_SEARCHMATCH : return hlColor_searchResult;
+		case HL_NUMBER      : return hlColor_number;
+	}
+
+	// Default
+	return textColor;
+}
+
+void updateRowSyntaxHighlight ( struct _textRow* textRow )
+{
+	char c;
+	int  i;
+	int  len;
+	int  prevCharWasSep;
+	char prevSyntax;
+
+	len = textRow->len_render;
+
+	/* Since overwriting everything, less overhead to
+	   free than realloc.
+	*/
+	free( textRow->highlightInfo );
+
+	textRow->highlightInfo = malloc( len );
+
+
+	// Default
+	memset( textRow->highlightInfo, HL_NORMAL, len );
+
+
+	//
+	if ( editorState.currentSyntax == NULL )
+	{
+		return;
+	}
+
+
+	//
+	prevCharWasSep = 1;  // Beginning of line treated as separator
+
+	i = 0;
+
+	while ( i < len )
+	{
+		// Get highlight type of previous character
+		if ( i > 0 )
+		{
+			prevSyntax = textRow->highlightInfo[ i - 1 ];
+		}
+		else
+		{
+			prevSyntax = HL_NORMAL;
+		}
+
+
+		// Get current character
+		c = textRow->chars_render[ i ];
+
+
+		// Match numbers
+		if ( editorState.currentSyntax->flags & FLAG_HL_NUMBERS )
+		{
+			if (
+				/* Current char is a digit, and previous char was either
+				   a separator or a number
+				*/
+				(
+					ISDIGIT( c ) &&
+					( prevCharWasSep || ( prevSyntax == HL_NUMBER ) )
+				)
+
+				||
+
+				/* Current char is a dot, and previous char was a number
+				*/
+				(
+					( c == '.' ) && ( prevSyntax == HL_NUMBER )
+				)
+			)
+			{
+				textRow->highlightInfo[ i ] = HL_NUMBER;
+
+				i += 1;  // consume
+
+				prevCharWasSep = 0;
+
+				continue;
+			}
+		}
+
+
+		//
+		prevCharWasSep = isSeparator( c );
+
+		//
+		i += 1;
+	}
+}
+
+
+// ____________________________________________________________________________________
+
+void updateRowRender ( struct _textRow* textRow )
 {
 	int j;
 	int idx;
@@ -990,8 +1345,10 @@ void updateTextRowRender ( struct _textRow* textRow )  // better name
 	}
 
 
-	//
-	free( textRow->chars_render );  // hmm...
+	/* Since overwriting everything, less overhead to
+	   free than realloc.
+	*/
+	free( textRow->chars_render );
 
 	textRow->chars_render = malloc(
 
@@ -1008,7 +1365,7 @@ void updateTextRowRender ( struct _textRow* textRow )  // better name
 	{
 		if ( textRow->chars[ j ] == '\t' )
 		{
-			// Each tab must advane the cursor forward at least one column
+			// Each tab must advance the cursor forward at least one column
 			textRow->chars_render[ idx ] = ' ';
 
 			idx += 1;
@@ -1033,6 +1390,10 @@ void updateTextRowRender ( struct _textRow* textRow )  // better name
 	textRow->chars_render[ idx ] = 0;  // null terminate
 
 	textRow->len_render = idx;
+
+
+	// Update corresponding highlight info
+	updateRowSyntaxHighlight( textRow );
 }
 
 
@@ -1087,9 +1448,10 @@ void insertTextRow ( int idx, char* s, int slen )
 
 
 	//
-	textRow->chars_render = NULL;
-	textRow->len_render   = 0;
-	updateTextRowRender( textRow );
+	textRow->chars_render  = NULL;
+	textRow->len_render    = 0;
+	textRow->highlightInfo = NULL;
+	updateRowRender( textRow );
 
 
 	// Update count
@@ -1102,7 +1464,7 @@ void insertTextRow ( int idx, char* s, int slen )
 
 // ____________________________________________________________________________________
 
-void openFile ( char* filename )  // better name
+void openFile ( char* filename )
 {
 	int   fd;
 	char* line;
@@ -1112,6 +1474,9 @@ void openFile ( char* filename )  // better name
 	//
 	free( editorState.filename );
 	editorState.filename = strdup( filename );
+
+	//
+	setFileSyntaxHighlight();
 
 	//
 	fd = open( filename, O_RDONLY );
@@ -1827,7 +2192,7 @@ void drawHelpScreen ( void )
 	{
 		GFXText_setCursorPosition( i, 0 );
 
-		printString( helpMsg[ i ], NO_WRAP );
+		printString( helpMsg[ i ], NO_WRAP, NULL );
 	}
 
 
@@ -1855,6 +2220,7 @@ void drawRows ( void )
 	int              fileRow;
 	struct _textRow* textRow;
 	char*            text;
+	char*            hlInfo;
 	int              centerCol;
 	char*            welcomeMsg;
 	int              welcomeMsgLen;
@@ -1879,7 +2245,7 @@ void drawRows ( void )
 
 				GFXText_setCursorPosition( screenRow, centerCol );
 
-				printString( welcomeMsg, NO_WRAP );
+				printString( welcomeMsg, NO_WRAP, NULL );
 			}
 		}
 	}
@@ -1908,8 +2274,10 @@ void drawRows ( void )
 				if ( editorState.textColOffset < textRow->len_render )
 				{
 					text = textRow->chars_render + editorState.textColOffset;
+	
+					hlInfo = textRow->highlightInfo + editorState.textColOffset;
 
-					printString( text, NO_WRAP );
+					printString( text, NO_WRAP, hlInfo );
 				}
 			}
 			else
@@ -1962,7 +2330,7 @@ void drawStatusBar ( void )
 
 	GFXText_setCursorPosition( editorState.nScreenRows, slen );
 
-	printString( statusMsg, NO_WRAP );
+	printString( statusMsg, NO_WRAP, NULL );
 
 	slen += slen2;
 
@@ -1995,7 +2363,7 @@ void drawStatusBar ( void )
 		// Draw cursor position
 		else
 		{
-			printString( statusMsg, NO_WRAP );
+			printString( statusMsg, NO_WRAP, NULL );
 
 			break;
 		}
@@ -2039,7 +2407,7 @@ void drawMessageBar ( void )
 		// Draw message
 		GFXText_setCursorPosition( editorState.nScreenRows + 1, 0 );
 
-		printString( editorState.message, NO_WRAP );
+		printString( editorState.message, NO_WRAP, NULL );
 
 
 		// Restore colors
@@ -2114,8 +2482,12 @@ void initEditor ( void )
 
 
 	//
-	editorState.lastMatchRowIdx = - 1;
-	editorState.searchDirection = SEARCHDIR_FORWARD;
+	editorState.searchDirection    = SEARCHDIR_FORWARD;
+	editorState.lastMatchRowIdx    = - 1;
+	editorState.savedHighlightInfo = NULL;
+
+	//
+	editorState.currentSyntax = NULL;
 }
 
 

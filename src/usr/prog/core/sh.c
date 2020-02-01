@@ -172,6 +172,7 @@ void runcmd ( struct cmd* cmd )
 
 				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
+			// TODO: recursive search directory
 			// Binary in "/bin"
 			else if ( exists( ecmd->argv[ 0 ], "/bin" ) )
 			{
@@ -183,6 +184,7 @@ void runcmd ( struct cmd* cmd )
 
 				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
+			// TODO: recursive search directory
 			// Binary in "/usr/bin"
 			else if ( exists( ecmd->argv[ 0 ], "/usr/bin" ) )
 			{

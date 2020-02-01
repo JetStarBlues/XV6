@@ -217,11 +217,34 @@ uint strlen ( const char* s )
 */
 char* strchr ( const char* s, char c )
 {
-	for ( ; *s; s += 1 )
+	while ( *s )
 	{
 		if ( *s == c )
 		{
 			return ( char* ) s;
+		}
+
+		s += 1;
+	}
+
+	return NULL;
+}
+
+/* Returns a pointer to the last occurrence of
+   character 'c' in string 's'. If not found, returns NULL
+*/
+char* strrchr ( const char* s, char c )
+{
+	int slen;
+	int i;
+
+	slen = strlen( s );
+
+	for ( i = slen - 1; i >= 0; i -= 1 )
+	{
+		if ( *( s + i ) == c )
+		{
+			return ( char* ) ( s + i );
 		}
 	}
 
