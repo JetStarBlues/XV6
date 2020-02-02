@@ -376,7 +376,7 @@ int getc ( int fd )
 		return - 1;
 	}
 
-	return ( int ) c;
+	return ( int ) ( ( uchar ) c );
 }
 
 /* Description from man pages:
@@ -401,7 +401,7 @@ int getc ( int fd )
 */
 int getline ( char** bufPtr, uint* bufSize, int fd )
 {
-	char  c;
+	int   c;
 	int   lineSize;  // excluding null byte
 	char* bPtr;
 	void* p;
@@ -430,7 +430,7 @@ int getline ( char** bufPtr, uint* bufSize, int fd )
 		// Get character from file
 		c = getc( fd );
 
-		if ( c < 0 )
+		if ( c == - 1 )
 		{
 			return - 1;
 		}
@@ -449,11 +449,13 @@ int getline ( char** bufPtr, uint* bufSize, int fd )
 			}
 
 			*bufPtr = p;
+
+			bPtr = *bufPtr + lineSize;  // update accordingly
 		}
 
 
 		// Add character to buffer
-		*bPtr = c;
+		*bPtr = ( char ) c;
 
 		bPtr += 1;
 
