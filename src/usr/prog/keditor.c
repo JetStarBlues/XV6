@@ -44,36 +44,42 @@ static uchar hlColor_searchResult      = 0x09;  // blue
 static uchar hlColor_number            = 0x26;  // pink
 static uchar hlColor_string            = 0x2F;  // green
 static uchar hlColor_commentSingleLine = 0x1C;  // lighter grey
-static uchar hlColor_commentMultiLine  = 0x1C;  // lighter grey
+// static uchar hlColor_commentMultiLine  = 0x1C;  // lighter grey
+static uchar hlColor_commentMultiLine  = 0x0C;
 static uchar hlColor_keywords0         = 0x3A;  // baby purple
 static uchar hlColor_keywords1         = 0x4F;  // baby blue
+// static uchar hlColor_operators          = 0x5C;  // ...
 
 
 
 // TODO - move group to separate file
-#define HL_NORMAL             0
-#define HL_SEARCHMATCH        1
-#define HL_NUMBER             2
-#define HL_STRING             3
-#define HL_COMMENT_SINGLElINE 4
-#define HL_COMMENT_MULTILINE  5
-#define HL_KEYWORDS0          6
-#define HL_KEYWORDS1          7
+#define HL_NORMAL             1
+#define HL_SEARCHMATCH        2
+#define HL_NUMBER             3
+#define HL_STRING             4
+#define HL_COMMENT_SINGLElINE 5
+#define HL_COMMENT_MULTILINE  6
+// #define HL_OPERATORS          7
+#define HL_KEYWORDS0          8
+#define HL_KEYWORDS1          9
 
-#define FLAG_HL_NUMBERS ( 1 << 0 )
-#define FLAG_HL_STRINGS ( 1 << 1 )
 
 struct _syntax {
 
-	char*  name;
+	char*  syntaxName;
 	char** fileExtensions;  // list of file extensions that use this syntax
-	int    flags;           // bit field of what to highlight
 
 	char*  singleLineCommentStart;
+	int    singleLineCommentStartLen;  // excluding null terminal
 	char*  multiLineCommentStart;
+	int    multiLineCommentStartLen;   // excluding null terminal
 	char*  multiLineCommentEnd;
+	int    multiLineCommentEndLen;     // excluding null terminal
+
 	char** keywords0;
 	char** keywords1;
+
+	int ( *isSeparator ) ( int );
 };
 
 
@@ -1148,8 +1154,7 @@ void insertChar ( uchar c )
 
 // ____________________________________________________________________________________
 
-/* TEMP - place C syntax highlight functions over here for now...
-          TODO: move to separate file...
+/* C Language specific highlight rules
 */
 
 char* CLikeFileExtensions [] = {
@@ -1181,27 +1186,16 @@ char* CLikeKeywords1 [] = {
 	NULL
 };
 
-struct _syntax syntaxDatabase [] = {
+/*char* CLikeOperators [] = {
 
-	{
-		"C",
-		CLikeFileExtensions,
-		(
-			FLAG_HL_NUMBERS |
-			FLAG_HL_STRINGS
-		),
-		"//",
-		"/*",
-		"*/",
-		CLikeKeywords0,
-		CLikeKeywords1
-	},
-};
-
-static int syntaxDatabaseLen = sizeof( syntaxDatabase ) / sizeof( struct _syntax );
+	"+", "-", "/", "%", "*"
+	"~", "&", "|", "^",
+	"&&", "||", "!",
+	"!=", "==", ">", ">=", "<", "<=",
+};*/
 
 
-int isSeparator ( int c )
+int CLike_isSeparator ( int c )
 {
 	return (
 
@@ -1212,6 +1206,54 @@ int isSeparator ( int c )
 	);
 }
 
+
+struct _syntax CLikeSyntax = {
+
+	"C",
+	CLikeFileExtensions,
+
+	"//", 2,
+	"/*", 2,
+	"*/", 2,
+
+	CLikeKeywords0,
+	CLikeKeywords1,
+
+	CLike_isSeparator
+};
+
+
+// ____________________________________________________________________________________
+
+
+struct _syntax* syntaxDatabase [] = {
+
+	&CLikeSyntax
+};
+
+static int syntaxDatabaseLen = sizeof( syntaxDatabase ) / sizeof( struct _syntax* );
+
+
+
+// ____________________________________________________________________________________
+
+uchar getHighlightColor ( int snytaxType )
+{
+	switch ( snytaxType )
+	{
+		case HL_SEARCHMATCH        : return hlColor_searchResult;
+		case HL_NUMBER             : return hlColor_number;
+		case HL_STRING             : return hlColor_string;
+		case HL_COMMENT_SINGLElINE : return hlColor_commentSingleLine;
+		case HL_COMMENT_MULTILINE  : return hlColor_commentMultiLine;
+		// case HL_OPERATORS          : return hlColor_operators;
+		case HL_KEYWORDS0          : return hlColor_keywords0;
+		case HL_KEYWORDS1          : return hlColor_keywords1;
+	}
+
+	// Default
+	return textColor;
+}
 
 
 // ____________________________________________________________________________________
@@ -1246,7 +1288,7 @@ void setFileSyntaxHighlight ( void )
 	{
 		for ( j = 0; j < syntaxDatabaseLen; j += 1 )
 		{
-			syntax = syntaxDatabase + j;
+			syntax = syntaxDatabase[ j ];
 
 			i = 0;
 
@@ -1284,61 +1326,261 @@ void setFileSyntaxHighlight ( void )
 	}
 }
 
-uchar getHighlightColor ( int snytaxType )
+
+// ____________________________________________________________________________________
+
+int highlightCommentSingleLine ( struct _textRow* textRow, int idx, int inString, int inMultilineComment )
 {
-	switch ( snytaxType )
+	char* sCommentMark;
+	int   sCommentMarkLen;
+
+	sCommentMark    = editorState.currentSyntax->singleLineCommentStart;
+	sCommentMarkLen = editorState.currentSyntax->singleLineCommentStartLen;
+
+
+	if ( ( sCommentMarkLen > 0 ) && ( ! inString ) && ( ! inMultilineComment ) )
 	{
-		case HL_SEARCHMATCH        : return hlColor_searchResult;
-		case HL_NUMBER             : return hlColor_number;
-		case HL_STRING             : return hlColor_string;
-		case HL_COMMENT_SINGLElINE : return hlColor_commentSingleLine;
-		case HL_COMMENT_MULTILINE  : return hlColor_commentMultiLine;
-		case HL_KEYWORDS0          : return hlColor_keywords0;
-		case HL_KEYWORDS1          : return hlColor_keywords1;
+		if ( strncmp( sCommentMark, textRow->chars_render + idx, sCommentMarkLen ) == 0 )
+		{
+			memset(
+
+				textRow->highlightInfo + idx,
+				HL_COMMENT_SINGLElINE,
+				textRow->len_render - idx
+			);
+
+			return 1;  // Done processing line
+		}
 	}
 
-	// Default
-	return textColor;
+
+	// No match
+	return 0;
 }
 
-int highlightKeywords ( struct _textRow* textRow, int* idx, char** keywords, char hlSyntax )
+int highlightCommentMultiLine ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char inString, int* inMultilineComment )
 {
-	int   i;
-	char* keyword;
-	int   keywordLen;
+	char* mCommentStartMark;
+	int   mCommentStartMarkLen;
+	char* mCommentEndMark;
+	int   mCommentEndMarkLen;
 
-	for ( i = 0; keywords[ i ]; i += 1 )
+	mCommentStartMark    = editorState.currentSyntax->multiLineCommentStart;
+	mCommentStartMarkLen = editorState.currentSyntax->multiLineCommentStartLen;
+	mCommentEndMark      = editorState.currentSyntax->multiLineCommentEnd;
+	mCommentEndMarkLen   = editorState.currentSyntax->multiLineCommentEndLen;
+
+
+	if ( mCommentStartMarkLen && mCommentEndMarkLen && ( ! inString ) )
 	{
-		keyword = keywords[ i ];
+		//
+		if ( *inMultilineComment )
+		{
+			// Matched end of multiline comment
+			if ( strncmp( mCommentEndMark, textRow->chars_render + ( *idx ), mCommentEndMarkLen ) == 0 )
+			{
+				memset(
 
-		keywordLen = strlen( keyword );
+					textRow->highlightInfo + ( *idx ),
+					HL_COMMENT_MULTILINE,
+					mCommentEndMarkLen
+				);
 
-		if (
+				*idx += mCommentEndMarkLen;  // consume
+
+				*inMultilineComment = 0;
+
+				*prevCharWasSep = 1;
+
+				return 1;
+			}
+
 			//
-			( strncmp( keyword, textRow->chars_render + ( *idx ), keywordLen ) == 0 )
+			else
+			{
+				textRow->highlightInfo[ *idx ] = HL_COMMENT_MULTILINE;
 
-			&&
+				*idx += 1;  // consume
 
-			// require a separator after the keyword
-			( isSeparator( *( textRow->chars_render + ( *idx ) + keywordLen ) ) )
-		)
+				return 1;
+			}
+		}
+
+		// Matched start of multiline comment
+		else if ( strncmp( mCommentStartMark, textRow->chars_render + ( *idx ), mCommentStartMarkLen ) == 0 )
 		{
 			memset(
 
 				textRow->highlightInfo + ( *idx ),
-				hlSyntax,
-				keywordLen
+				HL_COMMENT_MULTILINE,
+				mCommentStartMarkLen
 			);
 
-			*idx += keywordLen;  // consume
+			*idx += mCommentStartMarkLen;  // consume
+
+			*inMultilineComment = 1;
 
 			return 1;
 		}
 	}
 
+
+	// No match
+	return 0;
+}
+
+int highlightString ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char* inString )
+{
+	char c;
+
+	c = textRow->chars_render[ *idx ];
+
+	if ( *inString )
+	{
+		//
+		textRow->highlightInfo[ *idx ] = HL_STRING;
+
+		// Check for escaped characters
+		if ( ( c == '\\' ) && ( ( *idx + 1 ) < textRow->len_render ) )
+		{
+			textRow->highlightInfo[ *idx + 1 ] = HL_STRING;
+
+			*idx += 2;  // consume
+
+			return 1;
+		}
+
+		// Reached closing quote
+		if ( c == ( *inString ) )
+		{
+			*inString = 0;
+
+			*prevCharWasSep = 1;  // Closing quote treated as separator
+		}
+
+		*idx += 1;  // consume
+
+		return 1;
+	}
+
+	else
+	{
+		if ( ( c == '"' ) || ( c == '\'' ) )
+		{
+			*inString = c;  // mark with quote type
+
+			textRow->highlightInfo[ *idx ] = HL_STRING;
+
+			*idx += 1;  // consume
+
+			return 1;
+		}
+	}
+
+
+	// No match
+	return 0;
+}
+
+int highlightNumber ( struct _textRow* textRow, int* idx, int* prevCharWasSep )
+{
+	char c;
+	char prevHlSyntax;
+
+	// Get highlight type of previous character
+	if ( *idx > 0 )
+	{
+		prevHlSyntax = textRow->highlightInfo[ *idx - 1 ];
+	}
+	else
+	{
+		prevHlSyntax = HL_NORMAL;
+	}
+
+	//
+	c = textRow->chars_render[ *idx ];
+
+	//
+	if (
+		/* Current char is a digit, and previous char was either
+		   a separator or a number
+		*/
+		(
+			ISDIGIT( c ) &&
+			( *prevCharWasSep || ( prevHlSyntax == HL_NUMBER ) )
+		)
+
+		||
+
+		// Current char is a dot, and previous char was a number
+		(
+			( c == '.' ) && ( prevHlSyntax == HL_NUMBER )
+		)
+	)
+	{
+		textRow->highlightInfo[ *idx ] = HL_NUMBER;
+
+		*idx += 1;  // consume
+
+		*prevCharWasSep = 0;
+
+		return 1;
+	}
+
+
+	// No match
+	return 0;
+}
+
+int highlightKeywords ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char** keywords, char hlSyntax )
+{
+	int   i;
+	char* keyword;
+	int   keywordLen;
+
+	if ( *prevCharWasSep )  // require a separator before the keyword
+	{
+		for ( i = 0; keywords[ i ]; i += 1 )
+		{
+			keyword = keywords[ i ];
+
+			keywordLen = strlen( keyword );
+
+			if (
+
+				// keyword matches
+				( strncmp( keyword, textRow->chars_render + ( *idx ), keywordLen ) == 0 )
+
+				&&
+
+				// require a separator after the keyword
+				( editorState.currentSyntax->isSeparator(
+
+					*( textRow->chars_render + ( *idx ) + keywordLen )
+				) )
+			)
+			{
+				memset(
+
+					textRow->highlightInfo + ( *idx ),
+					hlSyntax,
+					keywordLen
+				);
+
+				*idx += keywordLen;  // consume
+
+				*prevCharWasSep = 0;  // ?
+
+				return 1;
+			}
+		}
+	}
+
+
 	// No keyword matched
 	return 0;
 }
+
 
 void updateRowSyntaxHighlight ( struct _textRow* textRow )
 {
@@ -1346,19 +1588,19 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 	struct _textRow* textRowNext;
 	char             c;
 	int              i;
-	char*            sCommentMark;
-	int              sCommentMarkLen;
-	char*            mCommentStartMark;
-	int              mCommentStartMarkLen;
-	char*            mCommentEndMark;
-	int              mCommentEndMarkLen;
+
 	int              mCommentStatusChanged;
 	char**           keywords;
+
+	int              matchedCommentSingle;
+	int              matchedCommentMultiline;
+	int              matchedString;
+	int              matchedNumber;
 	int              matchedKeyword;
+
 	int              prevCharWasSep;
-	char             prevSyntax;
 	char             inString;
-	char             inMultilineComment;
+	int              inMultilineComment;
 
 
 	/* Since overwriting everything, less overhead to
@@ -1378,15 +1620,6 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 	{
 		return;
 	}
-
-
-	//
-	sCommentMark         = editorState.currentSyntax->singleLineCommentStart;
-	sCommentMarkLen      = strlen( sCommentMark );
-	mCommentStartMark    = editorState.currentSyntax->multiLineCommentStart;
-	mCommentStartMarkLen = strlen( mCommentStartMark );
-	mCommentEndMark      = editorState.currentSyntax->multiLineCommentEnd;
-	mCommentEndMarkLen   = strlen( mCommentEndMark );
 
 
 	//
@@ -1410,182 +1643,51 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 
 	while ( i < textRow->len_render )
 	{
-		// Get highlight type of previous character
-		if ( i > 0 )
-		{
-			prevSyntax = textRow->highlightInfo[ i - 1 ];
-		}
-		else
-		{
-			prevSyntax = HL_NORMAL;
-		}
-
-
-		// Get current character
-		c = textRow->chars_render[ i ];
-
-
 		// Match single line comments
-		if ( sCommentMarkLen && ( ! inString ) && ( ! inMultilineComment ) )
+		matchedCommentSingle = highlightCommentSingleLine( textRow, i, inString, inMultilineComment );
+
+		if ( matchedCommentSingle )
 		{
-			if ( strncmp( sCommentMark, textRow->chars_render + i, sCommentMarkLen ) == 0 )
-			{
-				memset(
-
-					textRow->highlightInfo + i,
-					HL_COMMENT_SINGLElINE,
-					textRow->len_render - i
-				);
-
-				break;  // Done processing line
-			}
+			break;  // Done processing line
 		}
 
 
 		// Match multiline comment
-		if ( mCommentStartMarkLen && mCommentEndMarkLen && ( ! inString ) )
+		matchedCommentMultiline = highlightCommentMultiLine( textRow, &i, &prevCharWasSep, inString, &inMultilineComment );
+
+		if ( matchedCommentMultiline )
 		{
-			//
-			if ( inMultilineComment )
-			{
-				// Matched end of multiline comment
-				if ( strncmp( mCommentEndMark, textRow->chars_render + i, mCommentEndMarkLen ) == 0 )
-				{
-					memset(
-
-						textRow->highlightInfo + i,
-						HL_COMMENT_MULTILINE,
-						mCommentEndMarkLen
-					);
-
-					i += mCommentEndMarkLen;  // consume
-
-					inMultilineComment = 0;
-
-					prevCharWasSep = 1;
-
-					continue;
-				}
-
-				//
-				else
-				{
-					textRow->highlightInfo[ i ] = HL_COMMENT_MULTILINE;
-
-					i += 1;  // consume
-
-					continue;
-				}
-			}
-
-			// Matched start of multiline comment
-			else if ( strncmp( mCommentStartMark, textRow->chars_render + i, mCommentStartMarkLen ) == 0 )
-			{
-				memset(
-
-					textRow->highlightInfo + i,
-					HL_COMMENT_MULTILINE,
-					mCommentStartMarkLen
-				);
-
-				i += mCommentStartMarkLen;  // consume
-
-				inMultilineComment = 1;
-
-				continue;
-			}
+			continue;
 		}
 
 
 		// Match strings
-		if ( editorState.currentSyntax->flags & FLAG_HL_STRINGS )
+		matchedString = highlightString( textRow, &i, &prevCharWasSep, &inString );
+
+		if ( matchedString )
 		{
-			if ( inString )
-			{
-				textRow->highlightInfo[ i ] = HL_STRING;
-
-				// Check for escaped characters
-				if ( ( c == '\\' ) && ( ( i + 1 ) < textRow->len_render ) )
-				{
-					textRow->highlightInfo[ i + 1 ] = HL_STRING;
-
-					i += 2;  // consume
-
-					continue;
-				}
-
-				// Reached closing quote
-				if ( c == inString )
-				{
-					inString = 0;
-
-					prevCharWasSep = 1;  // Closing quote treated as separator
-				}
-
-				i += 1;  // consume
-
-				continue;
-			}
-
-			else
-			{
-				if ( ( c == '"' ) || ( c == '\'' ) )
-				{
-					inString = c;  // mark with quote type
-
-					textRow->highlightInfo[ i ] = HL_STRING;
-
-					i += 1;  // consume
-
-					continue;
-				}
-			}
+			continue;
 		}
 
 
 		// Match numbers
-		if ( editorState.currentSyntax->flags & FLAG_HL_NUMBERS )
+		matchedNumber = highlightNumber( textRow, &i, &prevCharWasSep );
+
+		if ( matchedNumber )
 		{
-			if (
-				/* Current char is a digit, and previous char was either
-				   a separator or a number
-				*/
-				(
-					ISDIGIT( c ) &&
-					( prevCharWasSep || ( prevSyntax == HL_NUMBER ) )
-				)
-
-				||
-
-				// Current char is a dot, and previous char was a number
-				(
-					( c == '.' ) && ( prevSyntax == HL_NUMBER )
-				)
-			)
-			{
-				textRow->highlightInfo[ i ] = HL_NUMBER;
-
-				prevCharWasSep = 0;
-
-				i += 1;  // consume
-
-				continue;
-			}
+			continue;
 		}
 
 
 		// Match keywords
-		if ( prevCharWasSep )  // require a separator before the keyword
 		{
 			// Check group 0
 			keywords = editorState.currentSyntax->keywords0;
 
-			matchedKeyword = highlightKeywords( textRow, &i, keywords, HL_KEYWORDS0 );
+			matchedKeyword = highlightKeywords( textRow, &i, &prevCharWasSep, keywords, HL_KEYWORDS0 );
 
 			if ( matchedKeyword )
 			{
-				prevCharWasSep = 0;  // ?
-
 				continue;
 			}
 
@@ -1593,19 +1695,20 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 			// Check group 1
 			keywords = editorState.currentSyntax->keywords1;
 
-			matchedKeyword = highlightKeywords( textRow, &i, keywords, HL_KEYWORDS1 );
+			matchedKeyword = highlightKeywords( textRow, &i, &prevCharWasSep, keywords, HL_KEYWORDS1 );
 
 			if ( matchedKeyword )
 			{
-				prevCharWasSep = 0;  // ?
-
 				continue;
 			}
 		}
 
 
 		//
-		prevCharWasSep = isSeparator( c );
+		c = textRow->chars_render[ i ];
+
+		prevCharWasSep = editorState.currentSyntax->isSeparator( c );
+
 
 		//
 		i += 1;
