@@ -40,23 +40,25 @@ static uchar warningTextBgColor = 0x0C;  // red
 static uchar promptTextColor    = 0x18;  // grey
 static uchar promptTextBgColor  = 0x5C;  // light yellow
 
-static uchar hlColor_searchResult = 0x09;  // blue
-static uchar hlColor_number       = 0x26;  // pink
-static uchar hlColor_string       = 0x0A;  // green
-static uchar hlColor_comment      = 0x1B;  // lighter grey
-static uchar hlColor_keywords0    = 0x23;  // purple
-static uchar hlColor_keywords1    = 0x2B;  // orange
+static uchar hlColor_searchResult      = 0x09;  // blue
+static uchar hlColor_number            = 0x26;  // pink
+static uchar hlColor_string            = 0x2F;  // green
+static uchar hlColor_commentSingleLine = 0x1C;  // lighter grey
+static uchar hlColor_commentMultiLine  = 0x1C;  // lighter grey
+static uchar hlColor_keywords0         = 0x3A;  // baby purple
+static uchar hlColor_keywords1         = 0x4F;  // baby blue
 
 
 
 // TODO - move group to separate file
-#define HL_NORMAL      0
-#define HL_SEARCHMATCH 1
-#define HL_NUMBER      2
-#define HL_STRING      3
-#define HL_COMMENT     4
-#define HL_KEYWORDS0   5
-#define HL_KEYWORDS1   6
+#define HL_NORMAL             0
+#define HL_SEARCHMATCH        1
+#define HL_NUMBER             2
+#define HL_STRING             3
+#define HL_COMMENT_SINGLElINE 4
+#define HL_COMMENT_MULTILINE  5
+#define HL_KEYWORDS0          6
+#define HL_KEYWORDS1          7
 
 #define FLAG_HL_NUMBERS ( 1 << 0 )
 #define FLAG_HL_STRINGS ( 1 << 1 )
@@ -146,6 +148,8 @@ static int helpMsgLen = sizeof( helpMsg ) / sizeof( char* );
 //
 struct _textRow {
 
+	int   idx;    // track position in file
+
 	char* chars;  // null terminated
 	int   len;    // excluding null-terminal
 
@@ -158,6 +162,7 @@ struct _textRow {
 	/* Store byte of highlight info for each byte of chars_render
 	*/
 	char* highlightInfo;
+	int   inMultilineComment;  // inside unclosed multiline comment
 };
 
 
@@ -854,6 +859,8 @@ void freeTextRow ( struct _textRow* textRow )
 void deleteTextRow ( int idx )
 {
 	struct _textRow* textRow;
+	struct _textRow* textRow2;
+	int              i;
 
 	// Check idx within bounds
 	if ( ( idx < 0 ) || ( idx > editorState.nTextRows ) )
@@ -873,6 +880,14 @@ void deleteTextRow ( int idx )
 		textRow + 1,
 		sizeof( struct _textRow ) * ( editorState.nTextRows - idx - 1 )
 	);
+
+	// Update indices affected by deletion
+	for ( i = idx; i < editorState.nTextRows - 1; i += 1 )
+	{
+		textRow2 = editorState.textRows + i;
+
+		textRow2->idx -= 1;
+	}
 
 
 	// Update
@@ -1144,24 +1159,25 @@ char* CLikeFileExtensions [] = {
 
 char* CLikeKeywords0 [] = {
 
-	"for", "while", "break", "continue",
-	"if", "then", "else",
-	"return",
-	"union", "struct", "enum",
-	"switch", "case", "default", "goto",
-	"typedef",
-
-	"#include", "#define",
-	NULL
-};
-
-char* CLikeKeywords1 [] = {
-
 	"void",
 	"char", "int", "long",
 	"float", "double",
 	"unsigned", "signed",
 	"static", "const",
+
+	"union", "struct", "enum",
+	"typedef",
+	NULL
+};
+
+char* CLikeKeywords1 [] = {
+
+	"for", "while", "break", "continue",
+	"if", "then", "else",
+	"return",
+	"switch", "case", "default", "goto",
+
+	"#include", "#define",
 	NULL
 };
 
@@ -1272,12 +1288,13 @@ uchar getHighlightColor ( int snytaxType )
 {
 	switch ( snytaxType )
 	{
-		case HL_SEARCHMATCH : return hlColor_searchResult;
-		case HL_NUMBER      : return hlColor_number;
-		case HL_STRING      : return hlColor_string;
-		case HL_COMMENT     : return hlColor_comment;
-		case HL_KEYWORDS0   : return hlColor_keywords0;
-		case HL_KEYWORDS1   : return hlColor_keywords1;
+		case HL_SEARCHMATCH        : return hlColor_searchResult;
+		case HL_NUMBER             : return hlColor_number;
+		case HL_STRING             : return hlColor_string;
+		case HL_COMMENT_SINGLElINE : return hlColor_commentSingleLine;
+		case HL_COMMENT_MULTILINE  : return hlColor_commentMultiLine;
+		case HL_KEYWORDS0          : return hlColor_keywords0;
+		case HL_KEYWORDS1          : return hlColor_keywords1;
 	}
 
 	// Default
@@ -1286,13 +1303,13 @@ uchar getHighlightColor ( int snytaxType )
 
 int highlightKeywords ( struct _textRow* textRow, int* idx, char** keywords, char hlSyntax )
 {
-	int   j;
+	int   i;
 	char* keyword;
 	int   keywordLen;
 
-	for ( j = 0; keywords[ j ]; j += 1 )
+	for ( i = 0; keywords[ i ]; i += 1 )
 	{
-		keyword = keywords[ j ];
+		keyword = keywords[ i ];
 
 		keywordLen = strlen( keyword );
 
@@ -1325,19 +1342,23 @@ int highlightKeywords ( struct _textRow* textRow, int* idx, char** keywords, cha
 
 void updateRowSyntaxHighlight ( struct _textRow* textRow )
 {
-	char   c;
-	int    i;
-	char*  sCommentMark;
-	int    sCommentMarkLen;
-	// char*  mCommentStartMark;
-	// int    mCommentStartMarkLen;
-	// char*  mCommentEndMark;
-	// int    mCommentEndMarkLen;
-	char** keywords;
-	int    matchedKeyword;
-	int    prevCharWasSep;
-	char   prevSyntax;
-	char   inString;
+	struct _textRow* textRowPrev;
+	struct _textRow* textRowNext;
+	char             c;
+	int              i;
+	char*            sCommentMark;
+	int              sCommentMarkLen;
+	char*            mCommentStartMark;
+	int              mCommentStartMarkLen;
+	char*            mCommentEndMark;
+	int              mCommentEndMarkLen;
+	int              mCommentStatusChanged;
+	char**           keywords;
+	int              matchedKeyword;
+	int              prevCharWasSep;
+	char             prevSyntax;
+	char             inString;
+	char             inMultilineComment;
 
 
 	/* Since overwriting everything, less overhead to
@@ -1362,15 +1383,28 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 	//
 	sCommentMark         = editorState.currentSyntax->singleLineCommentStart;
 	sCommentMarkLen      = strlen( sCommentMark );
-	// mCommentStartMark    = editorState.currentSyntax->multiLineCommentStart;
-	// mCommentStartMarkLen = strlen( mCommentStartMark );
-	// mCommentEndMark      = editorState.currentSyntax->multiLineCommentEnd;
-	// mCommentEndMarkLen   = strlen( mCommentEndMark );
+	mCommentStartMark    = editorState.currentSyntax->multiLineCommentStart;
+	mCommentStartMarkLen = strlen( mCommentStartMark );
+	mCommentEndMark      = editorState.currentSyntax->multiLineCommentEnd;
+	mCommentEndMarkLen   = strlen( mCommentEndMark );
 
 
 	//
-	prevCharWasSep = 1;  // Beginning of line treated as separator
-	inString       = 0;
+	prevCharWasSep     = 1;  // Beginning of line treated as separator
+	inString           = 0;
+	inMultilineComment = 0;
+
+	// Check if previous line is part of an unclosed multiline comment
+	if ( textRow->idx > 0 )
+	{
+		textRowPrev = editorState.textRows + textRow->idx - 1;
+
+		if ( textRowPrev->inMultilineComment )
+		{
+			inMultilineComment = 1;
+		}
+	}
+
 
 	i = 0;
 
@@ -1392,18 +1426,73 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 
 
 		// Match single line comments
-		if ( sCommentMarkLen && ( ! inString ) )
+		if ( sCommentMarkLen && ( ! inString ) && ( ! inMultilineComment ) )
 		{
 			if ( strncmp( sCommentMark, textRow->chars_render + i, sCommentMarkLen ) == 0 )
 			{
 				memset(
 
 					textRow->highlightInfo + i,
-					HL_COMMENT,
+					HL_COMMENT_SINGLElINE,
 					textRow->len_render - i
 				);
 
 				break;  // Done processing line
+			}
+		}
+
+
+		// Match multiline comment
+		if ( mCommentStartMarkLen && mCommentEndMarkLen && ( ! inString ) )
+		{
+			//
+			if ( inMultilineComment )
+			{
+				// Matched end of multiline comment
+				if ( strncmp( mCommentEndMark, textRow->chars_render + i, mCommentEndMarkLen ) == 0 )
+				{
+					memset(
+
+						textRow->highlightInfo + i,
+						HL_COMMENT_MULTILINE,
+						mCommentEndMarkLen
+					);
+
+					i += mCommentEndMarkLen;  // consume
+
+					inMultilineComment = 0;
+
+					prevCharWasSep = 1;
+
+					continue;
+				}
+
+				//
+				else
+				{
+					textRow->highlightInfo[ i ] = HL_COMMENT_MULTILINE;
+
+					i += 1;  // consume
+
+					continue;
+				}
+			}
+
+			// Matched start of multiline comment
+			else if ( strncmp( mCommentStartMark, textRow->chars_render + i, mCommentStartMarkLen ) == 0 )
+			{
+				memset(
+
+					textRow->highlightInfo + i,
+					HL_COMMENT_MULTILINE,
+					mCommentStartMarkLen
+				);
+
+				i += mCommentStartMarkLen;  // consume
+
+				inMultilineComment = 1;
+
+				continue;
 			}
 		}
 
@@ -1521,6 +1610,20 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 		//
 		i += 1;
 	}
+
+
+	// Update current row's multiline comment state (inside/outside)
+	mCommentStatusChanged = textRow->inMultilineComment != inMultilineComment;
+
+	textRow->inMultilineComment = inMultilineComment;
+
+	// Update subsequent rows affected by change in multiline comment state
+	if ( mCommentStatusChanged && ( ( textRow->idx + 1 ) < editorState.nTextRows ) )
+	{
+		textRowNext = editorState.textRows + textRow->idx + 1;
+
+		updateRowSyntaxHighlight( textRowNext );
+	}
 }
 
 
@@ -1600,6 +1703,8 @@ void insertTextRow ( int idx, char* s, int slen )
 {
 	struct _textRow* ptr;
 	struct _textRow* textRow;
+	struct _textRow* textRow2;
+	int              i;
 
 	// Check idx within bounds
 	if ( ( idx < 0 ) || ( idx > editorState.nTextRows ) )
@@ -1634,6 +1739,15 @@ void insertTextRow ( int idx, char* s, int slen )
 	);
 
 
+	// Update indices affected by insertion
+	for ( i = idx + 1; i < editorState.nTextRows; i += 1 )
+	{
+		textRow2 = editorState.textRows + i;
+
+		textRow2->idx += 1;
+	}
+
+
 	// Copy the string into the textRow
 	textRow->chars = malloc( slen + 1 );  // +1 for null terminal
 
@@ -1645,9 +1759,11 @@ void insertTextRow ( int idx, char* s, int slen )
 
 
 	//
+	textRow->idx           = idx;
 	textRow->chars_render  = NULL;
 	textRow->len_render    = 0;
 	textRow->highlightInfo = NULL;
+	textRow->inMultilineComment = 0;
 	updateRowRender( textRow );
 
 

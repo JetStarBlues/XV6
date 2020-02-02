@@ -152,6 +152,7 @@ _UPROG_TEST_OBJS =    \
 	string_test.o     \
 	temptest.o        \
 	usertests.o       \
+	vgapal_test.o     \
 	zombie_test.o
 
 _UPROG_WISC_OBJS =    \
