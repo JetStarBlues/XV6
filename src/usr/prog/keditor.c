@@ -1,7 +1,8 @@
 /*
-  Build your own text editor
-  Jeremy Ruten
-  https://viewsourcecode.org/snaptoken/kilo/index.html
+  Based on this excellent tutorial:
+    "Build your own text editor"
+    by Jeremy Ruten
+    https://viewsourcecode.org/snaptoken/kilo/index.html
 */
 
 /* NOTE: QEMU window has to be in focus for
@@ -10,7 +11,6 @@
 
 
 /*
-
 TODO:
     . Text wrapping
 
@@ -42,10 +42,37 @@ static uchar promptTextBgColor  = 0x5C;  // light yellow
 
 static uchar hlColor_searchResult = 0x09;  // blue
 static uchar hlColor_number       = 0x26;  // pink
-// static uchar color1 = 0x0A;  // green
-// static uchar color2 = 0x13;  // purple
-// static uchar color3 = 0x2B;  // orange
-// static uchar color4 = 0x1A;  // lighter grey
+static uchar hlColor_string       = 0x0A;  // green
+static uchar hlColor_comment      = 0x1B;  // lighter grey
+static uchar hlColor_keywords0    = 0x23;  // purple
+static uchar hlColor_keywords1    = 0x2B;  // orange
+
+
+
+// TODO - move group to separate file
+#define HL_NORMAL      0
+#define HL_SEARCHMATCH 1
+#define HL_NUMBER      2
+#define HL_STRING      3
+#define HL_COMMENT     4
+#define HL_KEYWORDS0   5
+#define HL_KEYWORDS1   6
+
+#define FLAG_HL_NUMBERS ( 1 << 0 )
+#define FLAG_HL_STRINGS ( 1 << 1 )
+
+struct _syntax {
+
+	char*  name;
+	char** fileExtensions;  // list of file extensions that use this syntax
+	int    flags;           // bit field of what to highlight
+
+	char*  singleLineCommentStart;
+	char*  multiLineCommentStart;
+	char*  multiLineCommentEnd;
+	char** keywords0;
+	char** keywords1;
+};
 
 
 
@@ -114,21 +141,6 @@ static char* helpMsg [] = {
 };
 
 static int helpMsgLen = sizeof( helpMsg ) / sizeof( char* );
-
-
-//
-#define HL_NORMAL      0
-#define HL_SEARCHMATCH 1
-#define HL_NUMBER      2
-
-#define FLAG_HL_NUMBERS ( 1 << 0 )
-
-struct _syntax {
-
-	char*  name;
-	char** fileExtensions;  // list of file extensions that use this syntax
-	int    flags;           // bit field of what to highlight
-};
 
 
 //
@@ -216,6 +228,7 @@ void refreshScreen ( void );
 int convert_render_to_editCursorCol ( struct _textRow*, int );
 void scroll ( void );
 void drawHelpScreen ( void );
+void drawLoadingFileScreen ( void );
 uchar getHighlightColor ( int );
 void setFileSyntaxHighlight ( void );
 void updateRowSyntaxHighlight ( struct _textRow* );
@@ -1129,12 +1142,43 @@ char* CLikeFileExtensions [] = {
 	".c", ".h", ".cpp", NULL
 };
 
+char* CLikeKeywords0 [] = {
+
+	"for", "while", "break", "continue",
+	"if", "then", "else",
+	"return",
+	"union", "struct", "enum",
+	"switch", "case", "default", "goto",
+	"typedef",
+
+	"#include", "#define",
+	NULL
+};
+
+char* CLikeKeywords1 [] = {
+
+	"void",
+	"char", "int", "long",
+	"float", "double",
+	"unsigned", "signed",
+	"static", "const",
+	NULL
+};
+
 struct _syntax syntaxDatabase [] = {
 
 	{
 		"C",
 		CLikeFileExtensions,
-		FLAG_HL_NUMBERS
+		(
+			FLAG_HL_NUMBERS |
+			FLAG_HL_STRINGS
+		),
+		"//",
+		"/*",
+		"*/",
+		CLikeKeywords0,
+		CLikeKeywords1
 	},
 };
 
@@ -1146,7 +1190,8 @@ int isSeparator ( int c )
 	return (
 
 		ISBLANK( c )                            ||  // whitespace
-		c == 0                                  ||  // ??
+		c == 0                                  ||  /* Given that we store textRows as null delimited array,
+		                                               detects end of textRow */
 		strchr( ",.()+-/*=~%<>[];", c ) != NULL
 	);
 }
@@ -1229,32 +1274,82 @@ uchar getHighlightColor ( int snytaxType )
 	{
 		case HL_SEARCHMATCH : return hlColor_searchResult;
 		case HL_NUMBER      : return hlColor_number;
+		case HL_STRING      : return hlColor_string;
+		case HL_COMMENT     : return hlColor_comment;
+		case HL_KEYWORDS0   : return hlColor_keywords0;
+		case HL_KEYWORDS1   : return hlColor_keywords1;
 	}
 
 	// Default
 	return textColor;
 }
 
+int highlightKeywords ( struct _textRow* textRow, int* idx, char** keywords, char hlSyntax )
+{
+	int   j;
+	char* keyword;
+	int   keywordLen;
+
+	for ( j = 0; keywords[ j ]; j += 1 )
+	{
+		keyword = keywords[ j ];
+
+		keywordLen = strlen( keyword );
+
+		if (
+			//
+			( strncmp( keyword, textRow->chars_render + ( *idx ), keywordLen ) == 0 )
+
+			&&
+
+			// require a separator after the keyword
+			( isSeparator( *( textRow->chars_render + ( *idx ) + keywordLen ) ) )
+		)
+		{
+			memset(
+
+				textRow->highlightInfo + ( *idx ),
+				hlSyntax,
+				keywordLen
+			);
+
+			*idx += keywordLen;  // consume
+
+			return 1;
+		}
+	}
+
+	// No keyword matched
+	return 0;
+}
+
 void updateRowSyntaxHighlight ( struct _textRow* textRow )
 {
-	char c;
-	int  i;
-	int  len;
-	int  prevCharWasSep;
-	char prevSyntax;
+	char   c;
+	int    i;
+	char*  sCommentMark;
+	int    sCommentMarkLen;
+	// char*  mCommentStartMark;
+	// int    mCommentStartMarkLen;
+	// char*  mCommentEndMark;
+	// int    mCommentEndMarkLen;
+	char** keywords;
+	int    matchedKeyword;
+	int    prevCharWasSep;
+	char   prevSyntax;
+	char   inString;
 
-	len = textRow->len_render;
 
 	/* Since overwriting everything, less overhead to
 	   free than realloc.
 	*/
 	free( textRow->highlightInfo );
 
-	textRow->highlightInfo = malloc( len );
+	textRow->highlightInfo = malloc( textRow->len_render );
 
 
 	// Default
-	memset( textRow->highlightInfo, HL_NORMAL, len );
+	memset( textRow->highlightInfo, HL_NORMAL, textRow->len_render );
 
 
 	//
@@ -1265,11 +1360,21 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 
 
 	//
+	sCommentMark         = editorState.currentSyntax->singleLineCommentStart;
+	sCommentMarkLen      = strlen( sCommentMark );
+	// mCommentStartMark    = editorState.currentSyntax->multiLineCommentStart;
+	// mCommentStartMarkLen = strlen( mCommentStartMark );
+	// mCommentEndMark      = editorState.currentSyntax->multiLineCommentEnd;
+	// mCommentEndMarkLen   = strlen( mCommentEndMark );
+
+
+	//
 	prevCharWasSep = 1;  // Beginning of line treated as separator
+	inString       = 0;
 
 	i = 0;
 
-	while ( i < len )
+	while ( i < textRow->len_render )
 	{
 		// Get highlight type of previous character
 		if ( i > 0 )
@@ -1286,6 +1391,69 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 		c = textRow->chars_render[ i ];
 
 
+		// Match single line comments
+		if ( sCommentMarkLen && ( ! inString ) )
+		{
+			if ( strncmp( sCommentMark, textRow->chars_render + i, sCommentMarkLen ) == 0 )
+			{
+				memset(
+
+					textRow->highlightInfo + i,
+					HL_COMMENT,
+					textRow->len_render - i
+				);
+
+				break;  // Done processing line
+			}
+		}
+
+
+		// Match strings
+		if ( editorState.currentSyntax->flags & FLAG_HL_STRINGS )
+		{
+			if ( inString )
+			{
+				textRow->highlightInfo[ i ] = HL_STRING;
+
+				// Check for escaped characters
+				if ( ( c == '\\' ) && ( ( i + 1 ) < textRow->len_render ) )
+				{
+					textRow->highlightInfo[ i + 1 ] = HL_STRING;
+
+					i += 2;  // consume
+
+					continue;
+				}
+
+				// Reached closing quote
+				if ( c == inString )
+				{
+					inString = 0;
+
+					prevCharWasSep = 1;  // Closing quote treated as separator
+				}
+
+				i += 1;  // consume
+
+				continue;
+			}
+
+			else
+			{
+				if ( ( c == '"' ) || ( c == '\'' ) )
+				{
+					inString = c;  // mark with quote type
+
+					textRow->highlightInfo[ i ] = HL_STRING;
+
+					i += 1;  // consume
+
+					continue;
+				}
+			}
+		}
+
+
 		// Match numbers
 		if ( editorState.currentSyntax->flags & FLAG_HL_NUMBERS )
 		{
@@ -1300,8 +1468,7 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 
 				||
 
-				/* Current char is a dot, and previous char was a number
-				*/
+				// Current char is a dot, and previous char was a number
 				(
 					( c == '.' ) && ( prevSyntax == HL_NUMBER )
 				)
@@ -1309,9 +1476,39 @@ void updateRowSyntaxHighlight ( struct _textRow* textRow )
 			{
 				textRow->highlightInfo[ i ] = HL_NUMBER;
 
+				prevCharWasSep = 0;
+
 				i += 1;  // consume
 
-				prevCharWasSep = 0;
+				continue;
+			}
+		}
+
+
+		// Match keywords
+		if ( prevCharWasSep )  // require a separator before the keyword
+		{
+			// Check group 0
+			keywords = editorState.currentSyntax->keywords0;
+
+			matchedKeyword = highlightKeywords( textRow, &i, keywords, HL_KEYWORDS0 );
+
+			if ( matchedKeyword )
+			{
+				prevCharWasSep = 0;  // ?
+
+				continue;
+			}
+
+
+			// Check group 1
+			keywords = editorState.currentSyntax->keywords1;
+
+			matchedKeyword = highlightKeywords( textRow, &i, keywords, HL_KEYWORDS1 );
+
+			if ( matchedKeyword )
+			{
+				prevCharWasSep = 0;  // ?
 
 				continue;
 			}
@@ -1438,7 +1635,7 @@ void insertTextRow ( int idx, char* s, int slen )
 
 
 	// Copy the string into the textRow
-	textRow->chars = malloc( slen + 1 );  // +1 for null temrinal
+	textRow->chars = malloc( slen + 1 );  // +1 for null terminal
 
 	memcpy( textRow->chars, s, slen );
 
@@ -1471,12 +1668,6 @@ void openFile ( char* filename )
 	int   lineLen;  // excluding null terminal
 	uint  lineBufSize;
 
-	//
-	free( editorState.filename );
-	editorState.filename = strdup( filename );
-
-	//
-	setFileSyntaxHighlight();
 
 	//
 	fd = open( filename, O_RDONLY );
@@ -1485,6 +1676,19 @@ void openFile ( char* filename )
 	{
 		die( "open" );
 	}
+
+
+	// Give the user some hope
+	drawLoadingFileScreen();
+
+
+	//
+	free( editorState.filename );
+	editorState.filename = strdup( filename );
+
+	//
+	setFileSyntaxHighlight();
+
 
 	//
 	line        = NULL;
@@ -2175,6 +2379,27 @@ void setMessage ( const char* fmt, ... )
 	// Hmmm... for now set default here
 	editorState.messageIsWarning = 0;
 	editorState.messageIsPrompt  = 0;
+}
+
+
+// ____________________________________________________________________________________
+
+void drawLoadingFileScreen ( void )
+{
+	char* msg;
+	int   msgLen;
+	int   centerRow;
+	int   centerCol;
+
+	msg    = "Loading file...";
+	msgLen = 15;  // excluding null terminal
+
+	centerRow = editorState.nScreenRows / 2 - 1;  // -1 for aesthetic
+	centerCol = ( editorState.nScreenCols / 2 ) - ( msgLen / 2 );
+
+	GFXText_clearScreen();
+	GFXText_setCursorPosition( centerRow, centerCol );
+	printString( msg, NO_WRAP, NULL );	
 }
 
 
