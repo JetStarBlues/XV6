@@ -12,8 +12,6 @@
 
 /*
 TODO:
-    . ctrl+o to open new file without having to quit
-
     . Text wrapping
 
     . Mouse select ?
@@ -192,8 +190,10 @@ struct _editorState {
 	int   messageIsPrompt;   // will use fancy formatting to emphasize
 
 	//
-	int dirty;       // unsaved changes
-	int promptQuit;  // prompt on quit with unsaved changes
+	int dirty;         // unsaved changes
+	int promptQuit;    // prompt on quit with unsaved changes
+	int promptClose0;  // prompt on close with unsaved changes
+	int promptClose1;  // prompt on close with unsaved changes
 
 	//
 	int   searchDirection;
@@ -217,22 +217,22 @@ static char* helpMsg [] = {
 
 	"-- Shortcuts --",
 	"",
-	". [ctrl-g] to view help (this page)",
-	"    . [esc] to cancel",
-	// "",
-	". [ctrl-s] to save",
-	"    . [esc] to cancel",
-	// "",
-	". [ctrl-t] to save as",
-	"    . [esc]   to cancel",
-	"    . [enter] to accept",
-	// "",
-	". [ctrl-f] to find",
-	"    . [esc]   to cancel",
-	"    . [arrow] to jump to next/prev match",
-	"    . [enter] to accept",
-	// "",
-	". [ctrl-q] to quit",
+	". [ctrl-g]     view help (this page)",
+	"    . [esc]       cancel",
+	". [ctrl-s]     save",
+	"    . [esc]       cancel",
+	". [ctrl-t]     save as",
+	"    . [esc]       cancel",
+	"    . [enter]     accept",
+	". [ctrl-n]     open a new file",
+	". [ctrl-o]     open an existing file",
+	"    . [esc]       cancel",
+	"    . [enter]     accept",
+	". [ctrl-f]     find",
+	"    . [esc]       cancel",
+	"    . [arrow]     jump to next/prev match",
+	"    . [enter]     accept",
+	". [ctrl-q]     quit",
 };
 
 static int helpMsgLen = sizeof( helpMsg ) / sizeof( char* );
@@ -347,6 +347,7 @@ static int syntaxDatabaseLen = sizeof( syntaxDatabase ) / sizeof( struct _syntax
 uchar getHighlightColor               ( int );
 void  updateRowSyntaxHighlight        ( struct _textRow* );
 int   convert_render_to_editCursorCol ( struct _textRow*, int );
+void  freeTextRow                     ( struct _textRow* );
 void  deleteTextRow                   ( int );
 void  insertTextRow                   ( int, char*, int );
 void  scroll                          ( void );
@@ -357,9 +358,10 @@ char* promptUser (
 );
 
 void  setMessage                      ( const char*, ... );
-void  drawHelpScreen                  ( void );
 void  drawLoadingFileScreen           ( void );
+void  drawHelpScreen                  ( void );
 void  refreshScreen                   ( void );
+void  initEditor                      ( void );
 void  die                             ( char* );
 
 
@@ -1080,7 +1082,6 @@ void openFile ( char* filename )
 
 
 	//
-	free( editorState.filename );
 	editorState.filename = strdup( filename );
 
 	//
@@ -1124,6 +1125,67 @@ void openFile ( char* filename )
 	free( line );
 
 	close( fd );
+}
+
+
+// ____________________________________________________________________________________
+
+void closeFile ( void )
+{
+	struct _textRow* textRow;
+	int              i;
+
+	// If empty file, nothing to do
+	if ( ( editorState.filename == NULL ) && ( editorState.dirty == 0 ) )
+	{
+		return;
+	}
+
+
+	// Free memory currently in use
+	for ( i = 0; i < editorState.nTextRows; i += 1 )
+	{
+		textRow = editorState.textRows + i;
+
+		freeTextRow( textRow );
+	}
+
+	free( editorState.textRows );	
+	free( editorState.filename );
+	free( editorState.savedHighlightInfo );
+
+
+	// Reset editor state
+	initEditor();
+}
+
+// Open new empty file
+void openNewFile ( void )
+{
+	// Close current file
+	closeFile();
+}
+
+// Open file specified by user
+void openExistingFile ( void )
+{
+	char* filename;
+
+	// TODO: Check that valid filename before assigning...
+	filename = promptUser( "Open: %s", NULL );
+
+	// User 'escaped' input
+	if ( filename == NULL )
+	{
+		return;
+	}
+
+
+	// Close current file
+	closeFile();
+
+	// Open new file
+	openFile( filename );
 }
 
 
@@ -1954,6 +2016,13 @@ void insertChar ( uchar c )
 
 // ____________________________________________________________________________________
 
+void freeTextRow ( struct _textRow* textRow )
+{
+	free( textRow->chars );
+	free( textRow->chars_render );
+	free( textRow->highlightInfo );
+}
+
 void deleteTextRow ( int idx )
 {
 	struct _textRow* textRow;
@@ -1970,9 +2039,7 @@ void deleteTextRow ( int idx )
 	textRow = editorState.textRows + idx;
 
 	// Free associated memory
-	free( textRow->chars );
-	free( textRow->chars_render );
-	free( textRow->highlightInfo );
+	freeTextRow( textRow );
 
 
 	//
@@ -2417,14 +2484,19 @@ void processKeyPress ( void )
 
 			if ( editorState.dirty && editorState.promptQuit )
 			{
-				setMessage( "Unsaved changes. <ctrl-q> again to quit" );
+				//
+				setMessage( "Unsaved changes. [ctrl-q] again to quit" );
 				editorState.messageIsWarning = 1;
 
-				//
+				// Clear counter
 				editorState.promptQuit = 0;
 
 				// Force screen refresh so message appears
 				refreshScreen();
+
+				// Reset other counters...
+				editorState.promptClose0 = 1;
+				editorState.promptClose1 = 1;
 
 				//
 				return;
@@ -2432,6 +2504,58 @@ void processKeyPress ( void )
 			else
 			{
 				die( NULL );
+				break;
+			}
+
+		case CTRL( 'o' ):
+
+			if ( editorState.dirty && editorState.promptClose0 )
+			{
+				setMessage( "Unsaved changes. [ctrl-o] again to open" );
+				editorState.messageIsWarning = 1;
+
+				// Clear counter
+				editorState.promptClose0 = 0;
+
+				// Force screen refresh so message appears
+				refreshScreen();
+
+				// Reset other counters...
+				editorState.promptQuit   = 1;
+				editorState.promptClose1 = 1;
+
+				//
+				return;
+			}
+			else
+			{
+				openExistingFile();
+				break;
+			}
+
+		case CTRL( 'n' ):
+
+			if ( editorState.dirty && editorState.promptClose1 )
+			{
+				setMessage( "Unsaved changes. [ctrl-n] again to open" );
+				editorState.messageIsWarning = 1;
+
+				// Clear counter
+				editorState.promptClose1 = 0;
+
+				// Force screen refresh so message appears
+				refreshScreen();
+
+				// Reset other counters...
+				editorState.promptQuit   = 1;
+				editorState.promptClose0 = 1;
+
+				//
+				return;
+			}
+			else
+			{
+				openNewFile();
 				break;
 			}
 
@@ -2508,7 +2632,9 @@ void processKeyPress ( void )
 
 
 	//
-	editorState.promptQuit = 1;
+	editorState.promptQuit   = 1;
+	editorState.promptClose0 = 1;
+	editorState.promptClose1 = 1;
 }
 
 
@@ -2981,8 +3107,10 @@ void initEditor ( void )
 
 
 	//
-	editorState.dirty      = 0;
-	editorState.promptQuit = 1;
+	editorState.dirty        = 0;
+	editorState.promptQuit   = 1;
+	editorState.promptClose0 = 1;
+	editorState.promptClose1 = 1;
 
 
 	//
@@ -3043,7 +3171,7 @@ int main ( int argc, char* argv [] )
 		openFile( argv[ 1 ] );
 	}
 
-	setMessage( "<ctrl-q> quit, <ctrl-g> help" );
+	setMessage( "[ctrl-q] quit, [ctrl-g] help" );
 
 	while ( 1 )
 	{
