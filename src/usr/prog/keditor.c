@@ -12,14 +12,14 @@
 
 /*
 TODO:
+    . ctrl+o to open new file without having to quit
+
     . Text wrapping
 
     . Mouse select ?
        . Plus thing where auto scrolls
 
     . Copy and paste
-
-    . Rearrange code
 */
 
 
@@ -30,6 +30,8 @@ TODO:
 #include "GFX.h"      // Render graphically
 #include "GFXtext.h"  // Render graphically
 
+
+// -- User configurable start ----------------------------------
 
 // Default colors (standard 256-color VGA palette)
 static uchar textColor          = 0x18;  // grey
@@ -44,25 +46,33 @@ static uchar hlColor_searchResult      = 0x09;  // blue
 static uchar hlColor_number            = 0x26;  // pink
 static uchar hlColor_string            = 0x2F;  // green
 static uchar hlColor_commentSingleLine = 0x1C;  // lighter grey
-// static uchar hlColor_commentMultiLine  = 0x1C;  // lighter grey
-static uchar hlColor_commentMultiLine  = 0x0C;
+static uchar hlColor_commentMultiLine  = 0x1C;  // lighter grey
 static uchar hlColor_keywords0         = 0x3A;  // baby purple
 static uchar hlColor_keywords1         = 0x4F;  // baby blue
-// static uchar hlColor_operators          = 0x5C;  // ...
+static uchar hlColor_operators         = 0x2B;  // orange
+
+
+//
+#define TABSIZE 3   // tab size in spaces
+
+
+// -- User configurable end ------------------------------------
 
 
 
-// TODO - move group to separate file
+
+// -------------------------------------------------------------
+
+// Syntax highlighting
 #define HL_NORMAL             1
 #define HL_SEARCHMATCH        2
 #define HL_NUMBER             3
 #define HL_STRING             4
 #define HL_COMMENT_SINGLElINE 5
 #define HL_COMMENT_MULTILINE  6
-// #define HL_OPERATORS          7
+#define HL_OPERATORS          7
 #define HL_KEYWORDS0          8
 #define HL_KEYWORDS1          9
-
 
 struct _syntax {
 
@@ -79,20 +89,20 @@ struct _syntax {
 	char** keywords0;
 	char** keywords1;
 
-	int ( *isSeparator ) ( int );
+	int ( *isOperatorChar  ) ( int );
+	int ( *isSeparatorChar ) ( int );
 };
 
 
-
-//
-#define TABSIZE 3   // tab size in spaces
-
+// -------------------------------------------------------------
 
 /* For now using fixed value. Ideally would use runtime value of
    'editorState.nScreenCols + 1'
 */
 #define STATUSBUFSZ 81
 
+
+// -------------------------------------------------------------
 
 /* Key macros from 'kbd.h'
 
@@ -120,36 +130,11 @@ struct _syntax {
 #define K_BACKSPACE  8
 #define K_ESCAPE    27
 
-
 //
 #define CTRL( k ) ( ( k ) & 0x1F )  // https://en.wikipedia.org/wiki/ASCII#Control_characters
 
 
-// Help message
-static char* helpMsg [] = {
-
-	"-- Shortcuts --",
-	"",
-	". [ctrl-g] to view help (this page)",
-	"    . [esc] to cancel",
-	// "",
-	". [ctrl-s] to save",
-	"    . [esc] to cancel",
-	// "",
-	". [ctrl-t] to save as",
-	"    . [esc]   to cancel",
-	"    . [enter] to accept",
-	// "",
-	". [ctrl-f] to find",
-	"    . [esc]   to cancel",
-	"    . [arrow] to jump to next/prev match",
-	"    . [enter] to accept",
-	// "",
-	". [ctrl-q] to quit",
-};
-
-static int helpMsgLen = sizeof( helpMsg ) / sizeof( char* );
-
+// -------------------------------------------------------------
 
 //
 struct _textRow {
@@ -176,6 +161,7 @@ struct _textRow {
 #define SEARCHDIR_FORWARD      1    // increment
 #define SEARCHDIR_BACKWARD ( - 1 )  // decrement
 
+//
 struct _editorState {
 
 	struct termios origConsoleAttr;
@@ -224,28 +210,161 @@ struct _editorState {
 static struct _editorState editorState;
 
 
-//
-void die ( char* );
-void updateRowRender ( struct _textRow* );
-void insertChar ( uchar );
-void deleteChar ( void );
-void insertTextRow ( int, char*, int );
-void setMessage ( const char*, ... );
+// -------------------------------------------------------------
+
+// Help message
+static char* helpMsg [] = {
+
+	"-- Shortcuts --",
+	"",
+	". [ctrl-g] to view help (this page)",
+	"    . [esc] to cancel",
+	// "",
+	". [ctrl-s] to save",
+	"    . [esc] to cancel",
+	// "",
+	". [ctrl-t] to save as",
+	"    . [esc]   to cancel",
+	"    . [enter] to accept",
+	// "",
+	". [ctrl-f] to find",
+	"    . [esc]   to cancel",
+	"    . [arrow] to jump to next/prev match",
+	"    . [enter] to accept",
+	// "",
+	". [ctrl-q] to quit",
+};
+
+static int helpMsgLen = sizeof( helpMsg ) / sizeof( char* );
+
+
+// ____________________________________________________________________________________
+
+/* Syntax highlighting rules.
+   Ideally these would be in separate files (one per language).
+*/
+
+// ------------------------------------------------------------------------------------
+// C Language
+// ------------------------------------------------------------------------------------
+
+char* CLikeFileExtensions [] = {
+
+	".c", ".h", ".cpp", NULL
+};
+
+char* CLikeKeywords0 [] = {
+
+	"void",
+	"char", "int", "long",
+	"float", "double",
+	"unsigned", "signed",
+	"static", "const",
+
+	"union", "struct", "enum",
+	"typedef",
+	NULL
+};
+
+char* CLikeKeywords1 [] = {
+
+	"for", "while", "break", "continue",
+	"if", "then", "else",
+	"return",
+	"switch", "case", "default", "goto",
+
+	"#include", "#define",
+	NULL
+};
+
+/*char* CLikeOperators [] = {
+
+	"=",
+	"+", "-", "/", "%", "*",
+	"~", "&", "|", "^",
+	"&&", "||", "!",
+	"!=", "==", ">=", "<=", ">", "<",
+	NULL
+};*/
+
+int CLike_isOperatorChar ( int c )
+{
+	return ( strchr( "+-/*%~&|^=<>", c ) != NULL );
+}
+
+int CLike_isSeparatorChar ( int c )
+{
+	return (
+
+		/* Given that we store textRows as null delimited array,
+		   detects end of textRow */
+		c == 0                                  ||
+
+		// Whitespace
+		ISBLANK( c )                            ||
+
+		// Delimiter char
+		( strchr( ";,.()[]", c ) != NULL )      ||
+
+		// Operator char
+		( strchr( "+-/*%~&|^=<>", c ) != NULL )
+	);
+}
+
+
+struct _syntax CLikeSyntax = {
+
+	"C",
+	CLikeFileExtensions,
+
+	"//", 2,
+	"/*", 2,
+	"*/", 2,
+
+	CLikeKeywords0,
+	CLikeKeywords1,
+
+	CLike_isOperatorChar,
+	CLike_isSeparatorChar
+};
+
+
+// ------------------------------------------------------------------------------------
+// Available to use
+// ------------------------------------------------------------------------------------
+
+struct _syntax* syntaxDatabase [] = {
+
+	&CLikeSyntax
+};
+
+static int syntaxDatabaseLen = sizeof( syntaxDatabase ) / sizeof( struct _syntax* );
+
+
+// ____________________________________________________________________________________
+
+// Forward declarations...
+uchar getHighlightColor               ( int );
+void  updateRowSyntaxHighlight        ( struct _textRow* );
+int   convert_render_to_editCursorCol ( struct _textRow*, int );
+void  deleteTextRow                   ( int );
+void  insertTextRow                   ( int, char*, int );
+void  scroll                          ( void );
+
 char* promptUser (
 	char*,
 	void ( * ) ( char*, int, uchar )
 );
-void refreshScreen ( void );
-int convert_render_to_editCursorCol ( struct _textRow*, int );
-void scroll ( void );
-void drawHelpScreen ( void );
-void drawLoadingFileScreen ( void );
-uchar getHighlightColor ( int );
-void setFileSyntaxHighlight ( void );
-void updateRowSyntaxHighlight ( struct _textRow* );
+
+void  setMessage                      ( const char*, ... );
+void  drawHelpScreen                  ( void );
+void  drawLoadingFileScreen           ( void );
+void  refreshScreen                   ( void );
+void  die                             ( char* );
 
 
-// ____________________________________________________________________________________
+
+// =========================================================================================
 
 void enableRawMode ( void )
 {
@@ -278,10 +397,12 @@ void disableRawMode ( void )
 }
 
 
-// ____________________________________________________________________________________
 
-/* Here, since we're responsible for cursor movement...
+// =========================================================================================
+
+/* We are responsible for cursor movement...
 */
+
 #define WRAP    0
 #define NO_WRAP 1
 
@@ -406,25 +527,739 @@ void printString ( char* s, int wrap, char* hlInfo )
 }
 
 
+
+// =========================================================================================
+
+void setFileSyntaxHighlight ( void )
+{
+	char*            fileExtension;
+	uint             i;
+	uint             j;
+	struct _syntax*  syntax;
+	char*            syntaxExtension;
+	int              rowIdx;
+	struct _textRow* textRow;
+
+	// Default, no syntax highlighting
+	editorState.currentSyntax = NULL;
+
+	if ( editorState.filename == NULL )
+	{
+		return;
+	}
+
+
+	// Get file's extension
+	fileExtension = strrchr( editorState.filename, '.' );
+
+
+	/* If file has an extension, loop through database
+	   looking for a match.
+	*/
+	if ( fileExtension )
+	{
+		for ( j = 0; j < syntaxDatabaseLen; j += 1 )
+		{
+			syntax = syntaxDatabase[ j ];
+
+			i = 0;
+
+			while ( 1 )
+			{
+				syntaxExtension = syntax->fileExtensions[ i ];
+
+				// Reached end of list
+				if ( syntaxExtension == NULL )
+				{
+					break;  // evaluate next entry in database
+				}
+
+				// Found a match!
+				if ( strcmp( fileExtension, syntaxExtension ) == 0 )
+				{
+					//
+					editorState.currentSyntax = syntax;
+
+					// Re-highlight file. For example when filename changes.
+					for ( rowIdx = 0; rowIdx < editorState.nTextRows; rowIdx += 1 )
+					{
+						textRow = editorState.textRows + rowIdx;
+
+						updateRowSyntaxHighlight( textRow );
+					}
+
+					// Done
+					return;
+				}
+
+				i += 1;
+			}
+		}
+	}
+}
+
+
 // ____________________________________________________________________________________
 
+uchar getHighlightColor ( int snytaxType )
+{
+	switch ( snytaxType )
+	{
+		case HL_SEARCHMATCH        : return hlColor_searchResult;
+		case HL_NUMBER             : return hlColor_number;
+		case HL_STRING             : return hlColor_string;
+		case HL_COMMENT_SINGLElINE : return hlColor_commentSingleLine;
+		case HL_COMMENT_MULTILINE  : return hlColor_commentMultiLine;
+		case HL_OPERATORS          : return hlColor_operators;
+		case HL_KEYWORDS0          : return hlColor_keywords0;
+		case HL_KEYWORDS1          : return hlColor_keywords1;
+	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+	// Default
+	return textColor;
+}
 
 
 // ____________________________________________________________________________________
+
+int highlightCommentSingleLine ( struct _textRow* textRow, int idx, int inString, int inMultilineComment )
+{
+	char* sCommentMark;
+	int   sCommentMarkLen;
+
+	sCommentMark    = editorState.currentSyntax->singleLineCommentStart;
+	sCommentMarkLen = editorState.currentSyntax->singleLineCommentStartLen;
+
+
+	if ( ( sCommentMarkLen > 0 ) && ( ! inString ) && ( ! inMultilineComment ) )
+	{
+		if ( strncmp( sCommentMark, textRow->chars_render + idx, sCommentMarkLen ) == 0 )
+		{
+			memset(
+
+				textRow->highlightInfo + idx,
+				HL_COMMENT_SINGLElINE,
+				textRow->len_render - idx
+			);
+
+			return 1;  // Done processing line
+		}
+	}
+
+
+	// No match
+	return 0;
+}
+
+int highlightCommentMultiLine ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char inString, int* inMultilineComment )
+{
+	char* mCommentStartMark;
+	int   mCommentStartMarkLen;
+	char* mCommentEndMark;
+	int   mCommentEndMarkLen;
+
+	mCommentStartMark    = editorState.currentSyntax->multiLineCommentStart;
+	mCommentStartMarkLen = editorState.currentSyntax->multiLineCommentStartLen;
+	mCommentEndMark      = editorState.currentSyntax->multiLineCommentEnd;
+	mCommentEndMarkLen   = editorState.currentSyntax->multiLineCommentEndLen;
+
+
+	if ( mCommentStartMarkLen && mCommentEndMarkLen && ( ! inString ) )
+	{
+		//
+		if ( *inMultilineComment )
+		{
+			// Matched end of multiline comment
+			if ( strncmp( mCommentEndMark, textRow->chars_render + ( *idx ), mCommentEndMarkLen ) == 0 )
+			{
+				memset(
+
+					textRow->highlightInfo + ( *idx ),
+					HL_COMMENT_MULTILINE,
+					mCommentEndMarkLen
+				);
+
+				*idx += mCommentEndMarkLen;  // consume
+
+				*inMultilineComment = 0;
+
+				*prevCharWasSep = 1;
+
+				return 1;
+			}
+
+			//
+			else
+			{
+				textRow->highlightInfo[ *idx ] = HL_COMMENT_MULTILINE;
+
+				*idx += 1;  // consume
+
+				return 1;
+			}
+		}
+
+		// Matched start of multiline comment
+		else if ( strncmp( mCommentStartMark, textRow->chars_render + ( *idx ), mCommentStartMarkLen ) == 0 )
+		{
+			memset(
+
+				textRow->highlightInfo + ( *idx ),
+				HL_COMMENT_MULTILINE,
+				mCommentStartMarkLen
+			);
+
+			*idx += mCommentStartMarkLen;  // consume
+
+			*inMultilineComment = 1;
+
+			return 1;
+		}
+	}
+
+
+	// No match
+	return 0;
+}
+
+int highlightString ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char* inString )
+{
+	char c;
+
+	c = textRow->chars_render[ *idx ];
+
+	if ( *inString )
+	{
+		//
+		textRow->highlightInfo[ *idx ] = HL_STRING;
+
+		// Check for escaped characters
+		if ( ( c == '\\' ) && ( ( *idx + 1 ) < textRow->len_render ) )
+		{
+			textRow->highlightInfo[ *idx + 1 ] = HL_STRING;
+
+			*idx += 2;  // consume
+
+			return 1;
+		}
+
+		// Reached closing quote
+		if ( c == ( *inString ) )
+		{
+			*inString = 0;
+
+			*prevCharWasSep = 1;  // Closing quote treated as separator
+		}
+
+		*idx += 1;  // consume
+
+		return 1;
+	}
+
+	else
+	{
+		if ( ( c == '"' ) || ( c == '\'' ) )
+		{
+			*inString = c;  // mark with quote type
+
+			textRow->highlightInfo[ *idx ] = HL_STRING;
+
+			*idx += 1;  // consume
+
+			return 1;
+		}
+	}
+
+
+	// No match
+	return 0;
+}
+
+int highlightOperator ( struct _textRow* textRow, int* idx, int* prevCharWasSep )
+{
+	char c;
+
+	c = textRow->chars_render[ *idx ];
+
+	if ( editorState.currentSyntax->isOperatorChar( c ) )
+	{
+		textRow->highlightInfo[ *idx ] = HL_OPERATORS;
+
+		*idx += 1;  // consume
+
+		*prevCharWasSep = 1;
+
+		return 1;
+	}
+
+
+	// No match
+	return 0;
+}
+
+int highlightNumber ( struct _textRow* textRow, int* idx, int* prevCharWasSep )
+{
+	char c;
+	char prevHlSyntax;
+
+	// Get highlight type of previous character
+	if ( *idx > 0 )
+	{
+		prevHlSyntax = textRow->highlightInfo[ *idx - 1 ];
+	}
+	else
+	{
+		prevHlSyntax = HL_NORMAL;
+	}
+
+	//
+	c = textRow->chars_render[ *idx ];
+
+	//
+	if (
+		/* Current char is a digit, and previous char was either
+		   a separator or a number
+		*/
+		(
+			ISDIGIT( c ) &&
+			( *prevCharWasSep || ( prevHlSyntax == HL_NUMBER ) )
+		)
+
+		||
+
+		// Current char is a dot, and previous char was a number
+		(
+			( c == '.' ) && ( prevHlSyntax == HL_NUMBER )
+		)
+	)
+	{
+		textRow->highlightInfo[ *idx ] = HL_NUMBER;
+
+		*idx += 1;  // consume
+
+		*prevCharWasSep = 0;
+
+		return 1;
+	}
+
+
+	// No match
+	return 0;
+}
+
+int highlightKeyword ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char** keywords, char hlSyntax )
+{
+	int   i;
+	char* keyword;
+	int   keywordLen;
+
+	if ( *prevCharWasSep )  // require a separator before the keyword
+	{
+		for ( i = 0; keywords[ i ]; i += 1 )
+		{
+			keyword = keywords[ i ];
+
+			keywordLen = strlen( keyword );
+
+			if (
+
+				// keyword matches
+				( strncmp( keyword, textRow->chars_render + ( *idx ), keywordLen ) == 0 )
+
+				&&
+
+				// require a separator after the keyword
+				( editorState.currentSyntax->isSeparatorChar(
+
+					*( textRow->chars_render + ( *idx ) + keywordLen )
+				) )
+			)
+			{
+				memset(
+
+					textRow->highlightInfo + ( *idx ),
+					hlSyntax,
+					keywordLen
+				);
+
+				*idx += keywordLen;  // consume
+
+				*prevCharWasSep = 0;  // ?
+
+				return 1;
+			}
+		}
+	}
+
+
+	// No keyword matched
+	return 0;
+}
+
+
+void updateRowSyntaxHighlight ( struct _textRow* textRow )
+{
+	struct _textRow* textRowPrev;
+	struct _textRow* textRowNext;
+	char             c;
+	int              i;
+
+	int              mCommentStatusChanged;
+	char**           keywords;
+
+	int              matchedCommentSingle;
+	int              matchedCommentMultiline;
+	int              matchedString;
+	int              matchedOperator;
+	int              matchedNumber;
+	int              matchedKeyword;
+
+	int              prevCharWasSep;
+	char             inString;
+	int              inMultilineComment;
+
+
+	/* Since overwriting everything, less overhead to
+	   free than realloc.
+	*/
+	free( textRow->highlightInfo );
+
+	textRow->highlightInfo = malloc( textRow->len_render );
+
+
+	// Default
+	memset( textRow->highlightInfo, HL_NORMAL, textRow->len_render );
+
+
+	//
+	if ( editorState.currentSyntax == NULL )
+	{
+		return;
+	}
+
+
+	//
+	prevCharWasSep     = 1;  // Beginning of line treated as separator
+	inString           = 0;
+	inMultilineComment = 0;
+
+	// Check if previous line is part of an unclosed multiline comment
+	if ( textRow->idx > 0 )
+	{
+		textRowPrev = editorState.textRows + textRow->idx - 1;
+
+		if ( textRowPrev->inMultilineComment )
+		{
+			inMultilineComment = 1;
+		}
+	}
+
+
+	i = 0;
+
+	while ( i < textRow->len_render )
+	{
+		// Match single line comments
+		matchedCommentSingle = highlightCommentSingleLine( textRow, i, inString, inMultilineComment );
+
+		if ( matchedCommentSingle )
+		{
+			break;  // Done processing line
+		}
+
+
+		// Match multiline comment
+		matchedCommentMultiline = highlightCommentMultiLine( textRow, &i, &prevCharWasSep, inString, &inMultilineComment );
+
+		if ( matchedCommentMultiline )
+		{
+			continue;
+		}
+
+
+		// Match string
+		matchedString = highlightString( textRow, &i, &prevCharWasSep, &inString );
+
+		if ( matchedString )
+		{
+			continue;
+		}
+
+
+		// Match operator
+		matchedOperator = highlightOperator( textRow, &i, &prevCharWasSep );
+
+		if ( matchedOperator )
+		{
+			continue;
+		}
+
+
+		// Match number
+		matchedNumber = highlightNumber( textRow, &i, &prevCharWasSep );
+
+		if ( matchedNumber )
+		{
+			continue;
+		}
+
+
+		// Match keyword
+		{
+			// Check group 0
+			keywords = editorState.currentSyntax->keywords0;
+
+			matchedKeyword = highlightKeyword( textRow, &i, &prevCharWasSep, keywords, HL_KEYWORDS0 );
+
+			if ( matchedKeyword )
+			{
+				continue;
+			}
+
+
+			// Check group 1
+			keywords = editorState.currentSyntax->keywords1;
+
+			matchedKeyword = highlightKeyword( textRow, &i, &prevCharWasSep, keywords, HL_KEYWORDS1 );
+
+			if ( matchedKeyword )
+			{
+				continue;
+			}
+		}
+
+
+		//
+		c = textRow->chars_render[ i ];
+
+		prevCharWasSep = editorState.currentSyntax->isSeparatorChar( c );
+
+
+		//
+		i += 1;
+	}
+
+
+	// Update current row's multiline comment state (inside/outside)
+	mCommentStatusChanged = textRow->inMultilineComment != inMultilineComment;
+
+	textRow->inMultilineComment = inMultilineComment;
+
+	// Update subsequent rows affected by change in multiline comment state
+	if ( mCommentStatusChanged && ( ( textRow->idx + 1 ) < editorState.nTextRows ) )
+	{
+		textRowNext = editorState.textRows + textRow->idx + 1;
+
+		updateRowSyntaxHighlight( textRowNext );
+	}
+}
+
+
+
+// =========================================================================================
+
+void openFile ( char* filename )
+{
+	int   fd;
+	char* line;
+	int   lineLen;  // excluding null terminal
+	uint  lineBufSize;
+
+
+	//
+	fd = open( filename, O_RDONLY );
+
+	if ( fd < 0 )
+	{
+		die( "open" );
+	}
+
+
+	// Give the user some hope
+	drawLoadingFileScreen();
+
+
+	//
+	free( editorState.filename );
+	editorState.filename = strdup( filename );
+
+	//
+	setFileSyntaxHighlight();
+
+
+	//
+	line        = NULL;
+	lineLen     = 0;
+	lineBufSize = 0;
+
+	while ( 1 )
+	{
+		// Use 'getline' to read a line from the file
+		lineLen = getline( &line, &lineBufSize, fd );
+		// printf( 1, "getline returned: (%d) %s\n", lineLen, line );
+
+		//
+		if ( lineLen < 0 )
+		{
+			break;
+		}
+
+		// Strip newline characters returned by 'getline'
+		while ( ( lineLen > 0 ) &&
+		        ( ( line[ lineLen - 1 ] == '\n' ) || ( line[ lineLen - 1 ] == '\r' ) ) )
+		{
+			lineLen -= 1;
+		}
+
+		//
+		insertTextRow( editorState.nTextRows, line, lineLen );
+	}
+
+
+	// 'insertTextRow' sets dirty flag, clear it
+	editorState.dirty = 0;
+
+
+	//
+	free( line );
+
+	close( fd );
+}
+
+
+
+// =========================================================================================
+
+char* textRowsToString ( int* bufLen )
+{
+	struct _textRow* textRow;
+	int              len;
+	int              i;
+	char*            buf;
+	char*            p;
+
+	// Determine total length
+	len = 0;
+
+	for ( i = 0; i < editorState.nTextRows; i += 1 )
+	{
+		textRow = editorState.textRows + i;
+
+		len += textRow->len + 1;  // +1 for newline
+	}
+
+	*bufLen = len;
+
+
+	// Create and fill buffer
+	buf = ( char* ) malloc( len );
+
+	p = buf;
+
+	for ( i = 0; i < editorState.nTextRows; i += 1 )
+	{
+		textRow = editorState.textRows + i;
+
+		memcpy( p, textRow->chars, textRow->len );
+
+		p += textRow->len;
+
+		*p = '\n';
+
+		p += 1;
+	}
+
+	return buf;
+}
+
+void saveFile ( void )
+{
+	char* filename;
+	char* buf;
+	int   bufLen;
+	int   fd;
+	int   nWritten;
+	char* msg;
+
+	if ( editorState.filename == NULL )
+	{
+		// TODO: Check that valid filename before assigning...
+		filename = promptUser( "Save as: %s", NULL );
+
+		// User 'escaped' input
+		if ( filename == NULL )
+		{
+			return;
+		}
+
+		editorState.filename = filename;
+
+		// Update to reflect new filename
+		setFileSyntaxHighlight();
+	}
+
+	buf = textRowsToString( &bufLen );
+
+	/* Instead of opening 'filename' with O_TRUNC (to zero), a
+	   safer approach would be to first write to a temporary file.
+	   This way, if the write fails, the original file still has
+	   all its contents...
+	*/
+	fd = open( editorState.filename, O_RDWR | O_CREATE | O_TRUNC );
+
+	if ( fd == - 1 )
+	{
+		msg = "Error: save failed (can't open)";
+	}
+	else
+	{
+		nWritten = write( fd, buf, bufLen );
+
+		if ( nWritten != bufLen )
+		{
+			msg = "Error: save failed (can't write)";
+		}
+		else
+		{
+			msg = "File saved!";
+
+			// Mark as up-to-date
+			editorState.dirty = 0;
+		}
+
+		close( fd );
+	}
+
+	free( buf );
+
+	setMessage( msg );
+}
+
+void saveFileAs ( void )
+{
+	char* filename;
+
+	// TODO: Check that valid filename before assigning...
+	filename = promptUser( "Save as: %s", NULL );
+
+	// User 'escaped' input
+	if ( filename == NULL )
+	{
+		return;
+	}
+
+	editorState.filename = filename;
+
+	// Update to reflect new filename
+	setFileSyntaxHighlight();
+
+
+	saveFile();
+}
+
+
+
+// =========================================================================================
 
 /* Returns a pointer to the beginning of the last occurrence
    of substring 'sub' in string 'sEnd - searchLen'.
@@ -722,188 +1557,198 @@ void find ( void )
 }
 
 
-// ____________________________________________________________________________________
 
-char* textRowsToString ( int* bufLen )
+// =========================================================================================
+
+void updateRowRender ( struct _textRow* textRow )
 {
-	struct _textRow* textRow;
-	int              len;
-	int              i;
-	char*            buf;
-	char*            p;
+	int j;
+	int idx;
+	int nTabs;
 
-	// Determine total length
-	len = 0;
-
-	for ( i = 0; i < editorState.nTextRows; i += 1 )
+	// Count number of tabs in line
+	for ( j = 0; j < textRow->len; j += 1 )
 	{
-		textRow = editorState.textRows + i;
-
-		len += textRow->len + 1;  // +1 for newline
-	}
-
-	*bufLen = len;
-
-
-	// Create and fill buffer
-	buf = ( char* ) malloc( len );
-
-	p = buf;
-
-	for ( i = 0; i < editorState.nTextRows; i += 1 )
-	{
-		textRow = editorState.textRows + i;
-
-		memcpy( p, textRow->chars, textRow->len );
-
-		p += textRow->len;
-
-		*p = '\n';
-
-		p += 1;
-	}
-
-	return buf;
-}
-
-
-void save ( void )
-{
-	char* filename;
-	char* buf;
-	int   bufLen;
-	int   fd;
-	int   nWritten;
-	char* msg;
-
-	if ( editorState.filename == NULL )
-	{
-		// TODO: Check that valid filename before assigning...
-		filename = promptUser( "Save as: %s", NULL );
-
-		// User 'escaped' input
-		if ( filename == NULL )
+		if ( textRow->chars[ j ] == '\t' )
 		{
-			return;
+			nTabs += 1;
 		}
-
-		editorState.filename = filename;
-
-		// Update to reflect new filename
-		setFileSyntaxHighlight();
 	}
 
-	buf = textRowsToString( &bufLen );
 
-	/* Instead of opening 'filename' with O_TRUNC (to zero), a
-	   safer approach would be to first write to a temporary file.
-	   This way, if the write fails, the original file still has
-	   all its contents...
+	/* Since overwriting everything, less overhead to
+	   free than realloc.
 	*/
-	fd = open( editorState.filename, O_RDWR | O_CREATE | O_TRUNC );
-
-	if ( fd == - 1 )
-	{
-		msg = "Error: save failed (can't open)";
-	}
-	else
-	{
-		nWritten = write( fd, buf, bufLen );
-
-		if ( nWritten != bufLen )
-		{
-			msg = "Error: save failed (can't write)";
-		}
-		else
-		{
-			msg = "File saved!";
-
-			// Mark as up-to-date
-			editorState.dirty = 0;
-		}
-
-		close( fd );
-	}
-
-	free( buf );
-
-	setMessage( msg );
-}
-
-void saveAs ( void )
-{
-	char* filename;
-
-	// TODO: Check that valid filename before assigning...
-	filename = promptUser( "Save as: %s", NULL );
-
-	// User 'escaped' input
-	if ( filename == NULL )
-	{
-		return;
-	}
-
-	editorState.filename = filename;
-
-	// Update to reflect new filename
-	setFileSyntaxHighlight();
-
-
-	save();
-}
-
-
-// ____________________________________________________________________________________
-
-void freeTextRow ( struct _textRow* textRow )
-{
-	free( textRow->chars );
 	free( textRow->chars_render );
-	free( textRow->highlightInfo );
-}
 
-void deleteTextRow ( int idx )
-{
-	struct _textRow* textRow;
-	struct _textRow* textRow2;
-	int              i;
+	textRow->chars_render = malloc(
 
-	// Check idx within bounds
-	if ( ( idx < 0 ) || ( idx > editorState.nTextRows ) )
-	{
-		return;
-	}
-
-	textRow = editorState.textRows + idx;
-
-	freeTextRow( textRow );
+		textRow->len            +
+		nTabs * ( TABSIZE - 1 ) +  // space taken up by tabs
+		1                          // null temrinal
+	);
 
 
 	//
-	memmove(
+	idx = 0;
 
-		textRow,
-		textRow + 1,
-		sizeof( struct _textRow ) * ( editorState.nTextRows - idx - 1 )
-	);
-
-	// Update indices affected by deletion
-	for ( i = idx; i < editorState.nTextRows - 1; i += 1 )
+	for ( j = 0; j < textRow->len; j += 1 )
 	{
-		textRow2 = editorState.textRows + i;
+		if ( textRow->chars[ j ] == '\t' )
+		{
+			// Each tab must advance the cursor forward at least one column
+			textRow->chars_render[ idx ] = ' ';
 
-		textRow2->idx -= 1;
+			idx += 1;
+
+
+			// Append spaces until we get to a tab stop (column divisible by TABSIZE)
+			while ( ( idx % TABSIZE ) != 0 )
+			{
+				textRow->chars_render[ idx ] = ' ';
+
+				idx += 1;
+			}
+		}
+		else
+		{
+			textRow->chars_render[ idx ] = textRow->chars[ j ];
+
+			idx += 1;
+		}
 	}
 
+	textRow->chars_render[ idx ] = 0;  // null terminate
 
-	// Update
-	editorState.nTextRows -= 1;
+	textRow->len_render = idx;
 
-	// Mark dirty
-	editorState.dirty += 1;
+
+	// Update corresponding highlight info
+	updateRowSyntaxHighlight( textRow );
 }
 
-// Appends a string to the end of a text row
+
+// ____________________________________________________________________________________
+
+int convert_edit_to_renderCursorCol ( struct _textRow* textRow, int _editCursorCol )
+{
+	int _renderCursorCol;
+	int  j;
+	int nLeft;
+	int nRight;
+
+	_renderCursorCol = 0;
+
+	for ( j = 0; j < _editCursorCol; j += 1 )
+	{
+		if ( textRow->chars[ j ] == '\t' )
+		{
+			// Number of columns we are to the right of the previous tab stop...
+			nRight = _renderCursorCol % TABSIZE;
+
+			// Number of columns we are to the left of the next tab stop...
+			nLeft = ( TABSIZE - 1 ) - nRight;
+
+			//
+			_renderCursorCol += nLeft;
+		}
+
+		_renderCursorCol += 1;
+	}
+
+	return _renderCursorCol;
+}
+
+int convert_render_to_editCursorCol ( struct _textRow* textRow, int target_renderCursorCol )
+{
+	int _editCursorCol;
+	int _renderCursorCol;
+	int nLeft;
+	int nRight;
+
+	_renderCursorCol = 0;
+
+	for ( _editCursorCol = 0; _editCursorCol < textRow->len; _editCursorCol += 1 )
+	{
+		//
+		if ( textRow->chars[ _editCursorCol ] == '\t' )
+		{
+			// Number of columns we are to the right of the previous tab stop...
+			nRight = _renderCursorCol % TABSIZE;
+
+			// Number of columns we are to the left of the next tab stop...
+			nLeft = ( TABSIZE - 1 ) - nRight;
+
+			//
+			_renderCursorCol += nLeft;
+		}
+
+		// Stop when reach target...
+		if ( _renderCursorCol == target_renderCursorCol )
+		{
+			break;
+		}
+
+		//
+		_renderCursorCol += 1;
+	}
+
+	return _editCursorCol;
+}
+
+
+
+// =========================================================================================
+
+// Used to process <enter> key
+void insertNewline ( void )
+{
+	struct _textRow* curTextRow;
+
+	// If cursor is at the start of the line, insert a new row above
+	if ( editorState.editCursorCol == 0 )
+	{
+		insertTextRow( editorState.editCursorRow, "", 0 );
+	}
+
+	// Else, split the current row
+	else
+	{
+		curTextRow = editorState.textRows + editorState.editCursorRow;
+
+		// Content of new line is chars to the right of the editCursor
+		insertTextRow(
+
+			editorState.editCursorRow + 1,
+			curTextRow->chars + editorState.editCursorCol,
+			curTextRow->len - editorState.editCursorCol
+		);
+
+
+		/* Reassign pointer because 'realloc' call in 'insertTextRow'
+		   might have invalidated our current pointer
+		*/
+		curTextRow = editorState.textRows + editorState.editCursorRow;
+
+		// Truncate contents of current line
+		curTextRow->len = editorState.editCursorCol;
+
+		curTextRow->chars[ curTextRow->len ] = 0;  // null terminate
+
+		updateRowRender( curTextRow );
+	}
+
+	// Update pos
+	editorState.editCursorRow += 1;
+	editorState.editCursorCol  = 0;
+}
+
+
+// ____________________________________________________________________________________
+
+/* Appends a string to the end of a text row.
+   Used to process <backspace/delete> keys
+*/
 void appendStringToTextRow ( struct _textRow* textRow, char* s, int slen )
 {
 	char* ptr;
@@ -1032,51 +1877,6 @@ void deleteChar ( void )
 
 // ____________________________________________________________________________________
 
-void insertNewline ( void )
-{
-	struct _textRow* curTextRow;
-
-	// If cursor is at the start of the line, insert a new row above
-	if ( editorState.editCursorCol == 0 )
-	{
-		insertTextRow( editorState.editCursorRow, "", 0 );
-	}
-
-	// Else, split the current row
-	else
-	{
-		curTextRow = editorState.textRows + editorState.editCursorRow;
-
-		// Content of new line is chars to the right of the editCursor
-		insertTextRow(
-
-			editorState.editCursorRow + 1,
-			curTextRow->chars + editorState.editCursorCol,
-			curTextRow->len - editorState.editCursorCol
-		);
-
-
-		/* Reassign pointer because 'realloc' call in 'insertTextRow'
-		   might have invalidated our current pointer
-		*/
-		curTextRow = editorState.textRows + editorState.editCursorRow;
-
-		// Truncate contents of current line
-		curTextRow->len = editorState.editCursorCol;
-
-		curTextRow->chars[ curTextRow->len ] = 0;  // null terminate
-
-		updateRowRender( curTextRow );
-	}
-
-	// Update pos
-	editorState.editCursorRow += 1;
-	editorState.editCursorCol  = 0;
-}
-
-
-// ____________________________________________________________________________________
-
 void insertCharIntoTextRow ( struct _textRow* textRow, int idx, uchar c )
 {
 	// Check idx within bounds
@@ -1154,653 +1954,51 @@ void insertChar ( uchar c )
 
 // ____________________________________________________________________________________
 
-/* C Language specific highlight rules
-*/
-
-char* CLikeFileExtensions [] = {
-
-	".c", ".h", ".cpp", NULL
-};
-
-char* CLikeKeywords0 [] = {
-
-	"void",
-	"char", "int", "long",
-	"float", "double",
-	"unsigned", "signed",
-	"static", "const",
-
-	"union", "struct", "enum",
-	"typedef",
-	NULL
-};
-
-char* CLikeKeywords1 [] = {
-
-	"for", "while", "break", "continue",
-	"if", "then", "else",
-	"return",
-	"switch", "case", "default", "goto",
-
-	"#include", "#define",
-	NULL
-};
-
-/*char* CLikeOperators [] = {
-
-	"+", "-", "/", "%", "*"
-	"~", "&", "|", "^",
-	"&&", "||", "!",
-	"!=", "==", ">", ">=", "<", "<=",
-};*/
-
-
-int CLike_isSeparator ( int c )
+void deleteTextRow ( int idx )
 {
-	return (
-
-		ISBLANK( c )                            ||  // whitespace
-		c == 0                                  ||  /* Given that we store textRows as null delimited array,
-		                                               detects end of textRow */
-		strchr( ",.()+-/*=~%<>[];", c ) != NULL
-	);
-}
-
-
-struct _syntax CLikeSyntax = {
-
-	"C",
-	CLikeFileExtensions,
-
-	"//", 2,
-	"/*", 2,
-	"*/", 2,
-
-	CLikeKeywords0,
-	CLikeKeywords1,
-
-	CLike_isSeparator
-};
-
-
-// ____________________________________________________________________________________
-
-
-struct _syntax* syntaxDatabase [] = {
-
-	&CLikeSyntax
-};
-
-static int syntaxDatabaseLen = sizeof( syntaxDatabase ) / sizeof( struct _syntax* );
-
-
-
-// ____________________________________________________________________________________
-
-uchar getHighlightColor ( int snytaxType )
-{
-	switch ( snytaxType )
-	{
-		case HL_SEARCHMATCH        : return hlColor_searchResult;
-		case HL_NUMBER             : return hlColor_number;
-		case HL_STRING             : return hlColor_string;
-		case HL_COMMENT_SINGLElINE : return hlColor_commentSingleLine;
-		case HL_COMMENT_MULTILINE  : return hlColor_commentMultiLine;
-		// case HL_OPERATORS          : return hlColor_operators;
-		case HL_KEYWORDS0          : return hlColor_keywords0;
-		case HL_KEYWORDS1          : return hlColor_keywords1;
-	}
-
-	// Default
-	return textColor;
-}
-
-
-// ____________________________________________________________________________________
-
-void setFileSyntaxHighlight ( void )
-{
-	char*            fileExtension;
-	uint             i;
-	uint             j;
-	struct _syntax*  syntax;
-	char*            syntaxExtension;
-	int              rowIdx;
 	struct _textRow* textRow;
-
-	// Default, no syntax highlighting
-	editorState.currentSyntax = NULL;
-
-	if ( editorState.filename == NULL )
-	{
-		return;
-	}
-
-
-	// Get file's extension
-	fileExtension = strrchr( editorState.filename, '.' );
-
-
-	/* If file has an extension, loop through database
-	   looking for a match.
-	*/
-	if ( fileExtension )
-	{
-		for ( j = 0; j < syntaxDatabaseLen; j += 1 )
-		{
-			syntax = syntaxDatabase[ j ];
-
-			i = 0;
-
-			while ( 1 )
-			{
-				syntaxExtension = syntax->fileExtensions[ i ];
-
-				// Reached end of list
-				if ( syntaxExtension == NULL )
-				{
-					break;  // evaluate next entry in database
-				}
-
-				// Found a match!
-				if ( strcmp( fileExtension, syntaxExtension ) == 0 )
-				{
-					//
-					editorState.currentSyntax = syntax;
-
-					// Re-highlight file. For example when filename changes.
-					for ( rowIdx = 0; rowIdx < editorState.nTextRows; rowIdx += 1 )
-					{
-						textRow = editorState.textRows + rowIdx;
-
-						updateRowSyntaxHighlight( textRow );
-					}
-
-					// Done
-					return;
-				}
-
-				i += 1;
-			}
-		}
-	}
-}
-
-
-// ____________________________________________________________________________________
-
-int highlightCommentSingleLine ( struct _textRow* textRow, int idx, int inString, int inMultilineComment )
-{
-	char* sCommentMark;
-	int   sCommentMarkLen;
-
-	sCommentMark    = editorState.currentSyntax->singleLineCommentStart;
-	sCommentMarkLen = editorState.currentSyntax->singleLineCommentStartLen;
-
-
-	if ( ( sCommentMarkLen > 0 ) && ( ! inString ) && ( ! inMultilineComment ) )
-	{
-		if ( strncmp( sCommentMark, textRow->chars_render + idx, sCommentMarkLen ) == 0 )
-		{
-			memset(
-
-				textRow->highlightInfo + idx,
-				HL_COMMENT_SINGLElINE,
-				textRow->len_render - idx
-			);
-
-			return 1;  // Done processing line
-		}
-	}
-
-
-	// No match
-	return 0;
-}
-
-int highlightCommentMultiLine ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char inString, int* inMultilineComment )
-{
-	char* mCommentStartMark;
-	int   mCommentStartMarkLen;
-	char* mCommentEndMark;
-	int   mCommentEndMarkLen;
-
-	mCommentStartMark    = editorState.currentSyntax->multiLineCommentStart;
-	mCommentStartMarkLen = editorState.currentSyntax->multiLineCommentStartLen;
-	mCommentEndMark      = editorState.currentSyntax->multiLineCommentEnd;
-	mCommentEndMarkLen   = editorState.currentSyntax->multiLineCommentEndLen;
-
-
-	if ( mCommentStartMarkLen && mCommentEndMarkLen && ( ! inString ) )
-	{
-		//
-		if ( *inMultilineComment )
-		{
-			// Matched end of multiline comment
-			if ( strncmp( mCommentEndMark, textRow->chars_render + ( *idx ), mCommentEndMarkLen ) == 0 )
-			{
-				memset(
-
-					textRow->highlightInfo + ( *idx ),
-					HL_COMMENT_MULTILINE,
-					mCommentEndMarkLen
-				);
-
-				*idx += mCommentEndMarkLen;  // consume
-
-				*inMultilineComment = 0;
-
-				*prevCharWasSep = 1;
-
-				return 1;
-			}
-
-			//
-			else
-			{
-				textRow->highlightInfo[ *idx ] = HL_COMMENT_MULTILINE;
-
-				*idx += 1;  // consume
-
-				return 1;
-			}
-		}
-
-		// Matched start of multiline comment
-		else if ( strncmp( mCommentStartMark, textRow->chars_render + ( *idx ), mCommentStartMarkLen ) == 0 )
-		{
-			memset(
-
-				textRow->highlightInfo + ( *idx ),
-				HL_COMMENT_MULTILINE,
-				mCommentStartMarkLen
-			);
-
-			*idx += mCommentStartMarkLen;  // consume
-
-			*inMultilineComment = 1;
-
-			return 1;
-		}
-	}
-
-
-	// No match
-	return 0;
-}
-
-int highlightString ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char* inString )
-{
-	char c;
-
-	c = textRow->chars_render[ *idx ];
-
-	if ( *inString )
-	{
-		//
-		textRow->highlightInfo[ *idx ] = HL_STRING;
-
-		// Check for escaped characters
-		if ( ( c == '\\' ) && ( ( *idx + 1 ) < textRow->len_render ) )
-		{
-			textRow->highlightInfo[ *idx + 1 ] = HL_STRING;
-
-			*idx += 2;  // consume
-
-			return 1;
-		}
-
-		// Reached closing quote
-		if ( c == ( *inString ) )
-		{
-			*inString = 0;
-
-			*prevCharWasSep = 1;  // Closing quote treated as separator
-		}
-
-		*idx += 1;  // consume
-
-		return 1;
-	}
-
-	else
-	{
-		if ( ( c == '"' ) || ( c == '\'' ) )
-		{
-			*inString = c;  // mark with quote type
-
-			textRow->highlightInfo[ *idx ] = HL_STRING;
-
-			*idx += 1;  // consume
-
-			return 1;
-		}
-	}
-
-
-	// No match
-	return 0;
-}
-
-int highlightNumber ( struct _textRow* textRow, int* idx, int* prevCharWasSep )
-{
-	char c;
-	char prevHlSyntax;
-
-	// Get highlight type of previous character
-	if ( *idx > 0 )
-	{
-		prevHlSyntax = textRow->highlightInfo[ *idx - 1 ];
-	}
-	else
-	{
-		prevHlSyntax = HL_NORMAL;
-	}
-
-	//
-	c = textRow->chars_render[ *idx ];
-
-	//
-	if (
-		/* Current char is a digit, and previous char was either
-		   a separator or a number
-		*/
-		(
-			ISDIGIT( c ) &&
-			( *prevCharWasSep || ( prevHlSyntax == HL_NUMBER ) )
-		)
-
-		||
-
-		// Current char is a dot, and previous char was a number
-		(
-			( c == '.' ) && ( prevHlSyntax == HL_NUMBER )
-		)
-	)
-	{
-		textRow->highlightInfo[ *idx ] = HL_NUMBER;
-
-		*idx += 1;  // consume
-
-		*prevCharWasSep = 0;
-
-		return 1;
-	}
-
-
-	// No match
-	return 0;
-}
-
-int highlightKeywords ( struct _textRow* textRow, int* idx, int* prevCharWasSep, char** keywords, char hlSyntax )
-{
-	int   i;
-	char* keyword;
-	int   keywordLen;
-
-	if ( *prevCharWasSep )  // require a separator before the keyword
-	{
-		for ( i = 0; keywords[ i ]; i += 1 )
-		{
-			keyword = keywords[ i ];
-
-			keywordLen = strlen( keyword );
-
-			if (
-
-				// keyword matches
-				( strncmp( keyword, textRow->chars_render + ( *idx ), keywordLen ) == 0 )
-
-				&&
-
-				// require a separator after the keyword
-				( editorState.currentSyntax->isSeparator(
-
-					*( textRow->chars_render + ( *idx ) + keywordLen )
-				) )
-			)
-			{
-				memset(
-
-					textRow->highlightInfo + ( *idx ),
-					hlSyntax,
-					keywordLen
-				);
-
-				*idx += keywordLen;  // consume
-
-				*prevCharWasSep = 0;  // ?
-
-				return 1;
-			}
-		}
-	}
-
-
-	// No keyword matched
-	return 0;
-}
-
-
-void updateRowSyntaxHighlight ( struct _textRow* textRow )
-{
-	struct _textRow* textRowPrev;
-	struct _textRow* textRowNext;
-	char             c;
+	struct _textRow* textRow2;
 	int              i;
 
-	int              mCommentStatusChanged;
-	char**           keywords;
-
-	int              matchedCommentSingle;
-	int              matchedCommentMultiline;
-	int              matchedString;
-	int              matchedNumber;
-	int              matchedKeyword;
-
-	int              prevCharWasSep;
-	char             inString;
-	int              inMultilineComment;
-
-
-	/* Since overwriting everything, less overhead to
-	   free than realloc.
-	*/
-	free( textRow->highlightInfo );
-
-	textRow->highlightInfo = malloc( textRow->len_render );
-
-
-	// Default
-	memset( textRow->highlightInfo, HL_NORMAL, textRow->len_render );
-
-
-	//
-	if ( editorState.currentSyntax == NULL )
+	// Check idx within bounds
+	if ( ( idx < 0 ) || ( idx > editorState.nTextRows ) )
 	{
 		return;
 	}
 
+	//
+	textRow = editorState.textRows + idx;
+
+	// Free associated memory
+	free( textRow->chars );
+	free( textRow->chars_render );
+	free( textRow->highlightInfo );
+
 
 	//
-	prevCharWasSep     = 1;  // Beginning of line treated as separator
-	inString           = 0;
-	inMultilineComment = 0;
+	memmove(
 
-	// Check if previous line is part of an unclosed multiline comment
-	if ( textRow->idx > 0 )
-	{
-		textRowPrev = editorState.textRows + textRow->idx - 1;
-
-		if ( textRowPrev->inMultilineComment )
-		{
-			inMultilineComment = 1;
-		}
-	}
-
-
-	i = 0;
-
-	while ( i < textRow->len_render )
-	{
-		// Match single line comments
-		matchedCommentSingle = highlightCommentSingleLine( textRow, i, inString, inMultilineComment );
-
-		if ( matchedCommentSingle )
-		{
-			break;  // Done processing line
-		}
-
-
-		// Match multiline comment
-		matchedCommentMultiline = highlightCommentMultiLine( textRow, &i, &prevCharWasSep, inString, &inMultilineComment );
-
-		if ( matchedCommentMultiline )
-		{
-			continue;
-		}
-
-
-		// Match strings
-		matchedString = highlightString( textRow, &i, &prevCharWasSep, &inString );
-
-		if ( matchedString )
-		{
-			continue;
-		}
-
-
-		// Match numbers
-		matchedNumber = highlightNumber( textRow, &i, &prevCharWasSep );
-
-		if ( matchedNumber )
-		{
-			continue;
-		}
-
-
-		// Match keywords
-		{
-			// Check group 0
-			keywords = editorState.currentSyntax->keywords0;
-
-			matchedKeyword = highlightKeywords( textRow, &i, &prevCharWasSep, keywords, HL_KEYWORDS0 );
-
-			if ( matchedKeyword )
-			{
-				continue;
-			}
-
-
-			// Check group 1
-			keywords = editorState.currentSyntax->keywords1;
-
-			matchedKeyword = highlightKeywords( textRow, &i, &prevCharWasSep, keywords, HL_KEYWORDS1 );
-
-			if ( matchedKeyword )
-			{
-				continue;
-			}
-		}
-
-
-		//
-		c = textRow->chars_render[ i ];
-
-		prevCharWasSep = editorState.currentSyntax->isSeparator( c );
-
-
-		//
-		i += 1;
-	}
-
-
-	// Update current row's multiline comment state (inside/outside)
-	mCommentStatusChanged = textRow->inMultilineComment != inMultilineComment;
-
-	textRow->inMultilineComment = inMultilineComment;
-
-	// Update subsequent rows affected by change in multiline comment state
-	if ( mCommentStatusChanged && ( ( textRow->idx + 1 ) < editorState.nTextRows ) )
-	{
-		textRowNext = editorState.textRows + textRow->idx + 1;
-
-		updateRowSyntaxHighlight( textRowNext );
-	}
-}
-
-
-// ____________________________________________________________________________________
-
-void updateRowRender ( struct _textRow* textRow )
-{
-	int j;
-	int idx;
-	int nTabs;
-
-	// Count number of tabs in line
-	for ( j = 0; j < textRow->len; j += 1 )
-	{
-		if ( textRow->chars[ j ] == '\t' )
-		{
-			nTabs += 1;
-		}
-	}
-
-
-	/* Since overwriting everything, less overhead to
-	   free than realloc.
-	*/
-	free( textRow->chars_render );
-
-	textRow->chars_render = malloc(
-
-		textRow->len            +
-		nTabs * ( TABSIZE - 1 ) +  // space taken up by tabs
-		1                          // null temrinal
+		textRow,
+		textRow + 1,
+		sizeof( struct _textRow ) * ( editorState.nTextRows - idx - 1 )
 	);
 
-
-	//
-	idx = 0;
-
-	for ( j = 0; j < textRow->len; j += 1 )
+	// Update indices affected by deletion
+	for ( i = idx; i < editorState.nTextRows - 1; i += 1 )
 	{
-		if ( textRow->chars[ j ] == '\t' )
-		{
-			// Each tab must advance the cursor forward at least one column
-			textRow->chars_render[ idx ] = ' ';
+		textRow2 = editorState.textRows + i;
 
-			idx += 1;
-
-
-			// Append spaces until we get to a tab stop (column divisible by TABSIZE)
-			while ( ( idx % TABSIZE ) != 0 )
-			{
-				textRow->chars_render[ idx ] = ' ';
-
-				idx += 1;
-			}
-		}
-		else
-		{
-			textRow->chars_render[ idx ] = textRow->chars[ j ];
-
-			idx += 1;
-		}
+		textRow2->idx -= 1;
 	}
 
-	textRow->chars_render[ idx ] = 0;  // null terminate
 
-	textRow->len_render = idx;
+	// Update
+	editorState.nTextRows -= 1;
 
-
-	// Update corresponding highlight info
-	updateRowSyntaxHighlight( textRow );
+	// Mark dirty
+	editorState.dirty += 1;
 }
 
-
-// ____________________________________________________________________________________
 
 void insertTextRow ( int idx, char* s, int slen )
 {
@@ -1862,13 +2060,15 @@ void insertTextRow ( int idx, char* s, int slen )
 
 
 	//
-	textRow->idx           = idx;
-	textRow->chars_render  = NULL;
-	textRow->len_render    = 0;
-	textRow->highlightInfo = NULL;
+	textRow->idx                = idx;
+	textRow->chars_render       = NULL;
+	textRow->len_render         = 0;
+	textRow->highlightInfo      = NULL;
 	textRow->inMultilineComment = 0;
-	updateRowRender( textRow );
 
+
+	//
+	updateRowRender( textRow );
 
 	// Update count
 	editorState.nTextRows += 1;
@@ -1878,147 +2078,8 @@ void insertTextRow ( int idx, char* s, int slen )
 }
 
 
-// ____________________________________________________________________________________
 
-void openFile ( char* filename )
-{
-	int   fd;
-	char* line;
-	int   lineLen;  // excluding null terminal
-	uint  lineBufSize;
-
-
-	//
-	fd = open( filename, O_RDONLY );
-
-	if ( fd < 0 )
-	{
-		die( "open" );
-	}
-
-
-	// Give the user some hope
-	drawLoadingFileScreen();
-
-
-	//
-	free( editorState.filename );
-	editorState.filename = strdup( filename );
-
-	//
-	setFileSyntaxHighlight();
-
-
-	//
-	line        = NULL;
-	lineLen     = 0;
-	lineBufSize = 0;
-
-	while ( 1 )
-	{
-		// Use 'getline' to read a line from the file
-		lineLen = getline( &line, &lineBufSize, fd );
-		// printf( 1, "getline returned: (%d) %s\n", lineLen, line );
-
-		//
-		if ( lineLen < 0 )
-		{
-			break;
-		}
-
-		// Strip newline characters returned by 'getline'
-		while ( ( lineLen > 0 ) &&
-		        ( ( line[ lineLen - 1 ] == '\n' ) || ( line[ lineLen - 1 ] == '\r' ) ) )
-		{
-			lineLen -= 1;
-		}
-
-		//
-		insertTextRow( editorState.nTextRows, line, lineLen );
-	}
-
-
-	// 'insertTextRow' sets dirty flag, clear it
-	editorState.dirty = 0;
-
-
-	//
-	free( line );
-
-	close( fd );
-}
-
-
-// ____________________________________________________________________________________
-
-int convert_edit_to_renderCursorCol ( struct _textRow* textRow, int _editCursorCol )
-{
-	int _renderCursorCol;
-	int  j;
-	int nLeft;
-	int nRight;
-
-	_renderCursorCol = 0;
-
-	for ( j = 0; j < _editCursorCol; j += 1 )
-	{
-		if ( textRow->chars[ j ] == '\t' )
-		{
-			// Number of columns we are to the right of the previous tab stop...
-			nRight = _renderCursorCol % TABSIZE;
-
-			// Number of columns we are to the left of the next tab stop...
-			nLeft = ( TABSIZE - 1 ) - nRight;
-
-			//
-			_renderCursorCol += nLeft;
-		}
-
-		_renderCursorCol += 1;
-	}
-
-	return _renderCursorCol;
-}
-
-int convert_render_to_editCursorCol ( struct _textRow* textRow, int target_renderCursorCol )
-{
-	int _editCursorCol;
-	int _renderCursorCol;
-	int nLeft;
-	int nRight;
-
-	_renderCursorCol = 0;
-
-	for ( _editCursorCol = 0; _editCursorCol < textRow->len; _editCursorCol += 1 )
-	{
-		//
-		if ( textRow->chars[ _editCursorCol ] == '\t' )
-		{
-			// Number of columns we are to the right of the previous tab stop...
-			nRight = _renderCursorCol % TABSIZE;
-
-			// Number of columns we are to the left of the next tab stop...
-			nLeft = ( TABSIZE - 1 ) - nRight;
-
-			//
-			_renderCursorCol += nLeft;
-		}
-
-		// Stop when reach target...
-		if ( _renderCursorCol == target_renderCursorCol )
-		{
-			break;
-		}
-
-		//
-		_renderCursorCol += 1;
-	}
-
-	return _editCursorCol;
-}
-
-
-// ____________________________________________________________________________________
+// =========================================================================================
 
 void scroll ( void )
 {
@@ -2327,7 +2388,8 @@ void moveCursor2 ( uchar key )
 }
 
 
-// ____________________________________________________________________________________
+
+// =========================================================================================
 
 char readKey ( void )
 {
@@ -2375,12 +2437,12 @@ void processKeyPress ( void )
 
 		case CTRL( 's' ):
 
-			save();
+			saveFile();
 			break;
 
 		case CTRL( 't' ):
 
-			saveAs();
+			saveFileAs();
 			break;
 
 		case CTRL( 'g' ):  // ctrl-h clashing with backspace
@@ -2450,11 +2512,10 @@ void processKeyPress ( void )
 }
 
 
-// ____________________________________________________________________________________
 
-/* ...
+// =========================================================================================
 
-   'prompt' is expected to be a format string containing a %s,
+/* 'prompt' is expected to be a format string containing a %s,
    which is where the user's input will be displayed
 */
 char* promptUser (
@@ -2601,7 +2662,8 @@ void setMessage ( const char* fmt, ... )
 }
 
 
-// ____________________________________________________________________________________
+
+// =========================================================================================
 
 void drawLoadingFileScreen ( void )
 {
@@ -2620,9 +2682,6 @@ void drawLoadingFileScreen ( void )
 	GFXText_setCursorPosition( centerRow, centerCol );
 	printString( msg, NO_WRAP, NULL );	
 }
-
-
-// ____________________________________________________________________________________
 
 void drawHelpScreen ( void )
 {
@@ -2658,7 +2717,7 @@ void drawHelpScreen ( void )
 
 // ____________________________________________________________________________________
 
-void drawRows ( void )
+void drawTextRows ( void )
 {
 	int              screenRow;
 	int              fileRow;
@@ -2864,7 +2923,8 @@ void drawMessageBar ( void )
 }
 
 
-// ____________________________________________________________________________________
+
+// =========================================================================================
 
 void refreshScreen ( void )
 {
@@ -2875,7 +2935,7 @@ void refreshScreen ( void )
 	scroll();
 
 	//
-	drawRows();
+	drawTextRows();
 	drawStatusBar();
 	drawMessageBar();
 
