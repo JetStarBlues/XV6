@@ -73,7 +73,7 @@ void* memmove ( void* dst, const void* src, uint n )
 	return dst;
 }
 
-// memcpy exists to placate GCC. Use memmove.
+// Use memmove
 void* memcpy ( void* dst, const void* src, uint n )
 {
 	return memmove( dst, src, n );
@@ -108,7 +108,7 @@ int memcmp ( const void* src1, const void* src2, uint n )
 
 int strncmp ( const char* p, const char* q, int n )
 {
-	while ( ( n > 0 ) && ( *p ) && ( *p == *q ) )
+	while ( ( n > 0 ) && ( *p ) && ( *q ) && ( *p == *q ) )
 	{
 		n -= 1;
 		p += 1;

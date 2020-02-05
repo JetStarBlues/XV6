@@ -97,7 +97,7 @@ void* memmove ( void* dst, const void* src, uint n )
 */
 int strcmp ( const char* p, const char* q )
 {
-	while ( *p && ( *p == *q ) )
+	while ( ( *p ) && ( *q ) && ( *p == *q ) )
 	{
 		p += 1;
 		q += 1;
@@ -108,7 +108,7 @@ int strcmp ( const char* p, const char* q )
 
 int strncmp ( const char* p, const char* q, int n )
 {
-	while ( ( n > 0 ) && ( *p ) && ( *p == *q ) )
+	while ( ( n > 0 ) && ( *p ) && ( *q ) && ( *p == *q ) )
 	{
 		n -= 1;
 		p += 1;
