@@ -6,26 +6,29 @@
 
 # --- Directories -----------------------------------------------------------
 
-SRCDIR        = src/
-KERNHEADERDIR = src/
-USERHEADERDIR = src/usr/include/
-UPROGDIR      = src/usr/prog/
-UPROGCOREDIR  = src/usr/prog/core/
-UPROGTESTDIR  = src/usr/prog/test/
-UPROGWISCDIR  = src/usr/prog/wisc/
-ULIBDIR       = src/usr/lib/
-KERNBINDIR    = bin/kern/
-UTILBINDIR    = bin/util/
-USERBINDIR    = bin/user/
-DEBUGDIR      = debug/
-DOCDIR        = doc/
-IMGDIR        = img/
+SRCDIR          = src/
+KERNHEADERDIR   = src/
+USERHEADERDIR   = src/usr/include/
+UPROGDIR        = src/usr/prog/
+UPROGCOREDIR    = src/usr/prog/core/
+UPROGAUXDIR     = src/usr/prog/auxiliary/
+UPROGAUXTESTDIR = src/usr/prog/auxiliary/test/
+UPROGAUXWISCDIR = src/usr/prog/auxiliary/wisc/
+ULIBDIR         = src/usr/lib/
+KERNBINDIR      = bin/kern/
+UTILBINDIR      = bin/util/
+USERBINDIR      = bin/user/
+DEBUGDIR        = debug/
+DOCDIR          = doc/
+IMGDIR          = img/
 
-FSDIR         = fs/
-FSBINDIR      = fs/bin/
-FSDEVDIR      = fs/dev/
-FSUSRDIR      = fs/usr/
-FSUSRBINDIR   = fs/usr/bin/
+FSDIR           = fs/
+FSBINDIR        = fs/bin/
+FSDEVDIR        = fs/dev/
+FSUSRDIR        = fs/usr/
+FSUSRBINDIR     = fs/usr/bin/
+FSUSRBINTESTDIR = fs/usr/bin/test/
+FSUSRBINWISCDIR = fs/usr/bin/wisc/
 
 
 # --- Kernel code -----------------------------------------------------------
@@ -415,32 +418,32 @@ $(USERBINDIR)%.o: $(UPROGCOREDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OB
 	$(OBJDUMP) -t $(FSBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
 
-$(USERBINDIR)%.o: $(UPROGDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
+$(USERBINDIR)%.o: $(UPROGAUXDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-$(USERBINDIR)%.o: $(UPROGTESTDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
+$(USERBINDIR)%.o: $(UPROGAUXTESTDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
-	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
-	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINTESTDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
+	$(OBJDUMP) -S -M intel $(FSUSRBINTESTDIR)$(*F) > $(DEBUGDIR)$(*F).asm
+	$(OBJDUMP) -t $(FSUSRBINTESTDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
-$(USERBINDIR)%.o: $(UPROGWISCDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
+$(USERBINDIR)%.o: $(UPROGAUXWISCDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
-	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
-	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINWISCDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
+	$(OBJDUMP) -S -M intel $(FSUSRBINWISCDIR)$(*F) > $(DEBUGDIR)$(*F).asm
+	$(OBJDUMP) -t $(FSUSRBINWISCDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
 
-$(USERBINDIR)forktest.o: $(UPROGTESTDIR)forktest.c   $(KERNHEADERDIR)types.h $(USERHEADERDIR)user.h
+$(USERBINDIR)forktest.o: $(UPROGAUXTESTDIR)forktest.c   $(KERNHEADERDIR)types.h $(USERHEADERDIR)user.h
 	# forktest has less library code linked in
 	# Needs to be small (size?) in order to be able to max out the proc table.
 	# JK, added umalloc.o, hopefully nothing breaks...
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
-	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)usys.o $(USERBINDIR)ulib.o $(USERBINDIR)umalloc.o
-	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)forktest > $(DEBUGDIR)forktest.asm
+	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINTESTDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)usys.o $(USERBINDIR)ulib.o $(USERBINDIR)umalloc.o
+	$(OBJDUMP) -S -M intel $(FSUSRBINTESTDIR)forktest > $(DEBUGDIR)forktest.asm
 
 
 # --- ? ---------------------------------------------------------------------
@@ -462,18 +465,15 @@ $(USERBINDIR)forktest.o: $(UPROGTESTDIR)forktest.c   $(KERNHEADERDIR)types.h $(U
 
 # --- clean -----------------------------------------------------------------
 
-# TODO: once get 'make print' working, can remove associated extensions
-# from 'make clean' as all will be inside 'fmt/'
+# 'rm' does not have a "folders only" flag
+# As such, for folders containing other folders, we have to
+# first use 'find' to filter for files.
+# Otherwise, we get the following warning:
+#   "rm: cannot remove '...': Is a directory"
+# https://stackoverflow.com/a/7714932
+
 clean: 
 	rm -f                  \
-	fmt/*                  \
-	*.tex                  \
-	*.dvi                  \
-	*.idx                  \
-	*.aux                  \
-	*.log                  \
-	*.ind                  \
-	*.ilg                  \
 	$(KERNBINDIR)*         \
 	$(UTILBINDIR)*         \
 	$(USERBINDIR)*         \
@@ -481,34 +481,40 @@ clean:
 	$(DEBUGDIR)*           \
 	$(SRCDIR)trapvectors.S \
 	$(FSBINDIR)*           \
-	$(FSUSRBINDIR)*        \
+	$(FSUSRBINTESTDIR)*    \
+	$(FSUSRBINWISCDIR)*    \
 	.gdbinit
+
+
+	# Bypass rm directory warnings
+	find $(FSUSRBINDIR) -maxdepth 1 -type f -exec rm -f {} \;
 
 
 # ___ Document ______________________________________________________________
 
-# make a printout
-FILES = $(shell grep -v '^\#' $(DOCDIR)runoff.list)
-PRINT =                   \
-	$(DOCDIR)runoff.list  \
-	$(DOCDIR)runoff.spec  \
-	README                \
-	$(DOCDIR)toc.hdr      \
-	$(DOCDIR)toc.ftr      \
-	$(FILES)
-
-xv6.pdf: $(PRINT)
-	$(DOCDIR)runoff
-	ls -l xv6.pdf
-
-print: xv6.pdf
+#	# Make a printout
+#	FILES = $(shell grep -v '^\#' $(DOCDIR)runoff.list)
+#	PRINT =                   \
+#		$(DOCDIR)runoff.list  \
+#		$(DOCDIR)runoff.spec  \
+#		README                \
+#		$(DOCDIR)toc.hdr      \
+#		$(DOCDIR)toc.ftr      \
+#		$(FILES)
+#	
+#	xv6.pdf: $(PRINT)
+#		$(DOCDIR)runoff
+#		ls -l xv6.pdf
+#	
+#	print: xv6.pdf
 
 
 # ___ Run in emulators ______________________________________________________
 
-# bochs: fs.img xv6.img
-# 	if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
-# 	bochs -q
+#	bochs: fs.img xv6.img
+#		if [ ! -e .bochsrc ]; then ln -s dot-bochsrc .bochsrc; fi
+#		bochs -q
+
 
 # Try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
@@ -518,7 +524,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	else echo "-s -p $(GDBPORT)"; fi)
 
 ifndef CPUS
-CPUS := 2
+	CPUS := 2
 endif
 
 QEMUOPTS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)

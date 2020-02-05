@@ -852,7 +852,7 @@ struct cmd* nulterminate ( struct cmd* cmd )
 
 // __ ... _______________________________________________________
 
-#define SHFIND_DEBUG 1
+#define SHFIND_DEBUG 0
 
 int stat2 ( char* path, struct stat* st )
 {

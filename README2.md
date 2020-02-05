@@ -13,7 +13,7 @@ sudo apt-get install gdb
 
 ## Tools - 64-bit
 
-If you are attemtping to build and run this project on a 64-bit computer, you also need to create a compiler toolchain that generates 32-bit code. Please follow the detailed guide in [this link][1].
+If you are attemtping to build and run this project on a 64-bit computer, you also need to create a compiler toolchain that generates 32-bit code. Please follow the detailed guide in [this link][0].
 
 For the most part, you can get away with the following:
 
@@ -37,8 +37,9 @@ debug/
 fs/
 fs/bin/
 fs/dev/
-fs/usr/
 fs/usr/bin/
+fs/usr/bin/test/
+fs/usr/bin/wisc/
 
 img/
 ```
@@ -47,25 +48,24 @@ Your directory should now look like this:
 
 ```
 .
-├── bin
-│   ├── kern
-│   ├── user
-│   └── util
-├── debug
+├── bin                 (*)
+│   ├── kern            (*)
+│   ├── user            (*)
+│   └── util            (*)
+├── debug               (*)
 ├── doc
-├── fmt
 ├── fs
-│   ├── bin
-│   ├── dev
-│   └── usr
-│       └── bin
-├── img
+│   ├── bin             (*)
+│   ├── dev             (*)
+│   └── usr             (*)
+│       ├── bin         (*)
+│       │   ├── test    (*)
+│       │   └── wisc    (*)
+│       └── pics
+├── img                 (*)
 ├── other
-└── src
-    └── usr
-        ├── lib
-        └── prog
-            └── core
+├── src
+└── tools
 ```
 
 Ideally, instead of manually adding the folders, they would be present when you clone or download this repository. Unfortunately, I have yet to figure out how one can make Git track empty folders.
@@ -80,9 +80,9 @@ chmod a+x src/bootsign.pl
 chmod a+x src/trapvectors.pl
 ```
 
-For more information, see the discussion [here][0].
+For more information, see the discussion [here][1].
 
 
 
-[0]: https://www.cs.bgu.ac.il/~osce151/Assignment_1?action=show-thread&id=03742be4bbf284c7dd39833c6107ab87
-[1]: https://pdos.csail.mit.edu/6.828/2018/tools.html
+[0]: https://pdos.csail.mit.edu/6.828/2018/tools.html
+[1]: https://www.cs.bgu.ac.il/~osce151/Assignment_1?action=show-thread&id=03742be4bbf284c7dd39833c6107ab87
