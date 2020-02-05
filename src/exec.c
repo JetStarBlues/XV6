@@ -83,7 +83,7 @@ int exec ( char* path, char* argv [] )
 	{
 		end_op();
 
-		cprintf( "exec: fail\n" );
+		cprintf( "exec: failed to open %s\n", path );
 
 		return - 1;
 	}

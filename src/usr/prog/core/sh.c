@@ -141,68 +141,81 @@ void runcmd ( struct cmd* cmd )
 				exit();
 			}
 
-			/* Default binaries no longer in root directory.
-			   Can either be in:
-			      . /bin
-			      . /usr/bin
+			/* Executables are no longer all in root directory.
 
 			   Based on,
 			    https://github.com/DoctorWkt/xv6-freebsd/blob/d2a294c2a984baed27676068b15ed9a29b06ab6f/XV6_CHANGES#L124
 			*/
 
-			/* TODO:
-			    We currently assume that only name of binary is given.
-			    I.e. it is not specified with an explicit path.
 
-			    Consider case where we have runtime compiler.
-
-			    Possible solution, check for presence of "/" in name
+			/* if a '/' is present, assume caller has specified
+			   where to find the executable
 			*/
-			/* TODO:
-			    Check is exe or bash/shell script, and raise error if not.
-			*/
-
-			/* Binaries without explicit path can either be in:
-			      . "."      (non-recursive search)
-			      . /bin     (recursive search)
-			      . /usr/bin (recursive search)
-			*/
-			binLocation = NULL;
-
-			// Binary in current directory
-			shfind( ecmd->argv[ 0 ], ".", &binLocation, 0 );
-
-			if ( binLocation != NULL )
+			if ( strchr( ecmd->argv[ 0 ], '/' ) != NULL )
 			{
 				exec( ecmd->argv[ 0 ], ecmd->argv );
 
 				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
 
-			// Binary in "/bin" (recursive search)
-			shfind( ecmd->argv[ 0 ], "/bin", &binLocation, 1 );
 
-			if ( binLocation != NULL )
-			{
-				exec( binLocation, ecmd->argv );
-
-				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
-			}
-
-			// Binary in "/usr/bin" (recursive search)
-			shfind( ecmd->argv[ 0 ], "/usr/bin", &binLocation, 1 );
-
-			if ( binLocation != NULL )
-			{
-				exec( binLocation, ecmd->argv );
-
-				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
-			}
-
-			// Binary not found
+			/* Executables without explicit path can either be in:
+			      . "."      (non-recursive search)
+			      . /bin     (recursive search)
+			      . /usr/bin (recursive search)
+			*/
 			else
 			{
-				printf( 2, "%s: command not found\n", ecmd->argv[ 0 ] );
+				binLocation = NULL;
+
+				// Binary in current directory
+				shfind( ecmd->argv[ 0 ], ".", &binLocation, 0 );
+
+				if ( binLocation != NULL )
+				{
+					exec( ecmd->argv[ 0 ], ecmd->argv );
+
+					printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
+				}
+
+				else
+				{
+					// Binary in "/bin" (recursive search)
+					shfind( ecmd->argv[ 0 ], "/bin", &binLocation, 1 );
+
+					if ( binLocation != NULL )
+					{
+						exec( binLocation, ecmd->argv );
+
+						printf( 2, "sh: exec %s failed\n", binLocation );
+					}
+
+					else
+					{
+						// Binary in "/usr/bin" (recursive search)
+						shfind( ecmd->argv[ 0 ], "/usr/bin", &binLocation, 1 );
+
+						if ( binLocation != NULL )
+						{
+							exec( binLocation, ecmd->argv );
+
+							printf( 2, "sh: exec %s failed\n", binLocation );
+						}
+
+						else
+						{
+							// Binary not found
+							printf( 2, "%s: command not found\n", ecmd->argv[ 0 ] );
+						}
+					}
+				}
+			}
+
+
+			// Cleanup
+			if ( binLocation != NULL )
+			{
+				free( binLocation );
 			}
 
 			//
