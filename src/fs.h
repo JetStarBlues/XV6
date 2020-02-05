@@ -86,5 +86,5 @@ struct dirent
 {
 	ushort inum;                 // inode number
 	char   name [ FILENAMESZ ];  /* If the name is shorter than FILENAMESZ,
-	                               it is terminated by a null byte */
+	                                it is terminated by a null byte */
 };

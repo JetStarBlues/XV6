@@ -359,6 +359,7 @@ void addDirectory ( int dir_inum, char* localdirname )
 	{
 		dent = readdir( dir );
 
+		// Skip empty entry
 		if ( dent == NULL )
 		{
 			break;

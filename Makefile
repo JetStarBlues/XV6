@@ -121,7 +121,7 @@ _ULIB_OBJS =   \
 
 _UPROG_OBJS =         \
 	clock.o           \
-	exists.o          \
+	find.o            \
 	hexdump.o         \
 	keditor.o
 
@@ -147,6 +147,7 @@ _UPROG_TEST_OBJS =    \
 	poke_disp_test.o  \
 	printf_test.o     \
 	realloc_test.o    \
+	shfind_test.o     \
 	stackoverflow.o   \
 	stressfs.o        \
 	string_test.o     \

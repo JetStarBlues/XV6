@@ -49,9 +49,9 @@
 #include "types.h"
 #include "user.h"
 #include "fcntl.h"
-#include "date.h"  // exists
-#include "stat.h"  // exists
-#include "fs.h"    // exists
+#include "date.h"  // shfind
+#include "stat.h"  // shfind
+#include "fs.h"    // shfind
 
 // Parsed command representation
 #define EXEC  1
@@ -107,7 +107,7 @@ struct backcmd
 int         fork1    ( void );  // Fork but panics on failure.
 void        panic    ( char* );
 struct cmd* parsecmd ( char* );
-int         exists   ( char*, char* );  // JK
+int         shfind   ( char*, char*, char**, int );  // JK
 
 // Execute cmd. Never returns.
 void runcmd ( struct cmd* cmd )
@@ -118,8 +118,7 @@ void runcmd ( struct cmd* cmd )
 	struct listcmd*  lcmd;
 	struct pipecmd*  pcmd;
 	struct redircmd* rcmd;
-
-	char binbuf [ 100 ];  //
+	char*            binLocation;  // JK
 
 	if ( cmd == 0 )
 	{
@@ -159,43 +158,47 @@ void runcmd ( struct cmd* cmd )
 
 			    Possible solution, check for presence of "/" in name
 			*/
+			/* TODO:
+			    Check is exe or bash/shell script, and raise error if not.
+			*/
 
 			/* Binaries without explicit path can either be in:
-			      . "."
-			      . /bin
-			      . /usr/bin
+			      . "."      (non-recursive search)
+			      . /bin     (recursive search)
+			      . /usr/bin (recursive search)
 			*/
+			binLocation = NULL;
+
 			// Binary in current directory
-			if ( exists( ecmd->argv[ 0 ], "." ) )
+			shfind( ecmd->argv[ 0 ], ".", &binLocation, 0 );
+
+			if ( binLocation != NULL )
 			{
 				exec( ecmd->argv[ 0 ], ecmd->argv );
 
 				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
-			// TODO: recursive search directory
-			// Binary in "/bin"
-			else if ( exists( ecmd->argv[ 0 ], "/bin" ) )
+
+			// Binary in "/bin" (recursive search)
+			shfind( ecmd->argv[ 0 ], "/bin", &binLocation, 1 );
+
+			if ( binLocation != NULL )
 			{
-				strcpy( binbuf, "/bin/" );
-
-				strcpy( &binbuf[ 5 ], ecmd->argv[ 0 ] );
-
-				exec( binbuf, ecmd->argv );
+				exec( binLocation, ecmd->argv );
 
 				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
-			// TODO: recursive search directory
-			// Binary in "/usr/bin"
-			else if ( exists( ecmd->argv[ 0 ], "/usr/bin" ) )
+
+			// Binary in "/usr/bin" (recursive search)
+			shfind( ecmd->argv[ 0 ], "/usr/bin", &binLocation, 1 );
+
+			if ( binLocation != NULL )
 			{
-				strcpy( binbuf, "/usr/bin/" );
-
-				strcpy( &binbuf[ 9 ], ecmd->argv[ 0 ] );
-
-				exec( binbuf, ecmd->argv );
+				exec( binLocation, ecmd->argv );
 
 				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
+
 			// Binary not found
 			else
 			{
@@ -849,124 +852,238 @@ struct cmd* nulterminate ( struct cmd* cmd )
 
 // __ ... _______________________________________________________
 
-int exists ( char* filename, char* dirpath )
+#define SHFIND_DEBUG 1
+
+int stat2 ( char* path, struct stat* st )
 {
-	int   fd,
-	      i,
-	      equal;
-	char* p;
-	char  dename [ FILENAMESZ + 1 ];
+	int fd;
+	int ret;
 
-	struct dirent  de;
-	struct stat    st;
-
-
-	if ( strlen( filename ) > FILENAMESZ )
-	{
-		printf( 2, "exists: invalid filename %s\n", filename );
-
-		return 0;
-	}
-
-	fd = open( dirpath, O_RDONLY );
+	fd = open( path, O_RDONLY );
 
 	if ( fd < 0 )
 	{
-		printf( 2, "exists: cannot open %s\n", dirpath );
+		printf( 2, "stat2: cannot open %s\n", path );
 
-		return 0;
+		return - 1;
 	}
 
-	if ( fstat( fd, &st ) < 0 )
-	{
-		printf( 2, "exists: cannot stat %s\n", dirpath );
-
-		close( fd );
-
-		return 0;
-	}
-
-	if ( st.type == T_FILE )
-	{
-		printf( 2, "exists: expecting a directory\n" );
-
-		close( fd );
-
-		return 0;
-	}
-
-	if ( st.type == T_DIR )
-	{
-		while ( read( fd, &de, sizeof( de ) ) == sizeof( de ) )
-		{
-			if ( de.inum == 0 )  // empty directory entry
-			{
-				continue;
-			}
-
-			// Can potentially check if de refers to a regular file (T_FILE)
-
-			/* argv from sh is null terminated, thus filename
-			    and dirpath are null terminated.
-			   dirent->name is NOT null terminated
-			*/
-
-			/* Not sure what value unused characters of dirent->name have.
-			   Will be cautious and set them all to zero.
-			   In the process, let's also "null terminate" dirent->name.
-			*/
-			memset( dename, 0, FILENAMESZ + 1 );
-			memmove( dename, de.name, FILENAMESZ );
-
-			// Compare the filename against dirent->name
-			/* The two are equal if all characters up to the null terminal
-			   in filename are equivalent.
-			*/
-			equal = 0;
-			i     = 0;
-			p     = filename;
-
-			while ( 1 )
-			{
-				// printf( 1, "%d : %c %d - %c %d\n", i, *p, *p, dename[ i ], dename[ i ] );
-
-				if ( *p == 0 )  // reached null terminal
-				{
-					if ( dename[ i ] == 0 )
-					{
-						equal = 1;
-					}
-
-					break;
-				}
-
-				if ( *p != dename[ i ] )  // characters not equal
-				{
-					break;
-				}
-
-				i += 1;
-				p += 1;
-			}
-
-			// printf( 1, "\n" );
-
-			// File found, we are done!
-			if ( equal )
-			{
-				// printf( 1, "file exists\n" );
-
-				close( fd );
-
-				return 1;
-			} 
-		}
-	}
-
-	// Not found
-	// printf( 1, "file does not exist\n" );
+	ret = fstat( fd, st );
 
 	close( fd );
 
-	return 0;	
+	return ret;
+}
+
+void freeSubDirArray ( char** subDirectories, int nSubDirectories )
+{
+	int i;
+
+	for ( i = 0; i < nSubDirectories; i += 1 )
+	{
+		free( subDirectories[ i ] );
+	}
+
+	free( subDirectories );
+}
+
+int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearch )
+{
+	int            dirFd;
+	struct dirent  dirEntry;
+	struct stat    dirStat;
+	struct stat    dirEntryStat;
+	char           dirEntryName [ FILENAMESZ + 1 ];
+	char*          dirEntryPath;
+	int            dirpathLen;
+	int            dirEntryNameLen;
+	char**         subDirectories;
+	int            nSubDirectories;
+	char**         ptr;
+	int            i;
+	int            foundMatch;  // in current directory
+
+	if ( strlen( filename ) > FILENAMESZ )
+	{
+		printf( 2, "shfind: invalid filename %s\n", filename );
+
+		return - 1;
+	}
+
+	dirFd = open( dirpath, O_RDONLY );
+
+	if ( dirFd < 0 )
+	{
+		printf( 2, "shfind: cannot open %s\n", dirpath );
+
+		return - 1;
+	}
+
+	if ( fstat( dirFd, &dirStat ) < 0 )
+	{
+		printf( 2, "shfind: cannot fstat %s\n", dirpath );
+
+		close( dirFd );
+
+		return - 1;
+	}
+
+	if ( dirStat.type != T_DIR )
+	{
+		printf( 2, "shfind: expecting second argument to be directory\n" );
+
+		close( dirFd );
+
+		return - 1;
+	}
+
+
+	if ( SHFIND_DEBUG )
+	{
+		printf( 1, "%s\n", dirpath );
+	}
+
+	subDirectories  = NULL;
+	nSubDirectories = 0;
+	foundMatch      = 0;
+
+	while ( read( dirFd, &dirEntry, sizeof( dirEntry ) ) == sizeof( dirEntry ) )
+	{
+		// Skip empty entry
+		if ( dirEntry.inum == 0 )
+		{
+			continue;
+		}
+
+		if ( SHFIND_DEBUG )
+		{
+			printf( 1, "\t%s\n", dirEntry.name );
+		}
+
+		// Skip the "." entry
+		if ( strcmp( dirEntry.name, "." ) == 0 )
+		{
+			continue;
+		}
+
+		// Skip the ".." entry
+		if ( strcmp( dirEntry.name, ".." ) == 0 )
+		{
+			continue;
+		}
+
+
+		/* dirEntry->name is NOT guaranteed to be null terminated.
+		   Let's null terminate it.
+		*/
+		memset( dirEntryName, 0, FILENAMESZ + 1 );
+		memmove( dirEntryName, dirEntry.name, FILENAMESZ );
+
+
+		// Get dirEntry's path...
+		dirpathLen      = strlen( dirpath );
+		dirEntryNameLen = strlen( dirEntryName );
+
+		dirEntryPath = malloc( dirpathLen + 1 + dirEntryNameLen + 1 );
+
+		memcpy( dirEntryPath, dirpath, dirpathLen );
+		dirEntryPath[ dirpathLen ] = '/';
+		memcpy( dirEntryPath + dirpathLen + 1, dirEntryName, dirEntryNameLen );
+		dirEntryPath[ dirpathLen + 1 + dirEntryNameLen ] = 0;  // null terminate
+
+
+		// Compare names
+		if ( strcmp( dirEntryName, filename ) == 0 )
+		{
+			if ( SHFIND_DEBUG )
+			{
+				printf( 1, "%s\n", dirEntryPath );
+			}
+
+			foundMatch = 1;
+
+			*foundpath = dirEntryPath;
+
+			goto cleanup;
+		}
+
+
+		// Get info about the file
+		if ( stat2( dirEntryPath, &dirEntryStat ) < 0 )
+		{
+			printf( 2, "shfind: cannot stat2 %s\n", dirEntryPath );
+
+			foundMatch = - 1;  // error
+
+			free( dirEntryPath );
+
+			goto cleanup;
+		}
+
+
+		/* If file is a directory, save it to a list of subdirectories.
+
+		   If we fail to find filename in the current directory,
+		   the subdirectories in this list will be searched.
+		*/
+		if ( dirEntryStat.type == T_DIR )
+		{
+			//
+			nSubDirectories += 1;
+
+
+			//
+			ptr = realloc( subDirectories, sizeof( char* ) * nSubDirectories );
+
+			if ( ptr == NULL )
+			{
+				printf( 2, "shfind: realloc failed\n" );
+
+				foundMatch = - 1;  // error
+
+				free( dirEntryPath );
+
+				goto cleanup;
+			}
+
+			subDirectories = ptr;
+
+
+			//
+			subDirectories[ nSubDirectories - 1 ] = dirEntryPath;
+		}
+
+		//
+		else
+		{
+			free( dirEntryPath );
+
+			continue;
+		}
+	}
+
+
+	// Reached here without finding match in current directory...
+	if ( recursiveSearch && ( nSubDirectories > 0 ) )
+	{
+		// Explore subdirectories
+		for ( i = 0; i < nSubDirectories; i += 1 )
+		{
+			foundMatch = shfind( filename, subDirectories[ i ], foundpath, recursiveSearch );
+
+			if ( foundMatch != 0 )
+			{
+				goto cleanup;
+			}
+		}
+	}
+
+
+cleanup:
+
+	close( dirFd );
+
+	freeSubDirArray( subDirectories, nSubDirectories );
+
+	return foundMatch;
 }
