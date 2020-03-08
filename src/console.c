@@ -68,6 +68,8 @@ static int consolewrite ( struct inode*, char*, int );
 static int consoleioctl ( struct inode*, int, ... );
 
 
+// _____________________________________________________________________________
+
 void consoleinit ( void )
 {
 	initlock( &cons.lock, "console" );

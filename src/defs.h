@@ -4,11 +4,12 @@ struct buf;
 struct context;
 struct file;
 struct inode;
+struct mouseStatus;
 struct pipe;
 struct proc;
 struct rtcdate;
-struct spinlock;
 struct sleeplock;
+struct spinlock;
 struct stat;
 struct superblock;
 
@@ -100,8 +101,9 @@ void            initlog   ( int dev );
 void            log_write ( struct buf* );
 
 // mouse.c
-void            mouseinit ( void );
-void            mouseintr ( void );
+void            mouseinit      ( void );
+void            mouseintr      ( void );
+void            getMouseStatus ( struct mouseStatus* );
 
 // mp.c
 extern int      ismp;
@@ -192,19 +194,8 @@ void            vgaSetMode           ( int );
 void            vgaSetDefaultPalette ( void );
 void            vgaSetPaletteColor   ( int, char, char, char );
 
-// void            vgaBlit              ( uchar* );
-// void            vgaDrawBitmap8       ( uchar*, int, int, int, int );
-// void            vgaFillRect          ( int, int, int, int, int );
-// void            vgaWritePixel        ( int, int, int );
+void            vgaHandleMouseEvent  ( void );
 // void            demoGraphics         ( void );
-
-void            updateMouseCursor ( int, int );
-
-void            markSelectionStart ( void );
-void            markSelectionEnd   ( void );
-void            highlightSelection ( void );
-void            copySelection      ( void );
-void            pasteSelection     ( void );
 
 // vm.c
 int             allocuvm   ( pde_t*, uint, uint );

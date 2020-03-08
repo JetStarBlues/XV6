@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "vga.h"
 #include "kfonts.h"
+#include "mouse.h"
 
 
 /*
@@ -43,9 +44,9 @@ static int currentMode;
 
 static void setTextMode                    ( void );
 static void clearScreen_textMode           ( void );
-static void updateMouseCursor_textMode     ( int, int );
-static void updateMouseCursor_graphicsMode ( int, int );
 static void vgaSetDefaultPalette_textMode  ( void );
+static void handleMouseEvent_textMode      ( struct mouseStatus* );
+static void handleMouseEvent_graphicsMode  ( struct mouseStatus* );
 
 
 void vgainit ( void )
@@ -58,6 +59,7 @@ void vgainit ( void )
 
 	clearScreen_textMode();
 }
+
 
 
 // ___________________________________________________________________________________
@@ -201,6 +203,7 @@ static void writeFont ( char* font, int fontheight )
 }
 
 
+
 // ___________________________________________________________________________________
 
 static void setTextMode ( void )
@@ -248,17 +251,22 @@ void vgaSetMode ( int sel )
 	}
 }
 
-void updateMouseCursor ( int dx, int dy )
+void vgaHandleMouseEvent ( void )
 {
+	struct mouseStatus mStatus;
+
+	getMouseStatus( &mStatus );
+
 	if ( currentMode == TXTMODE )
 	{
-		updateMouseCursor_textMode( dx, dy );
+		handleMouseEvent_textMode( &mStatus );
 	}
 	else if ( currentMode == GFXMODE )
 	{
-		updateMouseCursor_graphicsMode( dx, dy );
+		handleMouseEvent_graphicsMode( &mStatus );
 	}
 }
+
 
 
 // Palettes __________________________________________________________________________
@@ -343,6 +351,7 @@ static void vgaSetDefaultPalette_textMode ( void )
 	*g = ( ( color24 & 0x00ff00 ) >> 8  ) >> 2;
 	*b = ( ( color24 & 0x0000ff )       ) >> 2;
 }*/
+
 
 
 // Text mode _________________________________________________________________________
@@ -521,6 +530,56 @@ void vgaputc ( int c )
 }
 
 
+
+// Mouse (text mode) -----------------------------------------------------------------
+
+static void updateMouseCursor_textMode ( int, int );
+static void markSelectionStart         ( void );
+static void markSelectionEnd           ( void );
+static void highlightSelection         ( void );
+static void copySelection              ( void );
+static void pasteSelection             ( void );
+
+static void handleMouseEvent_textMode ( struct mouseStatus* mStatus )
+{
+	// Handle mouse move event
+	if ( mStatus->deltaX || mStatus->deltaY )
+	{
+		updateMouseCursor_textMode( mStatus->deltaX, - mStatus->deltaY );
+
+		highlightSelection();
+	}
+
+	//
+	if ( mStatus->leftBtn != mStatus->leftBtnPrev )
+	{
+		// Handle left button press event
+		if ( mStatus->leftBtn )
+		{
+			markSelectionStart();
+		}
+
+		// Handle left button release event
+		else
+		{
+			markSelectionEnd();
+
+			copySelection();
+		}
+	}
+
+	//
+	if ( mStatus->rightBtn != mStatus->rightBtnPrev )
+	{
+		// Handle right button release event
+		if ( mStatus->rightBtnPrev )
+		{
+			pasteSelection();
+		}
+	}
+}
+
+
 // Draws mouse by inverting colors
 static void drawMouseCursor_textMode ( int pos )
 {
@@ -619,6 +678,202 @@ static void updateMouseCursor_textMode ( int dx, int dy )
 }
 
 
+// Mouse selection (text mode) -------------------------------------------------------
+
+// http://panda.moyix.net/~moyix/cs3224/fall16/bonus_hw/bonus_hw.html
+#define COPYBUFSZ 100
+
+static uchar copypastebuffer [ COPYBUFSZ ];
+static int   copypastebuffer_idx = 0;
+
+static int  selectionStartPos;
+static int  selectionEndPos;
+static char selectingText     = 0;
+static int  selection_prevpos = 0;
+static int  selection_prevn   = 0;
+
+
+static void markSelectionStart ( void )
+{
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+	selectionStartPos = mousePosPrev_textMode;
+
+	selectingText = 1;
+}
+
+static void markSelectionEnd ( void )
+{
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+	// Calculate the selection's start and end positions
+	if ( mousePosPrev_textMode > selectionStartPos )
+	{
+		selectionEndPos = mousePosPrev_textMode;
+	}
+	else
+	{
+		// If selected leftwards, swap start and end
+		selectionEndPos   = selectionStartPos + 1;  // inclusive range...
+		selectionStartPos = mousePosPrev_textMode;
+	}
+
+
+	selectingText = 0;
+
+	/* Mouse cursor is currently inside selection.
+	   We want to prevent it from being "restored" visually
+	   when the mouse is drawn.
+	*/
+	mouseHasPreviouslyMoved_textMode = 0;
+}
+
+static void highlightSelection ( void )
+{
+	int    pos;
+	int    endpos;
+	int    n;
+	int    i;
+	ushort curChar;
+
+	if ( ! selectingText )
+	{
+		return;
+	}
+
+
+	// Clear previous highlight
+	pos = selection_prevpos;
+
+	for ( i = 0; i < selection_prevn; i += 1 )
+	{
+		curChar = textbuffer[ pos ] & 0x00FF;
+
+		textbuffer[ pos ] = textcolor_textMode | curChar;
+
+		pos += 1;
+	}
+
+
+	// Calculate start and size of new highlight
+	endpos = mousePosPrev_textMode;
+
+	if ( endpos >= selectionStartPos )
+	{
+		pos = selectionStartPos;
+
+		n = endpos - selectionStartPos;
+	}
+	else
+	{
+		pos = endpos;
+
+		n = selectionStartPos + 1 - endpos;  // inclusive range...
+	}
+
+	n = MIN( n, NCOLSxNROWS - pos );
+
+
+	// Save present as past
+	selection_prevpos = pos;
+	selection_prevn   = n;
+
+
+	// Create new highlight
+	for ( i = 0; i < n; i += 1 )
+	{
+		curChar = textbuffer[ pos ] & 0x00FF;
+
+		textbuffer[ pos ] = selectioncolor_textMode | curChar;
+
+		pos += 1;
+	}
+}
+
+static void copySelection ( void )
+{
+	int   i;
+	int   n;
+	int   pos;
+
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+
+	// Clear buffer
+	memset(
+
+		copypastebuffer,
+		0,
+		sizeof( uchar ) * COPYBUFSZ
+	);
+
+
+	// Update buffer
+	pos = selectionStartPos;
+
+	n = selectionEndPos - selectionStartPos;
+
+	n = MIN( n, COPYBUFSZ );
+
+	for ( i = 0; i < n; i += 1 )
+	{
+		copypastebuffer[ i ] = ( uchar ) ( textbuffer[ pos ] & 0x00FF );
+
+		pos += 1;
+	}
+}
+
+static int copypastebuffer_getc ( void )
+{
+	uchar c;
+
+	// Reached end of buffer
+	if ( copypastebuffer_idx > COPYBUFSZ - 1 )
+	{
+		copypastebuffer_idx = 0;
+
+		return - 1;
+	}
+
+	c = copypastebuffer[ copypastebuffer_idx ];
+
+	// Reached end of valid contents...
+	// if ( c == 0 )
+	if ( c < 0x20 || c > 0x7E )  // printable characters
+	{
+		copypastebuffer_idx = 0;
+
+		return - 1;
+	}
+	else
+	{
+		copypastebuffer_idx += 1;
+
+		return c;
+	}
+}
+
+static void pasteSelection ( void )
+{
+	if ( currentMode != TXTMODE )
+	{
+		return;
+	}
+
+	consoleintr( copypastebuffer_getc );
+}
+
+
+
 // Graphics mode _____________________________________________________________________
 
 /*
@@ -641,9 +896,6 @@ Graphics mode (VGA mode 0x13)
 
 static uchar* gfxbuffer = ( uchar* ) P2V( GFXBUFFER );
 
-static int mouseX_gfxMode = WIDTH_GFXMODE  / 2;
-static int mouseY_gfxMode = HEIGHT_GFXMODE / 2;
-
 
 static void vgaWritePixel ( int x, int y, int colorIdx )
 {
@@ -657,6 +909,7 @@ static void vgaWritePixel ( int x, int y, int colorIdx )
 }
 
 #if 0
+
 	void vgaBlit ( uchar* src )
 	{
 		memcpy( gfxbuffer, src, WIDTHxHEIGHT_GFXMODE );
@@ -735,62 +988,21 @@ static void vgaWritePixel ( int x, int y, int colorIdx )
 			y2 += 1;
 		}
 	}
+
 #endif
 
 
-static void updateMouseCursor_graphicsMode ( int dx, int dy )
-{
-	// Color indices in standard VGA 256 palette
-	const int black = 0;
-	const int white = 15;
+// Tests (graphics mode) -------------------------------------------------------------
 
-	// Update position
-	mouseX_gfxMode += dx;
-	mouseY_gfxMode += dy;
-
-	// Constrain position
-	if ( mouseX_gfxMode > WIDTH_GFXMODE )
-	{
-		mouseX_gfxMode = WIDTH_GFXMODE - 1;
-	}
-	else if ( mouseX_gfxMode < 0 )
-	{
-		mouseX_gfxMode = 0;
-	}
-	if ( mouseY_gfxMode > HEIGHT_GFXMODE )
-	{
-		mouseY_gfxMode = HEIGHT_GFXMODE - 1;
-	}
-	else if ( mouseY_gfxMode < 0 )
-	{
-		mouseY_gfxMode = 0;
-	}
-
-	// Draw a '+'
-	vgaWritePixel( mouseX_gfxMode, mouseY_gfxMode, white );
-
-	if ( mouseX_gfxMode < WIDTH_GFXMODE - 1 )
-	{
-		vgaWritePixel( mouseX_gfxMode + 1, mouseY_gfxMode,     black );
-	}
-	if ( mouseX_gfxMode > 1 )
-	{
-		vgaWritePixel( mouseX_gfxMode - 1, mouseY_gfxMode,     black );
-	}
-	if ( mouseY_gfxMode < HEIGHT_GFXMODE - 1 )
-	{
-		vgaWritePixel( mouseX_gfxMode,     mouseY_gfxMode + 1, black );
-	}
-	if ( mouseY_gfxMode > 1 )
-	{
-		vgaWritePixel( mouseX_gfxMode,     mouseY_gfxMode - 1, black );
-	}
-}
+#define GFX_MODE_TEST_GRAPHICS 0
+#define GFX_MODE_TEST_CURSOR   1
 
 
-// Tests _____________________________________________________________________________
+/* Drawing of graphics will be handled elsewhere.
+   This is quick and dirty code to test minimum viability.
+*/
+#if GFX_MODE_TEST_GRAPHICS
 
-#if 0
 	static void drawX ( void )
 	{
 		// Color indices in standard VGA 256 palette
@@ -840,198 +1052,79 @@ static void updateMouseCursor_graphicsMode ( int dx, int dy )
 
 		drawX();
 	}
+
 #endif
 
 
-// Mouse selection (text mode) _______________________________________________________
+/* Cursor will be managed elsewhere.
+   This is quick and dirty code to test minimum viability.
+*/
+static void updateMouseCursor_graphicsMode ( int, int );
 
-// http://panda.moyix.net/~moyix/cs3224/fall16/bonus_hw/bonus_hw.html
-#define COPYBUFSZ 100
-static uchar copypastebuffer [ COPYBUFSZ ];
-static int   copypastebuffer_idx = 0;
-
-static int  selectionStartPos;
-static int  selectionEndPos;
-static char selectingText     = 0;
-static int  selection_prevpos = 0;
-static int  selection_prevn   = 0;
-
-
-void markSelectionStart ( void )
+static void handleMouseEvent_graphicsMode ( struct mouseStatus* mStatus )
 {
-	if ( currentMode != TXTMODE )
+	if ( ! GFX_MODE_TEST_CURSOR )
 	{
 		return;
 	}
 
-	selectionStartPos = mousePosPrev_textMode;
-
-	selectingText = 1;
-}
-
-void markSelectionEnd ( void )
-{
-	if ( currentMode != TXTMODE )
+	if ( mStatus->deltaX || mStatus->deltaY )
 	{
-		return;
-	}
-
-	// Calculate the selection's start and end positions
-	if ( mousePosPrev_textMode > selectionStartPos )
-	{
-		selectionEndPos = mousePosPrev_textMode;
-	}
-	else
-	{
-		// If selected leftwards, swap start and end
-		selectionEndPos   = selectionStartPos + 1;  // inclusive range...
-		selectionStartPos = mousePosPrev_textMode;
-	}
-
-
-	selectingText = 0;
-
-	/* Mouse cursor is currently inside selection.
-	   We want to prevent it from being "restored" visually
-	   when the mouse is drawn.
-	*/
-	mouseHasPreviouslyMoved_textMode = 0;
-}
-
-void highlightSelection ( void )
-{
-	int    pos;
-	int    endpos;
-	int    n;
-	int    i;
-	ushort curChar;
-
-	if ( ! selectingText )
-	{
-		return;
-	}
-
-
-	// Clear previous highlight
-	pos = selection_prevpos;
-
-	for ( i = 0; i < selection_prevn; i += 1 )
-	{
-		curChar = textbuffer[ pos ] & 0x00FF;
-
-		textbuffer[ pos ] = textcolor_textMode | curChar;
-
-		pos += 1;
-	}
-
-
-	// Calculate start and size of new highlight
-	endpos = mousePosPrev_textMode;
-
-	if ( endpos >= selectionStartPos )
-	{
-		pos = selectionStartPos;
-
-		n = endpos - selectionStartPos;
-	}
-	else
-	{
-		pos = endpos;
-
-		n = selectionStartPos + 1 - endpos;  // inclusive range...
-	}
-
-	n = MIN( n, NCOLSxNROWS - pos );
-
-
-	// Save present as past
-	selection_prevpos = pos;
-	selection_prevn   = n;
-
-
-	// Create new highlight
-	for ( i = 0; i < n; i += 1 )
-	{
-		curChar = textbuffer[ pos ] & 0x00FF;
-
-		textbuffer[ pos ] = selectioncolor_textMode | curChar;
-
-		pos += 1;
+		updateMouseCursor_graphicsMode( mStatus->deltaX, - mStatus->deltaY );
 	}
 }
 
-void copySelection ( void )
+
+// Start with mouse at center of screen
+static int mouseX_gfxMode = WIDTH_GFXMODE  / 2;
+static int mouseY_gfxMode = HEIGHT_GFXMODE / 2;
+
+// Update and draw the mouse cursor
+static void updateMouseCursor_graphicsMode ( int dx, int dy )
 {
-	int   i;
-	int   n;
-	int   pos;
+	// Color indices in standard VGA 256 palette
+	const int black = 0;
+	const int white = 15;
 
-	if ( currentMode != TXTMODE )
+	// Update position
+	mouseX_gfxMode += dx;
+	mouseY_gfxMode += dy;
+
+	// Constrain position
+	if ( mouseX_gfxMode > WIDTH_GFXMODE )
 	{
-		return;
+		mouseX_gfxMode = WIDTH_GFXMODE - 1;
+	}
+	else if ( mouseX_gfxMode < 0 )
+	{
+		mouseX_gfxMode = 0;
+	}
+	if ( mouseY_gfxMode > HEIGHT_GFXMODE )
+	{
+		mouseY_gfxMode = HEIGHT_GFXMODE - 1;
+	}
+	else if ( mouseY_gfxMode < 0 )
+	{
+		mouseY_gfxMode = 0;
 	}
 
+	// Draw a '+'
+	vgaWritePixel( mouseX_gfxMode, mouseY_gfxMode, white );
 
-	// Clear buffer
-	memset(
-
-		copypastebuffer,
-		0,
-		sizeof( uchar ) * COPYBUFSZ
-	);
-
-
-	// Update buffer
-	pos = selectionStartPos;
-
-	n = selectionEndPos - selectionStartPos;
-
-	n = MIN( n, COPYBUFSZ );
-
-	for ( i = 0; i < n; i += 1 )
+	if ( mouseX_gfxMode < WIDTH_GFXMODE - 1 )
 	{
-		copypastebuffer[ i ] = ( uchar ) ( textbuffer[ pos ] & 0x00FF );
-
-		pos += 1;
+		vgaWritePixel( mouseX_gfxMode + 1, mouseY_gfxMode,     black );
 	}
-}
-
-static int copypastebuffer_getc ( void )
-{
-	uchar c;
-
-	// Reached end of buffer
-	if ( copypastebuffer_idx > COPYBUFSZ - 1 )
+	if ( mouseX_gfxMode > 1 )
 	{
-		copypastebuffer_idx = 0;
-
-		return - 1;
+		vgaWritePixel( mouseX_gfxMode - 1, mouseY_gfxMode,     black );
 	}
-
-	c = copypastebuffer[ copypastebuffer_idx ];
-
-	// Reached end of valid contents...
-	// if ( c == 0 )
-	if ( c < 0x20 || c > 0x7E )  // printable characters
+	if ( mouseY_gfxMode < HEIGHT_GFXMODE - 1 )
 	{
-		copypastebuffer_idx = 0;
-
-		return - 1;
+		vgaWritePixel( mouseX_gfxMode,     mouseY_gfxMode + 1, black );
 	}
-	else
+	if ( mouseY_gfxMode > 1 )
 	{
-		copypastebuffer_idx += 1;
-
-		return c;
+		vgaWritePixel( mouseX_gfxMode,     mouseY_gfxMode - 1, black );
 	}
-}
-
-void pasteSelection ()
-{
-	if ( currentMode != TXTMODE )
-	{
-		return;
-	}
-
-	consoleintr( copypastebuffer_getc );
 }

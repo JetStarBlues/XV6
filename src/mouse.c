@@ -3,6 +3,7 @@
 #include "defs.h"
 #include "traps.h"
 #include "ps2.h"
+#include "mouse.h"
 
 /*
 Based on:
@@ -46,21 +47,15 @@ Based on:
 #define MOUSE_PACKETSZ 3
 
 
+//
 static uchar mousePacket [ MOUSE_PACKETSZ ];
 static int   bytesReceived;
-static uchar leftBtn_prev  = 0;
-static uchar rightBtn_prev = 0;
-// static uchar middleBtn_prev = 0;
 
-/*struct MousePacket {
+//
+static struct mouseStatus mStatus;
 
-	int   dx;
-	int   dy;
-	uchar leftBtn;
-	uchar middleBtn;
-	uchar rightBtn;
-}*/
 
+// _____________________________________________________________________________
 
 static void mousewait ( int is_read )
 {
@@ -102,7 +97,8 @@ static void mousewait_send ( void )
 	mousewait( 0 );
 }
 
-void mousecmd ( uchar cmd )
+
+static void mousecmd ( uchar cmd )
 {
 	uchar data;
 
@@ -125,7 +121,10 @@ void mousecmd ( uchar cmd )
 	while ( data != MOUSE_ACK );
 }
 
-void mouseinit ( void )
+
+// _____________________________________________________________________________
+
+static void mouseinit_ps2 ( void )
 {
 	uchar data;
 
@@ -168,6 +167,21 @@ void mouseinit ( void )
 	ioapicenable( IRQ_MOUSE, 0 );
 }
 
+
+// _____________________________________________________________________________
+
+void mouseinit ( void )
+{
+	// Do we need locks?
+
+	// devsw[ MOUSE ].ioctl = mouseioctl;  // userspace access
+
+	mouseinit_ps2();
+}
+
+
+// _____________________________________________________________________________
+
 /* Mouse interrupt is sent when mouse moved or
    a mouse button changes state (press or release).
 
@@ -176,14 +190,10 @@ void mouseinit ( void )
 */
 void mouseintr ( void )
 {
-	uchar status;
-	int   dx;
-	int   dy;
-	uchar leftBtn;
-	uchar rightBtn;
-	// uchar middleBtn;
+	uchar statusByte;
 
-	// cprintf( "!\n" );
+
+	// Get packet - - - - - - - - - - - - - - -
 
 	// No data available...
 	if ( ( inb( PS2CTRL ) & PS2DINFULL ) == 0 )
@@ -203,23 +213,24 @@ void mouseintr ( void )
 	}
 
 
-	// Process packet
+	// Process packet - - - - - - - - - - - - -
 
 	bytesReceived = 0;
 
-	status = mousePacket[ 0 ];
+	statusByte = mousePacket[ 0 ];
 
-	// Get dx, dy
-	if ( ( status & MOUSE_XOVERFLOW ) || ( status & MOUSE_YOVERFLOW ) )
+
+	// Get deltaX and deltaY
+	if ( ( statusByte & MOUSE_XOVERFLOW ) || ( statusByte & MOUSE_YOVERFLOW ) )
 	{
 		// Ignore...
-		dx = 0;
-		dy = 0;
+		mStatus.deltaX = 0;
+		mStatus.deltaY = 0;
 	}
 	else
 	{
-		dx = ( int ) mousePacket[ 1 ];
-		dy = ( int ) mousePacket[ 2 ];
+		mStatus.deltaX = ( int ) mousePacket[ 1 ];
+		mStatus.deltaY = ( int ) mousePacket[ 2 ];
 
 		/* If negative, convert "9-bit signed" value into equivalent
 		   "sizeof( int ) signed" value
@@ -229,100 +240,104 @@ void mouseintr ( void )
 
 		   https://github.com/SerenityOS/serenity/blob/master/Kernel/Devices/PS2MouseDevice.cpp
 		*/
-		if ( status & MOUSE_XSIGN )
+		if ( statusByte & MOUSE_XSIGN )
 		{
-			dx -= 0x100;
+			mStatus.deltaX -= 0x100;
 		}
-		if ( status & MOUSE_YSIGN )
+		if ( statusByte & MOUSE_YSIGN )
 		{
-			dy -= 0x100;
+			mStatus.deltaY -= 0x100;
 		}
 	}
 
-	// Get button status
-	leftBtn  = ( status & MOUSE_LEFT )  ? 1 : 0;
-	rightBtn = ( status & MOUSE_RIGHT ) ? 1 : 0;
-	// middleBtn = ( status & MOUSE_MIDDLE ) ? 1 : 0;
+
+	// Save old button status
+	mStatus.leftBtnPrev  = mStatus.leftBtn;
+	mStatus.rightBtnPrev = mStatus.rightBtn;
+	// mStatus.middleBtnPrev = mStatus.middleBtn;
+
+
+	// Get new button status
+	mStatus.leftBtn  = ( statusByte & MOUSE_LEFT )  ? 1 : 0;
+	mStatus.rightBtn = ( statusByte & MOUSE_RIGHT ) ? 1 : 0;
+	// mStatus.middleBtn = ( statusByte & MOUSE_MIDDLE ) ? 1 : 0;
+
+
+	/*cprintf(
+
+		"dx: %d, dy: %d, l: %d, r: %d\n",
+		mStatus.deltaX, mStatus.deltaY,
+		mStatus.leftBtn, mStatus.rightBtn
+	);*/
 
 	/*cprintf(
 
 		"dx: %d, dy: %d, l: %d, r: %d, m: %d\n",
-		dx, dy,
-		leftBtn, rightBtn, middleBtn
+		mStatus.deltaX, mStatus.deltaY,
+		mStatus.leftBtn, mStatus.rightBtn, mStatus.middleBtn
 	);*/
 
-
-	/* Ideally, handler will run in separate process so that
-	   we can promptly RETI.
-
-	   Perharps we update a variable that:
-	     . the event handler is sleeping on?
-	     . the event handler polls
-	     . send a signal? to the event handler notifying it
-	       that the variable has been updated
-	*/
-	/*
-	// Call handler for onMouseMove
-	if ( dx || dy )
-	{
-		onMouseMove();
-	}
-
-	// Call handler for onMousePress or onMouseRelease
-	if ( leftBtn != leftBtn_prev )
-	{
-		if ( leftBtn )
-		{
-			onMousePress();
-		}
-		else
-		{
-			onMouseRelease();
-		}
-	}
-	*/
 
 
 	// Temporary tests ---------------
 
-		// Call handler for onMouseMove
-		if ( dx || dy )
-		{
-			updateMouseCursor( dx, - dy );
-
-			highlightSelection();
-		}
-
-		// Call handler for onMousePress or onMouseRelease
-		if ( leftBtn != leftBtn_prev )
-		{
-			// onMousePress
-			if ( leftBtn )
-			{
-				markSelectionStart();
-			}
-			// onMouseRelease
-			else
-			{
-				markSelectionEnd();
-
-				copySelection();
-			}
-		}
-		if ( rightBtn != rightBtn_prev )
-		{
-			// onMouseRelease
-			if ( rightBtn_prev )
-			{
-				pasteSelection();
-			}
-		}
-
-	// -------------------------------
+	vgaHandleMouseEvent();
+}
 
 
-	// Save button status
-	leftBtn_prev  = leftBtn;
-	rightBtn_prev = rightBtn;
-	// middleBtn_prev = middleBtn;
+// _____________________________________________________________________________
+
+/* Caller uses this function to get the current mouse status.
+
+   As such current mouse status is retrieved via polling...
+
+   TODO: Is there a way to notify "subscribers" of status change after
+         handling 'mouseintr'?
+
+
+   We let the caller (ex. Window Manager) determine mouse behaviour
+   (current location, press, release, drag etc.)
+
+   For example:
+
+        // Handle mouse move event
+        if ( _mStatus.deltaX || _mStatus.deltaY )
+        {
+            onMouseMove();
+
+            // Handle mouse drag event
+            if ( _mStatus.leftBtn )
+            {
+                onMouseDrag();
+            }
+        }
+
+        //
+        if ( _mStatus.leftBtn != _mStatus.leftBtnPrev )
+        {
+            // Handle mouse press event
+            if ( _mStatus.leftBtn )
+            {
+                onMousePress();
+            }
+
+            // Handle mouse release event, mouse click event
+            else
+            {
+                onMouseRelease();
+
+                onMouseClick
+            }
+        }
+*/
+void getMouseStatus ( struct mouseStatus* _mStatus )
+{
+	_mStatus->deltaX        = mStatus.deltaX;
+	_mStatus->deltaY        = mStatus.deltaY;
+	_mStatus->leftBtn       = mStatus.leftBtn;
+	// _mStatus->middleBtn     = mStatus.middleBtn;
+	_mStatus->rightBtn      = mStatus.rightBtn;
+	_mStatus->leftBtnPrev   = mStatus.leftBtnPrev;
+	// _mStatus->middleBtnPrev = mStatus.middleBtnPrev;
+	_mStatus->rightBtnPrev  = mStatus.rightBtnPrev;
 }
