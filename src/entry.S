@@ -39,41 +39,41 @@
 .globl multiboot_header
 
 #if 1
-multiboot_header:
+	multiboot_header:
 
-	#define MULTIBOOT_MAGIC     0x1badb002
-	#define MULTIBOOT_FLAGS     0
-	#define MULTIBOOT_CHECKSUM  - ( MULTIBOOT_MAGIC + MULTIBOOT_FLAGS )
+		#define MULTIBOOT_MAGIC     0x1badb002
+		#define MULTIBOOT_FLAGS     0
+		#define MULTIBOOT_CHECKSUM  - ( MULTIBOOT_MAGIC + MULTIBOOT_FLAGS )
 
-	.long MULTIBOOT_MAGIC
-	.long MULTIBOOT_FLAGS
-	.long MULTIBOOT_CHECKSUM
+		.long MULTIBOOT_MAGIC
+		.long MULTIBOOT_FLAGS
+		.long MULTIBOOT_CHECKSUM
 #endif
 
 #if 0
-multiboot_header:
+	multiboot_header:
 
-	#define MULTIBOOT_MAGIC       0x1badb002
-	#define MULTIBOOT_VIDEO_MODE  0x4
-	#define MULTIBOOT_FLAGS       MULTIBOOT_VIDEO_MODE
-	#define MULTIBOOT_CHECKSUM    - ( MULTIBOOT_MAGIC + MULTIBOOT_FLAGS )
+		#define MULTIBOOT_MAGIC       0x1badb002
+		#define MULTIBOOT_VIDEO_MODE  0x4
+		#define MULTIBOOT_FLAGS       MULTIBOOT_VIDEO_MODE
+		#define MULTIBOOT_CHECKSUM    - ( MULTIBOOT_MAGIC + MULTIBOOT_FLAGS )
 
-	.long MULTIBOOT_MAGIC
-	.long MULTIBOOT_FLAGS
-	.long MULTIBOOT_CHECKSUM
+		.long MULTIBOOT_MAGIC
+		.long MULTIBOOT_FLAGS
+		.long MULTIBOOT_CHECKSUM
 
-	# For MULTIBOOT_MEMORY_INFO
-	.long 0x00000000    # header_addr
-	.long 0x00000000    # load_addr
-	.long 0x00000000    # load_end_addr
-	.long 0x00000000    # bss_end_addr
-	.long 0x00000000    # entry_addr
+		# For MULTIBOOT_MEMORY_INFO
+		.long 0x00000000    # header_addr
+		.long 0x00000000    # load_addr
+		.long 0x00000000    # load_end_addr
+		.long 0x00000000    # bss_end_addr
+		.long 0x00000000    # entry_addr
 
-	# For MULTIBOOT_VIDEO_MODE
-	.long 0x00000000    # mode_type
-	.long 1280          # width
-	.long 1024          # height
-	.long 32            # depth
+		# For MULTIBOOT_VIDEO_MODE
+		.long 0x00000000    # mode_type
+		.long 1280          # width
+		.long 1024          # height
+		.long 32            # depth
 #endif
 
 
