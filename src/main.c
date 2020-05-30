@@ -210,7 +210,7 @@ static void startothers ( void )
 // The boot page table used in entry.S and entryother.S.
 // Page directories (and page tables) must start on page boundaries,
 // hence the __aligned__ attribute.
-// PTE_PS in a page directory entry enables 4Mbyte "super" pages.
+// PDE_PS in a page directory entry enables 4Mbyte "super" pages.
 __attribute__( ( __aligned__( PGSIZE ) ) )
 
 // See p.22 and p.37 for explanation...
@@ -224,7 +224,7 @@ pde_t entrypgdir [ NPDENTRIES ] = {
 
 	   (Btw, 4MB == 0x40_0000)
 	*/
-	[ 0 ]                    = ( 0 ) | PTE_P | PTE_W | PTE_PS,
+	[ 0 ]                    = ( 0 ) | PDE_P | PDE_W | PDE_PS,
 
 
 	/* Map VA's [KERNBASE, KERNBASE + 4MB] to PA's [0, 4MB]
@@ -240,5 +240,5 @@ pde_t entrypgdir [ NPDENTRIES ] = {
 
 	   (Btw, 0x8000_0000 / 4MB == 512 == KERNBASE >> 22)
 	*/
-	[ KERNBASE >> PDXSHIFT ] = ( 0 ) | PTE_P | PTE_W | PTE_PS,
+	[ KERNBASE >> PD_IDX_SHIFT ] = ( 0 ) | PDE_P | PDE_W | PDE_PS,
 };

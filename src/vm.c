@@ -64,12 +64,12 @@ static pte_t* walkpgdir ( pde_t* pgdir, const void* vAddr, int alloc )
 	// Get page directory entry
 	//  PDE index is upper 10 bits of virtual address,
 	//  PDE address is pgdir[ PDE index ]
-	pde = &( pgdir[ PDX( vAddr ) ] );
+	pde = &( pgdir[ PD_IDX( vAddr ) ] );
 
 	// If the PDE is present, retrieve relevant page table
-	if ( *pde & PTE_P )
+	if ( *pde & PDE_P )
 	{
-		pgtab = ( pte_t* ) P2V( PTE_ADDR( *pde ) );
+		pgtab = ( pte_t* ) P2V( PDE_ADDR( *pde ) );
 	}
 
 	// If the PDE is not present, the required page table
@@ -95,14 +95,14 @@ static pte_t* walkpgdir ( pde_t* pgdir, const void* vAddr, int alloc )
 		// The permissions here are overly generous, but they can
 		// be further restricted by the permissions in the page table
 		// entries, if necessary.
-		*pde = V2P( pgtab ) | PTE_P | PTE_W | PTE_U;
+		*pde = V2P( pgtab ) | PDE_P | PDE_W | PDE_U;
 	}
 
 
 	// Get page table entry
 	//  PTE index is second upper 10 bits of virtual address,
 	//  PTE address is pgtab[ PTE index ]
-	return &( pgtab[ PTX( vAddr ) ] );
+	return &( pgtab[ PT_IDX( vAddr ) ] );
 }
 
 /* Create PTEs for virtual addresses starting at vAddr that refer to
@@ -775,7 +775,7 @@ int deallocuvm ( pde_t* pgdir, uint oldsz, uint newsz )
 		// ?
 		if ( ! pte )
 		{
-			a = PGADDR( PDX( a ) + 1, 0, 0 ) - PGSIZE;
+			a = PGADDR( PD_IDX( a ) + 1, 0, 0 ) - PGSIZE;
 		}
 		// Free corresponding physical page...
 		else if ( ( *pte & PTE_P ) != 0 )
@@ -822,9 +822,9 @@ void freevm ( pde_t* pgdir )
 	// Free memory used by page table
 	for ( i = 0; i < NPDENTRIES; i += 1 )
 	{
-		if ( pgdir[ i ] & PTE_P )
+		if ( pgdir[ i ] & PDE_P )
 		{
-			vAddr = P2V( PTE_ADDR( pgdir[ i ] ) );
+			vAddr = P2V( PDE_ADDR( pgdir[ i ] ) );
 
 			kfree( vAddr );
 		}

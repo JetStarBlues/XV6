@@ -97,43 +97,92 @@ struct segdesc
 
 // ____________________________________________________________________________
 
-// A virtual address 'va' has a three-part structure as follows:
-//
-// +--------10------+-------10-------+---------12----------+
-// | Page Directory |   Page Table   | Offset within Page  |
-// |      Index     |      Index     |                     |
-// +----------------+----------------+---------------------+
-//  \--- PDX(va) --/ \--- PTX(va) --/
+/*
+	A virtual address 'va' has a three-part structure as follows:
+
+	+--------10---------+-------10----------+---------12----------+
+	| Page Directory    |   Page Table      | Offset within Page  |
+	|      Index        |      Index        |                     |
+	+-------------------+-------------------+---------------------+
+	 \--- PD_IDX(va) --/ \--- PT_IDX(va) --/
+*/
 
 // page directory index
-#define PDX( va ) ( ( ( uint )( va ) >> PDXSHIFT ) & 0x3FF )
+#define PD_IDX( va ) ( ( ( uint )( va ) >> PD_IDX_SHIFT ) & 0x3FF )
 
 // page table index
-#define PTX( va ) ( ( ( uint )( va ) >> PTXSHIFT ) & 0x3FF )
+#define PT_IDX( va ) ( ( ( uint )( va ) >> PT_IDX_SHIFT ) & 0x3FF )
 
 // construct virtual address from indexes and offset
-#define PGADDR( d, t, o ) ( ( uint )( ( d ) << PDXSHIFT | ( t ) << PTXSHIFT | ( o ) ) )
+#define PGADDR( pd_idx, pt_idx, offset ) ( ( uint ) ( ( ( pd_idx ) << PD_IDX_SHIFT ) | ( ( pt_idx ) << PT_IDX_SHIFT ) | ( offset ) ) )
 
 // Page directory and page table constants.
 #define NPDENTRIES 1024  // # directory entries per page directory
 #define NPTENTRIES 1024  // # PTEs per page table
 #define PGSIZE     4096  // bytes mapped by a page
 
-#define PTXSHIFT   12    // offset of PTX in a linear address
-#define PDXSHIFT   22    // offset of PDX in a linear address
+#define PT_IDX_SHIFT 12  // offset of PT_IDX in a linear address
+#define PD_IDX_SHIFT 22  // offset of PD_IDX in a linear address
 
 #define PGROUNDUP( a )   ( ( ( a ) + PGSIZE - 1 ) & ( ~ ( PGSIZE - 1 ) ) )
 #define PGROUNDDOWN( a ) (              ( ( a ) ) & ( ~ ( PGSIZE - 1 ) ) )
 
-// Page table/directory entry flags.
+
+/*
+	See https://wiki.osdev.org/Paging
+
+	Page directory entry:
+
+		31..11 - physical address of page table
+		11..9  - unused
+		    8  - flag | global          | Something about TLB update...
+		    7  - flag | page size       | If 0, page has size of 4KiB. If 1, 4MiB.
+		    6  - flag | unused          | .
+		    5  - flag | accessed        | If 1, page has been accessed for read or write. Up to OS to clear the bit.
+		    4  - flag | cache disabled  | If 0, page cache is enabled
+		    3  - flag | write through   | If 1, write-through caching is enabled. If 0, write-back caching
+		    2  - flag | user/supervisor | If 0, only supervisor can access page
+		    1  - flag | read/write      | If 0, page is read-only
+		    0  - flag | present         | If 1, page is actually in physical memory. For ex, when a page is
+		                                | swapped out, it is no longer in physical memory. When a page is called,
+		                                | but it is not present, a page fault will occur, and OS should handle it.
+
+	Page table entry:
+
+		31..11 - physical address of page_size block of memory
+		11..9  - unused
+		    8  - flag | global          | Something about TLB update...
+		    7  - flag | ?               | Something about physical attribute table...
+		    6  - flag | dirty           | If 1, indicates page has been written to. Up to OS to clear the bit.
+		    5  - flag | accessed        | If 1, page has been accessed for read or write. Up to OS to clear the bit.
+		    4  - flag | cache disabled  | If 0, page cache is enabled
+		    3  - flag | write through   | If 1, write-through caching is enabled. If 0, write-back caching
+		    2  - flag | user/supervisor | If 0, only supervisor can access page
+		    1  - flag | read/write      | If 0, page is read-only
+		    0  - flag | present         | If 1, page is actually in physical memory. For ex, when a page is
+		                                | swapped out, it is no longer in physical memory. When a page is called,
+		                                | but it is not present, a page fault will occur, and OS should handle it.
+*/
+
+// Page directory entry flags
+#define PDE_P  0x001   // Present
+#define PDE_W  0x002   // Writeable
+#define PDE_U  0x004   // User
+#define PDE_PS 0x080   // Page Size. Enables 4Mbyte "super" page
+
+// Page table entry flags
 #define PTE_P  0x001   // Present
 #define PTE_W  0x002   // Writeable
 #define PTE_U  0x004   // User
-#define PTE_PS 0x080   // Page Size. Enables 4Mbyte "super" page
 
-// Address in page table or page directory entry
+// Address in page directory entry
+#define PDE_ADDR( pde )  ( ( uint ) ( pde ) & ~ 0xFFF )
+#define PDE_FLAGS( pde ) ( ( uint ) ( pde ) &   0xFFF )
+
+// Address in page table entry
 #define PTE_ADDR( pte )  ( ( uint ) ( pte ) & ~ 0xFFF )
 #define PTE_FLAGS( pte ) ( ( uint ) ( pte ) &   0xFFF )
+
 
 #ifndef __ASSEMBLER__
 
