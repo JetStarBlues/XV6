@@ -65,19 +65,19 @@ int sys_sbrk ( void )
 
 int sys_sleep ( void )
 {
-	int  n;
-	uint ticks0;
+	int  nTicks;
+	uint ticksInitial;
 
-	if ( argint( 0, &n ) < 0 )
+	if ( argint( 0, &nTicks ) < 0 )
 	{
 		return - 1;
 	}
 
 	acquire( &tickslock );  // lock is held because ??
 
-	ticks0 = ticks;
+	ticksInitial = ticks;
 
-	while ( ticks - ticks0 < n )
+	while ( ticks - ticksInitial < nTicks )
 	{
 		if ( myproc()->killed )
 		{
