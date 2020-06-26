@@ -6,7 +6,7 @@
 
 //
 #define EXTMEM   0x100000    // Start of extended memory
-#define PHYSTOP  0xE000000   // Top of physical memory
+#define PHYSTOP  0xE000000   // Top of physical memory (Note: stackoverflow.com/a/29892921)
 #define DEVSPACE 0xFE000000  // Addresses used by memory mapped IO
 
 // Key addresses for address space layout (see kmap in vm.c for layout)
@@ -48,11 +48,11 @@ TODO:
 	                                    memory mapped
 	                                    IO devices 
 	         (DEVSPACE) 0xFE00_0000 ->  -----------------------------
-	                                    ...
+	                                    unmapped/unused?
 	                   P2V(PHYSTOP) ->  -----------------------------
 	                                    ...
 	                                    free memory
-	                                    (virtual range used by kalloc?)
+	                                    (used by?)
 	                                    ...
 	                     kernel.end ->  -----------------------------  <-
 	                                    kernel uninitialized rwdata      |
@@ -94,14 +94,14 @@ TODO:
 	                             memory mapped
 	                             IO devices
 	  (DEVSPACE) 0xFE00_0000 ->  -------------------------
-	                             ...
+	                             unmapped/unused?
 	                 PHYSTOP ->  -------------------------
 	                             ...
 	                             free memory
 	                             (used by kalloc to allocate pages)
 	                             ...
 	         V2P(kernel.end) ->  -------------------------
-	                             kernel rwdata
+	                             kernel initalized rwdata
 	        V2P(kernel.data) ->  -------------------------
 	                             kernel rodata
 	                             -------------------------

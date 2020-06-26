@@ -213,7 +213,7 @@ void pushcli ( void )
 		mycpu()->intena = eflags & FL_IF;
 	}
 
-	// Track depth of pushcli nesting
+	// Track depth of cli nesting
 	mycpu()->ncli += 1;
 }
 
@@ -225,7 +225,7 @@ void popcli ( void )
 		panic( "popcli: interruptible" );
 	}
 
-	// Track depth of pushcli nesting
+	// Track depth of cli nesting
 	mycpu()->ncli -= 1;
 
 	// Popped more than were pushed...

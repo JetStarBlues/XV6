@@ -1,4 +1,5 @@
 // Simple PIO-based (non-DMA) IDE driver code.
+// https://wiki.osdev.org/ATA_PIO_Mode
 
 #include "types.h"
 #include "defs.h"

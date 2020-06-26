@@ -154,7 +154,7 @@ extern int sys_wait    ( void );
 extern int sys_write   ( void );
 
 // Array of function pointers
-static int ( *syscalls[] )( void ) = {
+static int ( *syscalls [] )( void ) = {
 
 	[ SYS_chdir   ] sys_chdir,
 	[ SYS_close   ] sys_close,

@@ -211,9 +211,13 @@ static void startothers ( void )
 // Page directories (and page tables) must start on page boundaries,
 // hence the __aligned__ attribute.
 // PDE_PS in a page directory entry enables 4Mbyte "super" pages.
+
+/* For additional explanations see:
+    . p.22 and p.37
+    . stackoverflow.com/a/31171078
+*/
 __attribute__( ( __aligned__( PGSIZE ) ) )
 
-// See p.22 and p.37 for explanation...
 pde_t entrypgdir [ NPDENTRIES ] = {
 
 	/* Map VA's [0, 4MB] to PA's [0, 4MB]...
@@ -224,7 +228,7 @@ pde_t entrypgdir [ NPDENTRIES ] = {
 
 	   (Btw, 4MB == 0x40_0000)
 	*/
-	[ 0 ]                    = ( 0 ) | PDE_P | PDE_W | PDE_PS,
+	[ 0 ]                        = ( 0 ) | PDE_P | PDE_W | PDE_PS,
 
 
 	/* Map VA's [KERNBASE, KERNBASE + 4MB] to PA's [0, 4MB]

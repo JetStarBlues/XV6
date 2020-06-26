@@ -486,6 +486,9 @@ int getline ( char** bufPtr, uint* bufSize, int fd )
 
 // _________________________________________________________________
 
+/* TODO: poor name choice. Either change function name, or struct name,
+   so that unique for each...
+*/
 int stat ( const char* path, struct stat* st )
 {
 	int fd;

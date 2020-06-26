@@ -692,9 +692,10 @@ void scheduler ( void )
 		// Enable interrupts on this processor.
 		sti();
 
-		// Loop over process table looking for process to run.
+		// Acquire process table lock
 		acquire( &ptable.lock );
 
+		// Loop over process table looking for process to run.
 		for ( p = ptable.proc; p < &ptable.proc[ NPROC ]; p += 1 )
 		{
 			if ( p->state != RUNNABLE )
@@ -748,6 +749,7 @@ void scheduler ( void )
 			c->proc = 0;
 		}
 
+		// Release process table lock
 		release( &ptable.lock );
 	}
 }
@@ -773,12 +775,12 @@ void sched ( void )
 
 	if ( ! holding( &ptable.lock ) )
 	{
-		panic( "sched: ptable.lock" );
+		panic( "sched: ptable.lock not held" );
 	}
 
 	if ( mycpu()->ncli != 1 )
 	{
-		// Only ptable.lock should be held
+		// Only ptable.lock should be held ??
 		panic( "sched: number of locks" );
 	}
 
