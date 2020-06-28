@@ -1,4 +1,4 @@
-// File descriptors
+// Support functions for system calls that involve file descriptors
 
 /* In Unix, most resources are represented as files including
    devices (ex. console), pipes...

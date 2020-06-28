@@ -783,14 +783,18 @@ int sys_exec ( void )
 	char* path;
 	char* argv [ MAXARG ];
 	int   i;
-	uint  uargv,
-	      uarg;
+	uint  uargv;
+	uint  uarg;
 
-	if ( argstr( 0, &path ) < 0 || argint( 1, ( int* ) &uargv ) < 0 )
+	//
+	if ( argstr( 0, &path )           < 0   ||  // path to executable
+	     argint( 1, ( int* ) &uargv ) < 0 )     // arguments to provide execuatable
 	{
 		return - 1;
 	}
 
+
+	//
 	memset( argv, 0, sizeof( argv ) );
 
 	for ( i = 0; ; i += 1 )
@@ -806,6 +810,7 @@ int sys_exec ( void )
 			return - 1;
 		}
 
+		// Reached last argument
 		if ( uarg == 0 )
 		{
 			argv[ i ] = 0;
@@ -830,18 +835,18 @@ int sys_exec ( void )
    create a pipe pair...
    Its argument is a pointer to space for two integers, where
    it will record the two new file descriptors...
-   It allocates the pupe and installs the file descriptors...
+   It allocates the pipe and installs the file descriptors...
 */
 int sys_pipe ( void )
 {
 	struct file* rf;
 	struct file* wf;
-	int*         fd;
+	int*         fdArray;  // array of two integers
 	int          fd0,
 	             fd1;
 
-	// Get fd arg... "pipe( fd )"
-	if ( argptr( 0, ( void* ) &fd, 2 * sizeof( fd[ 0 ] ) ) < 0 )
+	// Get fdArray arg... "pipe( fdArray )"
+	if ( argptr( 0, ( void* ) &fdArray, 2 * sizeof( int ) ) < 0 )
 	{
 		return - 1;
 	}
@@ -874,11 +879,8 @@ int sys_pipe ( void )
 
 	if ( fd1 < 0 )
 	{
-		// If fd0 was successfully allocated, deallocate it
-		if ( fd0 >= 0 )
-		{
-			myproc()->ofile[ fd0 ] = 0;
-		}
+		// fd0 was successfully allocated, deallocate it
+		myproc()->ofile[ fd0 ] = 0;
 
 		fileclose( rf );
 
@@ -891,8 +893,8 @@ int sys_pipe ( void )
 	/* Return the pipe's file descriptors to the caller.
 	   Indirectly return by updating contents pointed to by arg 'fd'.
 	*/
-	fd[ 0 ] = fd0;
-	fd[ 1 ] = fd1;
+	fdArray[ 0 ] = fd0;
+	fdArray[ 1 ] = fd1;
 
 	return 0;
 }

@@ -12,12 +12,12 @@
   . System call number in %eax.
   . Arguments on the stack, from the user call to the C
     library system call function.
-  . The saved user %esp points to a saved program counter,
+  . The saved user %esp points to a saved program counter (return address),
     and then the first argument.
 */
 
-// Fetch the int at addr from the current process.
-int fetchint ( uint addr, int* ip )
+// Fetch the int at 'addr' from the current process.
+int fetchint ( uint addr, int* intPtr )
 {
 	struct proc* curproc;
 
@@ -33,19 +33,19 @@ int fetchint ( uint addr, int* ip )
 
 	// We can simply cast the address to a pointer because the
 	// user and kernel share the same page table ??
-	*ip = *( ( int* ) ( addr ) );
+	*intPtr = *( ( int* ) ( addr ) );
 
 	return 0;
 }
 
-// Fetch the null-terminated string at addr from the current process.
-// Doesn't actually copy the string - just sets *pp to point at it.
+// Fetch the null-terminated string at 'addr' from the current process.
+// Doesn't actually copy the string - just sets *strPtr to point at it.
 // Returns length of string, not including null.
-int fetchstr ( uint addr, char** pp )
+int fetchstr ( uint addr, char** strPtr )
 {
 	struct proc* curproc;
 	char*        s;
-	char*        ep;
+	char*        boundary;
 
 	//
 	curproc = myproc();
@@ -56,76 +56,87 @@ int fetchstr ( uint addr, char** pp )
 		return - 1;
 	}
 
-	*pp = ( char* ) addr;
+	//
+	*strPtr = ( char* ) addr;
 
-	ep = ( char* ) curproc->sz;  // Used to check that entire string lies
-	                             // within user address space
 
-	for ( s = *pp; s < ep; s += 1 )
+	// Check that entire string lies within user address space
+	boundary = ( char* ) curproc->sz;
+
+	for ( s = *strPtr; s < boundary; s += 1 )
 	{
-		if ( *s == 0 )  // reached null terminal
+		// Reached a null terminal while in bounds
+		if ( *s == 0 )
 		{
-			return s - *pp;
+			return s - *strPtr;
 		}
 	}
 
+
+	//
 	return - 1;
 }
 
 // Fetch the nth 32-bit system call argument.
 // Get arguments from user stack (instead of kernel stack)
-int argint ( int n, int* ip )
+int argint ( int n, int* intPtr )
 {
 	return fetchint(
 
-		( myproc()->tf->esp ) + 4 + ( 4 * n ),  // +4 to skip the return position
-		ip
+		(
+			( myproc()->tf->esp ) +  //
+			4                     +  // +4 to skip the return position
+			( 4 * n )                // +(4*n) to skip previous args
+		),
+		intPtr
 	);
 }
 
-// Fetch the nth word-sized system call argument as a pointer
-// to a block of memory of size bytes. Check that the pointer
-// lies within the process address space.
-int argptr ( int n, char** pp, int size )
+// Fetch the nth system call argument as a pointer
+// to a block of memory of 'memSize' bytes.
+// Check that the pointer lies within the process address space.
+int argptr ( int n, char** memPtrPtr, int memSize )
 {
 	struct proc* curproc;
-	int          i;
+	int          arg;
 
 	//
 	curproc = myproc();
  
-	if ( argint( n, &i ) < 0 )
+ 	//
+	if ( argint( n, &arg ) < 0 )
 	{
 		return - 1;
 	}
 
 	// Check that points to address within user address space
-	if ( size < 0                           ||
-	     ( uint ) i        >= curproc->sz   ||
-	     ( uint ) i + size >  curproc->sz )
+	if ( memSize < 0                             ||
+	     ( uint ) arg           >= curproc->sz   ||
+	     ( uint ) arg + memSize >  curproc->sz )
 	{
 		return - 1;
 	}
 
-	*pp = ( char* ) i;
+	//
+	*memPtrPtr = ( char* ) arg;
 
 	return 0;
 }
 
-// Fetch the nth word-sized system call argument as a string pointer.
+// Fetch the nth system call argument as a string pointer.
 // Check that the pointer is valid and the string is nul-terminated.
 // (There is no shared writable memory, so the string can't change
 // between this check and being used by the kernel.)
-int argstr ( int n, char** pp )
+int argstr ( int n, char** strPtr )
 {
-	int addr;
+	int arg;
 
-	if ( argint( n, &addr ) < 0 )
+	if ( argint( n, &arg ) < 0 )
 	{
 		return - 1;
 	}
 
-	return fetchstr( addr, pp );
+	return fetchstr( arg, strPtr );
 }
 
 extern int sys_chdir   ( void );

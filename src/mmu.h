@@ -186,7 +186,7 @@ struct segdesc
 
 #ifndef __ASSEMBLER__
 
-typedef uint pte_t;
+typedef uint pte_t;  // Why is this here, and not in 'types.h'?
 
 #endif
 
