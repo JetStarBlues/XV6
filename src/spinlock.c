@@ -122,9 +122,11 @@ void acquire ( struct spinlock* lk )
 	   acquired the lock. We loop until we acquire the lock.
 	*/
 	while ( xchg( &lk->locked, 1 ) != 0 )
+	// while( __sync_lock_test_and_set( &lk->locked, 1 ) != 0 )  // C atomic equivalent
 	{
 		// spin, waiting for lock to become available
 	}
+
 
 
 	/* Both the C compiler and the CPU may re-order loads and
@@ -172,6 +174,7 @@ void release ( struct spinlock* lk )
 	   to different CPU architectures
 	*/
 	asm volatile( "movl $0, %0" : "+m" ( lk->locked ) :  );
+	// __sync_lock_release( &lk->locked );  // C atomic equivalent
 
 
 	popcli();  // enable interrupts...
