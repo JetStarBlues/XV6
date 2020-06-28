@@ -109,7 +109,7 @@ static void idestart ( struct buf* b )
 
 	if ( b->blockno >= FSSIZE )
 	{
-		panic( "idestart: incorrect blockno" );
+		panic( "idestart: blockno too big" );
 	}
 
 	int sector_per_block = BLOCKSIZE / SECTOR_SIZE;
