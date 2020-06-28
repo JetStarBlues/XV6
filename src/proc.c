@@ -76,7 +76,7 @@ static void wakeup1 ( void* chan );
 
 // _________________________________________________________________________________
 
-void pinit ( void )
+void procinit ( void )
 {
 	initlock( &ptable.lock, "ptable" );
 }

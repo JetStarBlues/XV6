@@ -71,8 +71,8 @@ int main ( void )
 	vgainit();       // vga
 	displayinit();   // generic display
 	mouseinit();     // mouse
-	pinit();         // process table
-	tvinit();        // trap vectors
+	procinit();      // process table
+	trapinit();      // trap vectors
 	binit();         // buffer cache
 	fileinit();      // file table
 	ideinit();       // disk 
@@ -88,6 +88,9 @@ int main ( void )
 	   iinit( ROOTDEV );    // ...
 	   initlog( ROOTDEV );  // initialize log. Recover file system if necessary
 	*/
+
+	cprintf( "main: shouldn't reach here??\n" );
+	return 0;
 }
 
 // Other CPUs jump here from entryother.S.

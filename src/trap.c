@@ -78,7 +78,7 @@ static char* trapnames [] = {
 // __________________________________________________________________________________
 
 // Initialize IDT
-void tvinit ( void )
+void trapinit ( void )
 {
 	int i;
 

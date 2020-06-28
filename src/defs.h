@@ -127,8 +127,8 @@ int             growproc  ( int );
 int             kill      ( int );
 struct cpu*     mycpu     ( void );
 struct proc*    myproc    ( void );
-void            pinit     ( void );
 void            procdump  ( void );
+void            procinit  ( void );
 void            scheduler ( void ) __attribute__( ( noreturn ) );
 void            sched     ( void );
 void            setproc   ( struct proc* );
@@ -179,8 +179,8 @@ void            timerinit ( void );
 // trap.c
 extern struct spinlock tickslock;
 extern uint     ticks;
-void            idtinit ( void );
-void            tvinit  ( void );
+void            idtinit  ( void );
+void            trapinit ( void );
 
 // uart.c
 void            uartinit ( void );

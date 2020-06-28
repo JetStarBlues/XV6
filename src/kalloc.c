@@ -55,6 +55,15 @@ void freerange ( void* vstart, void* vend );
 
 /* The reason for two calls, is that for much of main, one cannot use
    locks or memory above 4 MB?
+
+   In xv6-riscv, there is no need to split... code looks like
+
+      void kinit ( void )
+      {
+	     initlock( &kmem.lock, "kmem" );
+
+	     freerange( end, P2V( PHYSTOP ) );
+      }
 */
 void kinit1 ( void* vstart, void* vend )
 {
@@ -151,6 +160,10 @@ char* kalloc ( void )
 	if ( np )
 	{
 		kmem.freelist = np->next;
+
+		// Fill with junk...
+		// memset( ( char* ) np, 1, PGSIZE );
+		memset( ( char* ) np, 1, sizeof( struct node ) );  // JK...
 	}
 
 

@@ -178,13 +178,13 @@ void release ( struct spinlock* lk )
 }
 
 // Check whether this cpu is holding the lock.
-int holding ( struct spinlock* lock )
+int holding ( struct spinlock* lk )
 {
 	int r;
 
 	pushcli();
 
-	r = lock->locked && ( lock->cpu == mycpu() );
+	r = lk->locked && ( lk->cpu == mycpu() );
 
 	popcli();
 
