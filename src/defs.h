@@ -211,7 +211,6 @@ void            seginit    ( void );
 pde_t*          setupkvm   ( void );
 void            switchkvm  ( void );
 void            switchuvm  ( struct proc* );
-char*           uva2ka     ( pde_t*, char* );
 
 // number of elements in fixed-size array
 #define NELEM( x ) ( sizeof( x ) / sizeof( ( x )[ 0 ] ) )

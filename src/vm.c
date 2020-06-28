@@ -855,15 +855,16 @@ void clearpteu ( pde_t* pgdir, char* uva )
 
 // _________________________________________________________________________________
 
-// Map user virtual address to kernel address.
+// Lookup a virtual address, return the physical address,
+// or 0 if not mapped.
 /* Check that virtual address is mapped to user space.
    If it is, return address of the associated physical page.
 */
-char* uva2ka ( pde_t* pgdir, char* uva )
+static char* userVAddrToPhysAddr ( pde_t* pgdir, char* vAddr )
 {
 	pte_t* pte;
 
-	pte = walkpgdir( pgdir, uva, 0 );
+	pte = walkpgdir( pgdir, vAddr, 0 );
 
 	if ( ( *pte & PTE_P ) == 0 )
 	{
@@ -878,24 +879,25 @@ char* uva2ka ( pde_t* pgdir, char* uva )
 	return ( char* ) P2V( PTE_ADDR( *pte ) );
 }
 
-// Copy len bytes from p to user address vAddr in page table pgdir.
-// Most useful when pgdir is not the current page table.
-// uva2ka ensures this only works for PTE_U pages.
-// Used by exec to copy arguments to the user stack...
-int copyout ( pde_t* pgdir, uint vAddr, void* p, uint len )
+// Copy len bytes from 'src' to user address 'vAddr' in page table 'pgdir'.
+// Most useful when 'pgdir' is not the current page table.
+// 'userVAddrToPhysAddr' ensures this only works for PTE_U pages.
+/* Used by exec to copy arguments to the user stack...
+*/
+int copyout ( pde_t* pgdir, uint vAddr, void* src, uint len )
 {
 	char* buf;
 	char* pAddr0;
 	uint  n,
 	      vAddr0;
 
-	buf = ( char* ) p;
+	buf = ( char* ) src;
 
 	while ( len > 0 )
 	{
 		vAddr0 = ( uint ) PGROUNDDOWN( vAddr );
 
-		pAddr0 = uva2ka( pgdir, ( char* ) vAddr0 );
+		pAddr0 = userVAddrToPhysAddr( pgdir, ( char* ) vAddr0 );
 
 		if ( pAddr0 == 0 )
 		{
