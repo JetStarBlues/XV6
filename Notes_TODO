@@ -1,14 +1,24 @@
 . lseek
 	. 'filewrite' would need to be modified to fill holes in
 	  the file with zero if lseek sets off beyond f->ip->size? p.92
+	. test current implementation
+
+
+. pwd
+	. create a syscall 'getcwd'
+		. void getcwd ( char* buf, int bufSize )
+		. probably use proc->cwd to get inode
+		. traverse '..' until reach root (ROOTINUM)
 
 . dynamic stack size
 
+
 . paging (p.37)
 	. xv6 lacks:
-		. demand paging from disk?
-		. copy-on-write fork
-		. shared memory?
+		. demand paging from disk
+			. "page in/out" pages from disk when short on memory
+		. copy-on-write fork?
+		. shared memory
 		. lazily-allocated page
 		. automatically extending stacks
 
@@ -16,12 +26,20 @@
 		. Modify xv6 so that the pages for the kernel are shared
 		  among processes, which reduces memory consumption ?
 
-. Does xv6 "page in/out" pages from disk when short on memory?
-  Or does it assume infinite memory...
+
+. mmap
+
 
 . single processor
 	. create branch where code related to multiprocessor omitted
 	. ensure works...
+
+	. Start points...
+		. 'mycpu()', 'startothers()', 'mpenter()'
+		. mp.c, lapic.c, main.c, entryother.S
+		. 'apicid', 'lapicid'
+		. remove '-smp' flag from QEMU
+
 
 . What changes did DoctorWkt make to kernel?
 
@@ -40,8 +58,24 @@
 . FAT mount...
 
 
-. VGA
-	. draw pixel
+. xv6-riscv
 
+	. Repository contains changes of interest...
+
+		. Start from first diff, and update accordingly
+			. Sep 23, 2018 "Checkpoint port of xv6 to x86-64" 
+			  https://github.com/mit-pdos/xv6-riscv/commit/ab0db651af6f1ffa8fe96909ce16ae314d65c3fb
+
+		. For example:
+			. Jul 2, 2019
+			  "Checkpoint switching to per-process locks, in attempt clarify xv6's locking plan"
+			  https://github.com/mit-pdos/xv6-riscv/commit/67702cf706bce7adef472f0caa48d81ddfaeb33a
+
+	. Understand key differences
+
+		. For example, looks like kernel has own address space,
+		  instead of being present in each process's address space...
+		  As such, functions like 'copyin' (+ 'kalloc') and 'copyout'
+		  are used to read data from or write to a user process's address space
 
 
