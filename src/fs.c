@@ -587,41 +587,84 @@ static struct inode* iget ( uint dev, uint inum )
 */
 void iput ( struct inode* ip )
 {
-	int r;
+	// ?
+	acquire( &icache.lock );
 
-	acquiresleep( &ip->lock );
-
-	// Inode has no links
-	if ( ip->valid && ip->nlink == 0 )
+	// Inode has no links and no other references: truncate and free.
+	if (
+		ip->valid          &&  //
+		( ip->nlink == 0 ) &&  // inode has no links
+		( ip->ref == 1 )       // no other process has ip locked
+	)
 	{
-		acquire( &icache.lock );
+		/* Since no other process has ip locked, this acquiresleep
+		   won't block (deadlock)?
+		*/
+		acquiresleep( &ip->lock );
 
-		r = ip->ref;
-
+		// ?
 		release( &icache.lock );
 
-		// Inode has no links and no other references: truncate and free.
-		if ( r == 1 )
-		{
-			itrunc( ip );  // Free the inode's data blocks
+		// Truncate and free
+		itrunc( ip );  // Free the inode's data blocks
 
-			ip->type = 0;  // Mark inode as unallocated
+		ip->type = 0;  // Mark inode as unallocated
 
-			iupdate( ip );  // Write changes to disk
+		iupdate( ip );  // Write changes to disk
 
-			ip->valid = 0;
-		}
+		ip->valid = 0;
+
+		//
+		releasesleep( &ip->lock );
+
+		//
+		acquire( &icache.lock );
 	}
-
-	releasesleep( &ip->lock );
 
 
 	// Decrement the reference count
-	acquire( &icache.lock );
-
 	ip->ref -= 1;
 
 	release( &icache.lock );
+
+
+	/*
+		int r;
+
+		acquiresleep( &ip->lock );
+
+		// Inode has no links
+		if ( ip->valid && ip->nlink == 0 )
+		{
+			acquire( &icache.lock );
+
+			r = ip->ref;
+
+			release( &icache.lock );
+
+			// Inode has no links and no other references: truncate and free.
+			if ( r == 1 )
+			{
+				itrunc( ip );  // Free the inode's data blocks
+
+				ip->type = 0;  // Mark inode as unallocated
+
+				iupdate( ip );  // Write changes to disk
+
+				ip->valid = 0;
+			}
+		}
+
+		releasesleep( &ip->lock );
+
+
+		// Decrement the reference count
+		acquire( &icache.lock );
+
+		ip->ref -= 1;
+
+		release( &icache.lock );
+	*/
 }
 
 // Common idiom: unlock, then put.
