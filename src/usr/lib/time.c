@@ -1,5 +1,5 @@
-#include "types.h"
-#include "date.h"
+#include "kernel/types.h"
+#include "kernel/date.h"
 
 /* TODO: When precision is implemented for printf,
          no need for short versions. Can just use "%.3s"

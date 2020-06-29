@@ -1,8 +1,8 @@
 // https://youtu.be/2rAnCmXaOwo
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/date.h"
 #include "user.h"
-#include "date.h"
 #include "time.h"
 
 int main ( int argc, char* argv [] )

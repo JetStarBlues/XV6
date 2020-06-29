@@ -1,6 +1,6 @@
 // https://youtu.be/2rAnCmXaOwo
 
-#include "types.h"
+#include "kernel/types.h"
 #include "user.h"
 
 void test_printf ( void )

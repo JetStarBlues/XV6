@@ -3,10 +3,10 @@
      2nd ed. Section 8.7
 */
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/param.h"
+#include "kernel/mmu.h"
 #include "user.h"
-#include "param.h"
-#include "mmu.h"
 
 /*
 	. The space malloc manages may not be contiguous. Thus its

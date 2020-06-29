@@ -1,7 +1,7 @@
 /* Trigger a stack overflow
 */
 
-#include "types.h"
+#include "kernel/types.h"
 #include "user.h"
 
 #define SZ 4096  // 4096

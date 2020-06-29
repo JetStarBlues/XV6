@@ -1,4 +1,4 @@
-#include "types.h"
+#include "kernel/types.h"
 #include "user.h"
 #include "GFX.h"
 #include "GFXtext.h"

@@ -46,12 +46,12 @@
 		  and treat \" as literal
 */
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
+#include "kernel/date.h"  // shfind
+#include "kernel/stat.h"  // shfind
+#include "kernel/fs.h"    // shfind
 #include "user.h"
-#include "fcntl.h"
-#include "date.h"  // shfind
-#include "stat.h"  // shfind
-#include "fs.h"    // shfind
 
 // Parsed command representation
 #define EXEC  1

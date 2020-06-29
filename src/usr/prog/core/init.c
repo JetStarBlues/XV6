@@ -1,17 +1,17 @@
 // init: The initial user-level program
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fcntl.h"
 /* JK, following includes are needed to get
    the device number constants defined in file.h
    =(
 */
-#include "spinlock.h"
-#include "sleeplock.h"
-#include "date.h"
-#include "fs.h"
-#include "file.h"
+#include "kernel/spinlock.h"
+#include "kernel/sleeplock.h"
+#include "kernel/date.h"
+#include "kernel/fs.h"
+#include "kernel/file.h"
 
 char* argv [] = { "sh", 0 };
 

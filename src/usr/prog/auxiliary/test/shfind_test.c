@@ -3,12 +3,12 @@
      . returns pointer to string holding match path
 */
 
-#include "types.h"
-#include "date.h"
-#include "stat.h"
-#include "fcntl.h"
+#include "kernel/types.h"
+#include "kernel/date.h"
+#include "kernel/stat.h"
+#include "kernel/fcntl.h"
+#include "kernel/fs.h"
 #include "user.h"
-#include "fs.h"
 
 
 #define SHFIND_DEBUG 1

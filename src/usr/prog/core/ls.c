@@ -1,10 +1,10 @@
-#include "types.h"
-#include "date.h"
-#include "stat.h"
-#include "time.h"
+#include "kernel/types.h"
+#include "kernel/date.h"
+#include "kernel/stat.h"
+#include "kernel/fs.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fs.h"
-#include "fcntl.h"
+#include "time.h"
 
 char* fmtname ( char* path )
 {

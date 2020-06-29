@@ -1,6 +1,6 @@
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fcntl.h"
 
 /* By not explicitly closing files (including the pipe),
    we assume that they will be closed by our call to 'exit'.

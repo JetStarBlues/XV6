@@ -1,16 +1,15 @@
 .gdbinit
 *~
 
-src/vectors.S
 img/
 debug/
 bin/
+src/kernel/trapvectors.S
 
 fs/bin
 fs/usr/bin
 
+# wip
 other2/
 tmp/
-
-# wip
-src/playground.c
+src/kernel/playground.c

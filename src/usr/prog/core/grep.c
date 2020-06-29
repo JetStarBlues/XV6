@@ -16,9 +16,9 @@ Supports the follow operators:
   is treated as a literal character
 */
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fcntl.h"
 
 #define MAXLINESZ 1023
 #define NULL      0

@@ -21,10 +21,10 @@ TODO:
 */
 
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
+#include "kernel/termios.h"
 #include "user.h"
-#include "fcntl.h"
-#include "termios.h"
 #include "GFX.h"      // Render graphically
 #include "GFXtext.h"  // Render graphically
 

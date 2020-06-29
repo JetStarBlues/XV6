@@ -1,4 +1,4 @@
-#include "types.h"
+#include "kernel/types.h"
 
 
 // VGA modes

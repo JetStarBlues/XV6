@@ -1,6 +1,6 @@
 // https://youtu.be/TPR8QAL_T4o
 
-#include "types.h"
+#include "kernel/types.h"
 #include "user.h"
 
 int main ( int argc, char* argv [] )

@@ -1,7 +1,7 @@
 // http://pages.cs.wisc.edu/~cs537-3/Projects/p4b.html
 // https://youtu.be/uMXGjayZ9DE
 
-#include "types.h"
+#include "kernel/types.h"
 #include "user.h"
 
 int stack [ 4096 ] __attribute__ ( ( aligned ( 4096 ) ) );

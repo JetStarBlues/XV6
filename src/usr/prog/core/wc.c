@@ -1,8 +1,8 @@
 /* Word count */
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fcntl.h"
 
 char buf [ 512 ];
 

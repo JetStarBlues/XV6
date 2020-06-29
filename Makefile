@@ -7,7 +7,8 @@
 # --- Directories -----------------------------------------------------------
 
 SRCDIR          = src/
-KERNHEADERDIR   = src/
+KERNDIR         = src/kernel/
+KERNHEADERDIR   = src/kernel/
 USERHEADERDIR   = src/usr/include/
 UPROGDIR        = src/usr/prog/
 UPROGCOREDIR    = src/usr/prog/core/
@@ -278,23 +279,23 @@ $(IMGDIR)xv6memfs.img: $(IMGDIR)bootblock $(IMGDIR)kernelmemfs
 	dd if=$(IMGDIR)kernelmemfs of=$(IMGDIR)xv6memfs.img seek=1 conv=notrunc  # second sector
 
 
-$(IMGDIR)bootblock: $(SRCDIR)bootasm.S $(SRCDIR)bootmain.c   $(KERN_HEADERS)
-	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)bootmain.c -o $(KERNBINDIR)bootmain.o
-	# $(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)bootmain.c -o $(KERNBINDIR)bootmain.o  # JK, remove optimization
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)bootasm.S -o $(KERNBINDIR)bootasm.o
+$(IMGDIR)bootblock: $(KERNDIR)bootasm.S $(KERNDIR)bootmain.c   $(KERN_HEADERS)
+	$(CC) $(CFLAGS) -fno-pic -O -nostdinc -I $(KERNHEADERDIR) -c $(KERNDIR)bootmain.c -o $(KERNBINDIR)bootmain.o
+	# $(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(KERNDIR)bootmain.c -o $(KERNBINDIR)bootmain.o  # JK, remove optimization
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(KERNDIR)bootasm.S -o $(KERNBINDIR)bootasm.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7C00 -o $(KERNBINDIR)bootblock.o $(KERNBINDIR)bootasm.o $(KERNBINDIR)bootmain.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblock.o $(IMGDIR)bootblock
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblock.o > $(DEBUGDIR)bootblock.asm
-	$(SRCDIR)bootsign.pl $(IMGDIR)bootblock
+	$(KERNDIR)bootsign.pl $(IMGDIR)bootblock
 
-$(IMGDIR)entryother: $(SRCDIR)entryother.S   $(KERN_HEADERS)
-	$(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)entryother.S -o $(KERNBINDIR)entryother.o
+$(IMGDIR)entryother: $(KERNDIR)entryother.S   $(KERN_HEADERS)
+	$(CC) $(CFLAGS) -fno-pic -nostdinc -I $(KERNHEADERDIR) -c $(KERNDIR)entryother.S -o $(KERNBINDIR)entryother.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0x7000 -o $(KERNBINDIR)bootblockother.o $(KERNBINDIR)entryother.o
 	$(OBJCOPY) -S -O binary -j .text $(KERNBINDIR)bootblockother.o $(IMGDIR)entryother
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)bootblockother.o > $(DEBUGDIR)entryother.asm
 
-$(IMGDIR)initcode: $(SRCDIR)initcode.S   $(KERN_HEADERS)
-	$(CC) $(CFLAGS) -nostdinc -I $(KERNHEADERDIR) -c $(SRCDIR)initcode.S -o $(KERNBINDIR)initcode.o
+$(IMGDIR)initcode: $(KERNDIR)initcode.S   $(KERN_HEADERS)
+	$(CC) $(CFLAGS) -nostdinc -I $(KERNHEADERDIR) -c $(KERNDIR)initcode.S -o $(KERNBINDIR)initcode.o
 	$(LD) $(LDFLAGS) -N -e start -Ttext 0 -o $(KERNBINDIR)initcode.out $(KERNBINDIR)initcode.o
 	$(OBJCOPY) -S -O binary $(KERNBINDIR)initcode.out $(IMGDIR)initcode
 	$(OBJDUMP) -S -M intel $(KERNBINDIR)initcode.o > $(DEBUGDIR)initcode.asm
@@ -312,8 +313,8 @@ $(IMGDIR)initcode: $(SRCDIR)initcode.S   $(KERN_HEADERS)
 #    _binary_img_initcode_start   .. _binary_img_initcode_end
 #    _binary_img_entryother_start .. _binary_img_entryother_end
 #
-$(IMGDIR)kernel: $(KERN_OBJS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld
-	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERN_OBJS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
+$(IMGDIR)kernel: $(KERN_OBJS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(KERNDIR)kernel.ld
+	$(LD) $(LDFLAGS) -T $(KERNDIR)kernel.ld -o $(IMGDIR)kernel $(KERNBINDIR)entry.o $(KERN_OBJS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother
 	$(OBJDUMP) -S -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel.asm
 	$(OBJDUMP) -D -M intel $(IMGDIR)kernel > $(DEBUGDIR)kernel_all.asm
 	$(OBJDUMP) -t $(IMGDIR)kernel | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernel.sym
@@ -328,14 +329,14 @@ $(IMGDIR)kernel: $(KERN_OBJS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)
 _MEMFS_OBJS = $(filter-out ide.o, $(_KERN_OBJS)) memide.o
 MEMFS_OBJS = $(addprefix $(KERNBINDIR), $(_MEMFS_OBJS))  # JK
 
-$(IMGDIR)kernelmemfs: $(MEMFS_OBJS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(SRCDIR)kernel.ld fs.img
-	$(LD) $(LDFLAGS) -T $(SRCDIR)kernel.ld -o $(IMGDIR)kernelmemfs $(KERNBINDIR)entry.o $(MEMFS_OBJS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother $(IMGDIR)fs.img
+$(IMGDIR)kernelmemfs: $(MEMFS_OBJS) $(KERNBINDIR)entry.o $(IMGDIR)entryother $(IMGDIR)initcode $(KERNDIR)kernel.ld fs.img
+	$(LD) $(LDFLAGS) -T $(KERNDIR)kernel.ld -o $(IMGDIR)kernelmemfs $(KERNBINDIR)entry.o $(MEMFS_OBJS) -b binary $(IMGDIR)initcode $(IMGDIR)entryother $(IMGDIR)fs.img
 	$(OBJDUMP) -S -M intel $(IMGDIR)kernelmemfs > $(DEBUGDIR)kernelmemfs.asm
 	$(OBJDUMP) -t $(IMGDIR)kernelmemfs | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)kernelmemfs.sym
 
 # ...
-$(SRCDIR)trapvectors.S: $(SRCDIR)trapvectors.pl
-	$(SRCDIR)trapvectors.pl > $(SRCDIR)trapvectors.S
+$(KERNDIR)trapvectors.S: $(KERNDIR)trapvectors.pl
+	$(KERNDIR)trapvectors.pl > $(KERNDIR)trapvectors.S
 
 
 # http://manpages.ubuntu.com/manpages/trusty/man1/etags.xemacs21.1.html
@@ -345,7 +346,7 @@ $(SRCDIR)trapvectors.S: $(SRCDIR)trapvectors.pl
 
 # --- fs.img ----------------------------------------------------------------
 
-$(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c   $(SRCDIR)types.h $(SRCDIR)date.h $(SRCDIR)fs.h $(SRCDIR)stat.h $(SRCDIR)param.h
+$(UTILBINDIR)mkfs: $(SRCDIR)mkfs.c   $(KERNHEADERDIR)types.h $(KERNHEADERDIR)date.h $(KERNHEADERDIR)fs.h $(KERNHEADERDIR)stat.h $(KERNHEADERDIR)param.h
 	gcc -Werror -Wall -o $(UTILBINDIR)mkfs $(SRCDIR)mkfs.c
 
 
@@ -392,46 +393,52 @@ $(IMGDIR)fs.img: $(UTILBINDIR)mkfs $(ULIB_OBJS) $(UPROG_CORE_OBJS) $(UPROG_OBJS)
 
 
 # Used to compile kernel code -------------------------------------
-$(KERNBINDIR)%.o: $(SRCDIR)%.c   $(KERN_HEADERS)
+$(KERNBINDIR)%.o: $(KERNDIR)%.c   $(KERN_HEADERS)
 	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
 
-$(KERNBINDIR)%.o: $(SRCDIR)%.S   $(KERN_HEADERS)
+$(KERNBINDIR)%.o: $(KERNDIR)%.S   $(KERN_HEADERS)
 	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(KERNBINDIR)$(@F)
 
 
-$(KERNBINDIR)trapvectors.o: $(SRCDIR)trapvectors.S
+$(KERNBINDIR)trapvectors.o: $(KERNDIR)trapvectors.S
 	$(CC) $(ASFLAGS) -c $< -o $(KERNBINDIR)$(@F)  # JK, stackoverflow.com/q/53348134
 
 
 # Used to compile user code -------------------------------------
+
+# Note, using '-I $(SRCDIR)' to allow kernel headers to be
+# included in user programs with '#include kernel/someheader.h'
+# We use this instead of '-I $(KERNHEADERDIR)' so that kernel
+# headers are distinct from user headers in include statements
+
 $(USERBINDIR)%.o: $(ULIBDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS)
-	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 
 $(USERBINDIR)%.o: $(ULIBDIR)%.S    $(KERN_HEADERS) $(USER_HEADERS)
-	$(CC) $(ASFLAGS) -I $(KERNHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(CC) $(ASFLAGS) -I $(SRCDIR) -c $< -o $(USERBINDIR)$(@F)
 
 
 $(USERBINDIR)%.o: $(UPROGCOREDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
-	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
 
 $(USERBINDIR)%.o: $(UPROGAUXDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
-	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
 $(USERBINDIR)%.o: $(UPROGAUXTESTDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
-	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINTESTDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINTESTDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINTESTDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
 
 $(USERBINDIR)%.o: $(UPROGAUXWISCDIR)%.c   $(KERN_HEADERS) $(USER_HEADERS) $(ULIB_OBJS)
-	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)$(@F)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINWISCDIR)$(*F) $(USERBINDIR)$(@F) $(ULIB_OBJS)
 	$(OBJDUMP) -S -M intel $(FSUSRBINWISCDIR)$(*F) > $(DEBUGDIR)$(*F).asm
 	$(OBJDUMP) -t $(FSUSRBINWISCDIR)$(*F) | sed '1,/SYMBOL TABLE/d; s/ .* / /; /^$$/d' > $(DEBUGDIR)$(*F).sym
@@ -441,7 +448,7 @@ $(USERBINDIR)forktest.o: $(UPROGAUXTESTDIR)forktest.c   $(KERNHEADERDIR)types.h 
 	# forktest has less library code linked in
 	# Needs to be small (size?) in order to be able to max out the proc table.
 	# JK, added umalloc.o, hopefully nothing breaks...
-	$(CC) $(CFLAGS) -I $(KERNHEADERDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
+	$(CC) $(CFLAGS) -I $(SRCDIR) -I $(USERHEADERDIR) -c $< -o $(USERBINDIR)forktest.o
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $(FSUSRBINTESTDIR)forktest $(USERBINDIR)forktest.o $(USERBINDIR)usys.o $(USERBINDIR)ulib.o $(USERBINDIR)umalloc.o
 	$(OBJDUMP) -S -M intel $(FSUSRBINTESTDIR)forktest > $(DEBUGDIR)forktest.asm
 
@@ -473,21 +480,19 @@ $(USERBINDIR)forktest.o: $(UPROGAUXTESTDIR)forktest.c   $(KERNHEADERDIR)types.h 
 # https://stackoverflow.com/a/7714932
 
 clean: 
-	rm -f                  \
-	$(KERNBINDIR)*         \
-	$(UTILBINDIR)*         \
-	$(USERBINDIR)*         \
-	$(IMGDIR)*             \
-	$(DEBUGDIR)*           \
-	$(SRCDIR)trapvectors.S \
-	$(FSBINDIR)*           \
-	$(FSUSRBINTESTDIR)*    \
-	$(FSUSRBINWISCDIR)*    \
+	rm -f                   \
+	$(KERNBINDIR)*          \
+	$(UTILBINDIR)*          \
+	$(USERBINDIR)*          \
+	$(IMGDIR)*              \
+	$(DEBUGDIR)*            \
+	$(KERNDIR)trapvectors.S \
+	$(FSBINDIR)*            \
 	.gdbinit
 
 
 	# Bypass rm directory warnings
-	find $(FSUSRBINDIR) -maxdepth 1 -type f -exec rm -f {} \;
+	find $(FSUSRBINDIR) -type f -exec rm -f {} \;
 
 
 # ___ Document ______________________________________________________________
@@ -527,7 +532,7 @@ ifndef CPUS
 	CPUS := 2
 endif
 
-QEMUOPTS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512 $(QEMUEXTRA)
+QEMUOPTS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw -smp $(CPUS) -m 512
 
 qemu: $(IMGDIR)fs.img $(IMGDIR)xv6.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS)

@@ -1,8 +1,8 @@
 // https://youtu.be/2rAnCmXaOwo
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fcntl.h"
 
 int main ( int argc, char* argv [] )
 {

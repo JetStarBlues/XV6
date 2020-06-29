@@ -17,9 +17,9 @@
 
 // __________________________________________________________________________
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/termios.h"
 #include "user.h"
-#include "termios.h"
 
 /* Used to configure the console:
      . switch between canonical-mode and raw-mode input

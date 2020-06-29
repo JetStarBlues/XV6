@@ -1,7 +1,7 @@
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
+#include "kernel/display.h"
 #include "user.h"
-#include "fcntl.h"
-#include "display.h"
 #include "GFX.h"
 
 

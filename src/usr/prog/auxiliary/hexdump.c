@@ -1,6 +1,6 @@
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fcntl.h"
 
 #define INPUTBUFSZ   512
 #define BYTESPERLINE 16

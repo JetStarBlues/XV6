@@ -1,9 +1,9 @@
 /* Draws the current VGA palette
 */
 
-#include "types.h"
+#include "kernel/types.h"
+#include "kernel/fcntl.h"
 #include "user.h"
-#include "fcntl.h"
 #include "GFX.h"
 
 #define UINPUTBUFSZ 3

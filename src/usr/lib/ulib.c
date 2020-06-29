@@ -1,9 +1,9 @@
-#include "types.h"
-#include "date.h"
-#include "stat.h"
-#include "fcntl.h"
+#include "kernel/types.h"
+#include "kernel/date.h"
+#include "kernel/stat.h"
+#include "kernel/fcntl.h"
+#include "kernel/x86.h"
 #include "user.h"
-#include "x86.h"
 
 
 /* What are the implications of having same function twice
