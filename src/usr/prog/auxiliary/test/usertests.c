@@ -2722,7 +2722,7 @@ void userio_test ()
 		val = 0x09;  /* year */
 
 		/* http://wiki.osdev.org/Inline_Assembly/Examples */
-		asm volatile( "outb %0,%1"::"a"( val ), "d" ( port ) );
+		asm volatile( "outb %0,%1" : : "a"( val ), "d" ( port ) );
 
 		port = RTC_DATA;
 
