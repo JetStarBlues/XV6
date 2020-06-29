@@ -15,16 +15,37 @@
 #include "fs.h"
 #include "buf.h"
 
-#define SECTOR_SIZE   512
-#define IDE_BSY       0x80
-#define IDE_DRDY      0x40
-#define IDE_DF        0x20
-#define IDE_ERR       0x01
 
-#define IDE_CMD_READ  0x20
-#define IDE_CMD_WRITE 0x30
-#define IDE_CMD_RDMUL 0xc4
-#define IDE_CMD_WRMUL 0xc5
+#define SECTOR_SIZE       512
+
+// Status register
+#define IDE_STATUS_ERR    0x01  // error
+#define IDE_STATUS_DF     0x20  // fault
+#define IDE_STATUS_DRDY   0x40  // ready
+#define IDE_STATUS_BSY    0x80  // busy
+
+// Drive/head register
+#define USE_LBA_ADDR      0xe0
+
+// Commands
+#define IDE_CMD_READ      0x20
+#define IDE_CMD_WRITE     0x30
+#define IDE_CMD_RDMUL     0xc4
+#define IDE_CMD_WRMUL     0xc5
+
+// IO Ports
+#define REG_DATA          0x1f0
+#define REG_SECTOR_COUNT  0x1f2
+#define REG_SECTOR_NUMBER 0x1f3
+#define REG_LOW_ADDRESS   0x1f4
+#define REG_HIGH_ADDRESS  0x1f5
+#define REG_DRIVE_SELECT  0x1f6
+#define REG_STATUS        0x1f7  // read
+#define REG_CMD           0x1f7  // write
+
+// Control ports
+#define REG_DEVICE_CTRL   0x3f6
+
 
 /* Queue of pending disk requests
    idequeue points to the buf now being read/written to the disk.
@@ -46,19 +67,19 @@ static int idewait ( int checkerr )
 {
 	int r;
 
-	// Poll status bits until the busy bit (IDE_BSY) is clear
-	// and the ready bit (IDE_DRDY) is set
+	// Poll status bits until the busy bit (IDE_STATUS_BSY) is clear
+	// and the ready bit (IDE_STATUS_DRDY) is set
 	while ( 1 )
 	{
-		r = inb( 0x1f7 );
+		r = inb( REG_STATUS );
 
-		if ( ( r & ( IDE_BSY | IDE_DRDY ) ) == IDE_DRDY )
+		if ( ( r & ( IDE_STATUS_BSY | IDE_STATUS_DRDY ) ) == IDE_STATUS_DRDY )
 		{
 			break;
 		}
 	}
 
-	if ( checkerr && ( r & ( IDE_DF | IDE_ERR ) ) != 0 )
+	if ( checkerr && ( r & ( IDE_STATUS_DF | IDE_STATUS_ERR ) ) != 0 )
 	{
 		return - 1;
 	}
@@ -83,11 +104,11 @@ void ideinit ( void )
 	/* Assumes disk 0 is present because the boot loader and
 	   kernel were both loaded.
 	*/
-	outb( 0x1f6, 0xe0 | ( 1 << 4 ) );  // select disk 1
+	outb( REG_DRIVE_SELECT, USE_LBA_ADDR | ( 1 << 4 ) );  // select disk 1
 
 	for ( i = 0; i < 1000; i += 1 )
 	{
-		if ( inb( 0x1f7 ) != 0 )
+		if ( inb( REG_STATUS ) != 0 )
 		{
 			havedisk1 = 1;
 
@@ -96,7 +117,7 @@ void ideinit ( void )
 	}
 
 	// Switch back to disk 0.
-	outb( 0x1f6, 0xe0 | ( 0 << 4 ) );  // select disk 0
+	outb( REG_DRIVE_SELECT, USE_LBA_ADDR | ( 0 << 4 ) );  // select disk 0
 }
 
 // Start the request for b. Caller must hold idelock.
@@ -126,12 +147,23 @@ static void idestart ( struct buf* b )
 
 	idewait( 0 );
 
-	outb( 0x3f6, 0 );                 // generate interrupt
-	outb( 0x1f2, sector_per_block );  // number of sectors
-	outb( 0x1f3, sector & 0xff );
-	outb( 0x1f4, ( sector >> 8 ) & 0xff );
-	outb( 0x1f5, ( sector >> 16 ) & 0xff );
-	outb( 0x1f6, 0xe0 | ( ( b->dev & 1 ) << 4 ) | ( ( sector >> 24 ) & 0x0f ) );
+	// generate interrupt
+	outb( REG_DEVICE_CTRL, 0 );
+
+	// number of sectors to read/write
+	outb( REG_SECTOR_COUNT, sector_per_block );
+
+	// LBA28 address
+	outb( REG_SECTOR_NUMBER,   sector         & 0xff );  // bits 7..0
+	outb( REG_LOW_ADDRESS,   ( sector >> 8 )  & 0xff );  // bits 15..8
+	outb( REG_HIGH_ADDRESS,  ( sector >> 16 ) & 0xff );  // bits 23..16
+
+	// LBA28 address, and disk select
+	outb( REG_DRIVE_SELECT,  ( USE_LBA_ADDR                |
+	                           ( ( b->dev & 1 ) << 4 )     |  // select disk
+	                           ( ( sector >> 24 ) & 0x0f )    // bits 27..24 of LBA28 address
+	                         )
+	);
 
 
 	// If the operation is a write, idestart must now supply the data
@@ -139,14 +171,14 @@ static void idestart ( struct buf* b )
 	// The interrupt will signal that the data has been written to disk
 	if ( b->flags & B_DIRTY )
 	{
-		outb( 0x1f7, write_cmd );
-		outsl( 0x1f0, b->data, BLOCKSIZE / 4 );
+		outb( REG_CMD, write_cmd );
+		outsl( REG_DATA, b->data, BLOCKSIZE / 4 );
 	}
 	// If the operation is a read, the interrupt will signal that the
 	// data is ready and the handler ('ideintr') will read it.
 	else
 	{
-		outb( 0x1f7, read_cmd );
+		outb( REG_CMD, read_cmd );
 	}
 }
 
@@ -175,7 +207,7 @@ void ideintr ( void )
 	*/
 	if ( ! ( b->flags & B_DIRTY ) && idewait( 1 ) >= 0 )
 	{
-		insl( 0x1f0, b->data, BLOCKSIZE / 4 );
+		insl( REG_DATA, b->data, BLOCKSIZE / 4 );
 	}
 
 

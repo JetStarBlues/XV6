@@ -56,7 +56,9 @@ struct devsw
 
 extern struct devsw devsw [];
 
-// Major device numbers
+/* Major device numbers */
+// 0 - unused?
+// 1 - ROOTDEV
 #define CONSOLE 2
 #define DISPLAY 3
 // DEVNULL  // (minor0: null, minor1: zero)
