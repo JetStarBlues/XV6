@@ -76,7 +76,7 @@ struct dinode
 // JK - Because FSSIZE is 1000 blocks and BITS_PER_BLOCK is 4096,
 //      this will always evaluate to 0 + sb.bmapstart
 //      i.e. one bitmap block
-#define BBLOCK( bnum, sb ) ( bnum / BITS_PER_BLOCK + sb.bmapstart )
+#define BBLOCK( bnum, sb ) ( ( bnum ) / BITS_PER_BLOCK + sb.bmapstart )
 
 // Directory is a file containing a sequence of dirent structures.
 #define FILENAMESZ 14
