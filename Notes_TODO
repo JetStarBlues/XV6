@@ -10,6 +10,16 @@
 		. probably use proc->cwd to get inode
 		. traverse '..' until reach root (ROOTINUM)
 
+
+. defragmentation
+	. how are files created and deleted
+	. is defrag (holes) a concern?
+	. https://superuser.com/a/1287233/325791
+
+
+. userspace mouse
+
+
 . dynamic stack size
 
 

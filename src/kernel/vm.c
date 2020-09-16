@@ -17,7 +17,6 @@ struct _mmap
 	uint  phys_start;
 	uint  phys_end;     // exclusive
 	int   permissions;
-
 };
 
 
