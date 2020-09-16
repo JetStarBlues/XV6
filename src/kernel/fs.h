@@ -22,13 +22,14 @@ struct superblock
 
 /* TODO: A downside of having a large NDIRECT value is that most files
    are small, so this space is wasted per inode.
+   (Typically NDIRECT is 12)
    A better solution for supporting large file sizes is to use
    multiple indirection. See:
     https://en.wikipedia.org/w/index.php?title=Inode_pointer_structure&oldid=912616146#Structure
 */
-#define NDIRECT   14
+#define NDIRECT   18
 #define NINDIRECT ( BLOCKSIZE / sizeof( uint ) )  // 128
-#define MAXFILESZ ( NDIRECT + NINDIRECT )         // 142 blocks ( 72704 bytes)
+#define MAXFILESZ ( NDIRECT + NINDIRECT )         // 146 blocks ( 74752 bytes)
 
 // On-disk inode structure
 struct dinode
@@ -40,27 +41,33 @@ struct dinode
 	                                       /* I.e. number of directory entries that refer to
 	                                          the on-disk inode */
 	uint           size;                   // Size of file (bytes)
-	uint           addrs [ NDIRECT + 1 ];  // Data block addresses
+	uint           addrs [ NDIRECT + 1 ];  // Data block addresses 
+	struct rtcdate mtime;                  /* Time of last modification
+	                                          http://panda.moyix.net/~moyix/cs3224/fall16/hw7/hw7.html */
 
 
-	// http://panda.moyix.net/~moyix/cs3224/fall16/hw7/hw7.html
-	struct rtcdate mtime;                  // Time of last modification
 	/* "Because they need to fit neatly into one disk block,
 	    the size of the 'struct dinode' must divide the
 	    block size evenly"
 
-	    JK...
-	       Assuming, sizeof( struct rtcdate ) == 7
-	                 size of entries above == 18; ( 0.5 x 4 + 1 + ( 14 + 1 ) )
-	       Then, 18 + ( 1 x 7 ) + 7 = 32
+	       sorted( factors( BLOCKSIZE ) )
+	          [ 1, 2, 4, 8, 16, 32, 64, 128, 256, 512 ]
+
+	       current size,
+	          0.5 x 4  // type, major, minor
+	          1        // size
+	          18 + 1   // addrs
+	          7        // mtime
+	          ------
+	          29
+	          ------
+
+	       needed padding,
+	          32 - 29 = 3
 	*/
 	uint padding0;
 	uint padding1;
 	uint padding2;
-	uint padding3;
-	uint padding4;
-	uint padding5;
-	uint padding6;
 };
 
 // Inodes per block.

@@ -236,9 +236,8 @@ int main ( int argc, char* argv [] )
 	//
 	printf(
 
-		"\n"
 		"ialloc: first %d inodes have been allocated.\n"
-		"        %d remain\n",
+		"        %d remain\n\n",
 		freeinode,
 		FSNINODE - freeinode
 	);
@@ -299,8 +298,9 @@ void addFile ( int dir_inum, char* filename, struct rtcdate* mtime )
 	     fd,
 	     file_inum;
 
+
 	// Open the file
-	fd = open( filename, 0 );
+	fd = open( filename, O_RDONLY );
 
 	if ( fd < 0 )
 	{
@@ -308,6 +308,45 @@ void addFile ( int dir_inum, char* filename, struct rtcdate* mtime )
 
 		exit( 1 );
 	}
+
+
+	// Debug
+	/*{
+		FILE* f2;
+		char* filepath;
+		int   fileSize;
+		int   excess;
+
+		filepath = getcwd( NULL, 0 );
+
+		// stackoverflow.com/a/238609
+		f2 = fdopen( fd, "r" );
+		fseek( f2, 0, SEEK_END );  // seek to end of file
+		fileSize = ftell( f2 );
+		fseek( f2, 0, SEEK_SET );  // seek to begining of file
+
+		printf(
+
+			"addFile: %s/%s %d",
+			filepath,
+			filename,
+			fileSize
+		);
+
+		excess = fileSize - ( int ) ( MAXFILESZ * BLOCKSIZE );
+
+		if ( excess > 0 )
+		{
+			printf( "\n  File too big: exceeds max filesize by %d\n", excess );
+		}
+		else
+		{
+			printf( "\n" );
+		}
+
+		free( filepath );
+	}*/
+
 
 	// Create an i-node for the file
 	file_inum = ialloc( T_FILE, mtime );
@@ -575,7 +614,7 @@ void balloc ( int used )
 
 	wsect( sb.bmapstart, buf );
 
-	printf( "balloc: bitmap block at sector %d\n", sb.bmapstart );
+	printf( "balloc: bitmap block at sector %d\n\n", sb.bmapstart );
 }
 
 #define MIN( a, b ) ( ( a ) < ( b ) ? ( a ) : ( b ) )
