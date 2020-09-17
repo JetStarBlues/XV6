@@ -70,15 +70,15 @@ There are a few ways to run the OS:
 
 2\) Open GDB in a separate terminal.
 
-3\) In the GDB console, type `continue`.
+3\) In the GDB console, type `continue`:
 
 ```
 (gdb) continue
 ```
 
-If you get the message `The program is not being run`, it is likely because GDB failed to load the '.gdbinit' file in this repository. You can either:
+If you get the message `The program is not being run`, it is likely because GDB failed to load the _.gdbinit_ file in this repository. You can either:
 
-- Add the path to the file to your 'auto-load safe-path'. Or,
+- Add the file to your 'auto-load safe-path'. Or,
 - Enter the commands in the file manually:
 
 ```
