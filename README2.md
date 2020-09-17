@@ -12,7 +12,7 @@ sudo apt install qemu
 sudo apt install gdb
 ```
 
-Note, in newer Linux distributions (for example [Ubuntu 20.04][2]), QEMU has become a "dummy package". You can check whether QEMU has fully installed by running the command:
+Note, in newer Linux distributions (for example [Ubuntu 20.04][2]), `qemu` has become a "dummy package". You can check whether QEMU has fully installed by running the command:
 
 ```
 ls /usr/bin/qemu-*
@@ -60,15 +60,15 @@ There are a few ways to run the OS:
 	- text mode displayed using curses
 
 
-## Debugging using GDB
+## Debug using GDB
 
 1\) Run the OS using one of the following:
 
 - `make qemu-gdb`
-- `make qemu-curses-gdb`
 - `make qemu-nox-gdb`
+- `make qemu-curses-gdb`
 
-2\) Then open GDB in a separate terminal.
+2\) Open GDB in a separate terminal.
 
 3\) In the GDB console, type `continue`.
 
