@@ -548,15 +548,27 @@ clean:
 # Try to generate a unique GDB port
 GDBPORT = $(shell expr `id -u` % 5000 + 25000)
 # QEMU's gdb stub command line changed in 0.11
-QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
-	then echo "-gdb tcp::$(GDBPORT)"; \
-	else echo "-s -p $(GDBPORT)"; fi)
+QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb';  \
+	then echo "-gdb tcp::$(GDBPORT)";                  \
+else                                                   \
+	echo "-s -p $(GDBPORT)";                           \
+fi)
 
 ifndef CPUS
 	CPUS := 2
 endif
 
 QEMUOPTS = -smp $(CPUS) -m 512
+
+# Use hardware virtualization if available
+#  . https://github.com/SerenityOS/serenity/blob/d89cad7c571184a75a99e0be154f702f6e3510b9/Meta/run.sh#L13
+#  . https://github.com/SerenityOS/serenity/blob/d89cad7c571184a75a99e0be154f702f6e3510b9/Documentation/BuildInstructions.md
+#      " On Linux, QEMU is significantly faster if it's able to use KVM.
+#        ... enable KVM if /dev/kvm exists and is readable+writable by the current user.
+#      "
+QEMUOPTS += $(shell if [ -e "/dev/kvm" ] && [ -r "/dev/kvm" ] && [ -w "/dev/kvm" ];  \
+	then echo "-enable-kvm";                                                         \
+fi)
 
 QEMUOPTS_FS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw $(QEMUOPTS)
 
