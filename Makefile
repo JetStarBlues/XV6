@@ -572,30 +572,34 @@ fi)
 
 QEMUOPTS_FS = -drive file=$(IMGDIR)fs.img,index=1,media=disk,format=raw -drive file=$(IMGDIR)xv6.img,index=0,media=disk,format=raw $(QEMUOPTS)
 
-QEMUOPTS_MEMFS = -drive file=$(IMGDIR)xv6memfs.img,index=0,media=disk,format=raw $(QEMUOPTS)
+# QEMUOPTS_MEMFS = -drive file=$(IMGDIR)xv6memfs.img,index=0,media=disk,format=raw $(QEMUOPTS)
 
 qemu: $(IMGDIR)fs.img $(IMGDIR)xv6.img
 	$(QEMU) -serial mon:stdio $(QEMUOPTS_FS)
 
-qemu-curses: $(IMGDIR)fs.img $(IMGDIR)xv6.img
-	$(QEMU) -display curses $(QEMUOPTS_FS)
-
 qemu-nox: $(IMGDIR)fs.img $(IMGDIR)xv6.img
 	$(QEMU) -nographic $(QEMUOPTS_FS)
 
-qemu-memfs: $(IMGDIR)xv6memfs.img
-	$(QEMU) $(QEMUOPTS_MEMFS)
+qemu-curses: $(IMGDIR)fs.img $(IMGDIR)xv6.img
+	$(QEMU) -display curses $(QEMUOPTS_FS)
 
-qemu-memfs-nox: $(IMGDIR)xv6memfs.img
-	$(QEMU) -nographic $(QEMUOPTS_MEMFS)
+# qemu-memfs: $(IMGDIR)xv6memfs.img
+# 	$(QEMU) $(QEMUOPTS_MEMFS)
+
+# qemu-memfs-nox: $(IMGDIR)xv6memfs.img
+# 	$(QEMU) -nographic $(QEMUOPTS_MEMFS)
 
 .gdbinit: .gdbinit.tmpl
 	sed "s/localhost:1234/localhost:$(GDBPORT)/" < $^ > $@
 
 qemu-gdb: $(IMGDIR)fs.img $(IMGDIR)xv6.img .gdbinit
-	@echo "*** Now run 'gdb'." 1>&2
+	@echo "\n*** Now run 'gdb' on a separate terminal ***\n" 1>&2
 	$(QEMU) -serial mon:stdio $(QEMUOPTS_FS) -S $(QEMUGDB)
 
 qemu-nox-gdb: $(IMGDIR)fs.img $(IMGDIR)xv6.img .gdbinit
-	@echo "*** Now run 'gdb'." 1>&2
+	@echo "\n*** Now run 'gdb' on a separate terminal ***\n" 1>&2
 	$(QEMU) -nographic $(QEMUOPTS_FS) -S $(QEMUGDB)
+
+qemu-curses-gdb: $(IMGDIR)fs.img $(IMGDIR)xv6.img .gdbinit
+	@echo "\n*** Now run 'gdb' on a separate terminal ***\n" 1>&2
+	$(QEMU) -display curses $(QEMUOPTS_FS) -S $(QEMUGDB)

@@ -1,74 +1,39 @@
-## Tools
+## Build Tools
 
 You need the following tools to build and run this project:
 
 ```
-sudo apt-get install build-essential
+sudo apt update
 
-sudo apt-get install qemu
+sudo apt install build-essential
 
-sudo apt-get install gdb
+sudo apt install qemu
+
+sudo apt install gdb
+```
+
+Note, in newer Linux distributions (for example [Ubuntu 20.04][2]), QEMU has become a "dummy package". You can check whether QEMU has fully installed by running the command:
+
+```
+ls /usr/bin/qemu-*
+```
+
+If this fails, then run:
+
+```
+sudo apt install qemu-system
 ```
 
 
-## Tools - 64-bit
+## Build Tools - 64-bit
 
 If you are attemtping to build and run this project on a 64-bit computer, you also need to create a compiler toolchain that generates 32-bit code. Please follow the detailed guide in [this link][0].
 
 For the most part, you can get away with the following:
 
 ```
-sudo apt-get install gcc-multilib
+sudo apt install gcc-multilib
 ```
-
-
-## Make - Nonexistent folders
-
-When you first run `make`, **it will fail** because the following subdirectories need to be added:
-
-```
-bin/
-bin/kern/
-bin/util/
-bin/user/
-
-debug/
-
-fs/
-fs/bin/
-fs/dev/
-fs/usr/bin/
-fs/usr/bin/test/
-fs/usr/bin/wisc/
-
-img/
-```
-
-Your directory should now look like this:
-
-```
-.
-├── bin                 (*)
-│   ├── kern            (*)
-│   ├── user            (*)
-│   └── util            (*)
-├── debug               (*)
-├── doc
-├── fs
-│   ├── bin             (*)
-│   ├── dev             (*)
-│   └── usr             (*)
-│       ├── bin         (*)
-│       │   ├── test    (*)
-│       │   └── wisc    (*)
-│       └── pics
-├── img                 (*)
-├── other
-├── src
-└── tools
-```
-
-Ideally, instead of manually adding the folders, they would be present when you clone or download this repository. Unfortunately, I have yet to figure out how one can make Git track empty folders.
 
 
 ## Make - Permission Denied
@@ -76,13 +41,55 @@ Ideally, instead of manually adding the folders, they would be present when you 
 When you first run `make`, you may get a `permission denied` error when `make` tries to execute the perl files `bootsign.pl` and `trapvectors.pl`. To resolve this problem, you need to give the files execute permission. This can be done as follows:
 
 ```
-chmod a+x src/bootsign.pl
-chmod a+x src/trapvectors.pl
+chmod a+x src/kernel/bootsign.pl
+chmod a+x src/kernel/trapvectors.pl
 ```
 
 For more information, see the discussion [here][1].
 
 
+## Running
+
+There are a few ways to run the OS:
+
+- `make qemu`
+	- graphical
+- `make qemu-nox`
+	- text mode
+- `make qemu-curses`
+	- text mode displayed using curses
+
+
+## Debugging using GDB
+
+1\) Run the OS using one of the following:
+
+- `make qemu-gdb`
+- `make qemu-curses-gdb`
+- `make qemu-nox-gdb`
+
+2\) Then open GDB in a separate terminal.
+
+3\) In the GDB console, type `continue`.
+
+```
+(gdb) continue
+```
+
+If you get the message `The program is not being run`, it is likely because GDB failed to load the '.gdbinit' file in this repository. You can either:
+
+- Add the path to the file to your 'auto-load safe-path'. Or,
+- Enter the commands in the file manually:
+
+```
+(gdb) symbol-file img/kernel
+(gdb) target remote localhost:26000
+(gdb) set print pretty on
+(gdb) continue
+```
+
+
 
 [0]: https://pdos.csail.mit.edu/6.828/2018/tools.html
 [1]: https://www.cs.bgu.ac.il/~osce151/Assignment_1?action=show-thread&id=03742be4bbf284c7dd39833c6107ab87
+[2]: https://launchpad.net/ubuntu/focal/+package/qemu
