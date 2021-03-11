@@ -14,38 +14,7 @@
 #include "date.h"
 #include "fs.h"
 #include "buf.h"
-
-
-#define SECTOR_SIZE       512
-
-// Status register
-#define IDE_STATUS_ERR    0x01  // error
-#define IDE_STATUS_DF     0x20  // fault
-#define IDE_STATUS_DRDY   0x40  // ready
-#define IDE_STATUS_BSY    0x80  // busy
-
-// Drive/head register
-#define USE_LBA_ADDR      0xe0
-
-// Commands
-#define IDE_CMD_READ      0x20
-#define IDE_CMD_WRITE     0x30
-#define IDE_CMD_RDMUL     0xc4
-#define IDE_CMD_WRMUL     0xc5
-
-// IO Ports
-#define REG_DATA          0x1f0
-#define REG_SECTOR_COUNT  0x1f2
-#define REG_SECTOR_NUMBER 0x1f3
-#define REG_LOW_ADDRESS   0x1f4
-#define REG_HIGH_ADDRESS  0x1f5
-#define REG_DRIVE_SELECT  0x1f6
-#define REG_STATUS        0x1f7  // read
-#define REG_CMD           0x1f7  // write
-
-// Control ports
-#define REG_DEVICE_CTRL   0x3f6
-
+#include "ide.h"
 
 /* Queue of pending disk requests
    idequeue points to the buf now being read/written to the disk.

@@ -43,6 +43,7 @@ _KERN_HEADERS =  \
 	fcntl.h      \
 	file.h       \
 	fs.h         \
+	ide.h        \
 	kbd.h        \
 	kfonts.h     \
 	memlayout.h  \

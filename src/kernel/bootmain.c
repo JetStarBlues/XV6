@@ -42,11 +42,7 @@
 #include "elf.h"
 #include "x86.h"
 #include "memlayout.h"
-
-#define SECTSIZE      512
-
-#define IDE_DRDY      0x40
-#define IDE_CMD_READ  0x20
+#include "ide.h"
 
 void readsect ( void*, uint );
 void readseg  ( uchar*, uint, uint );
@@ -124,15 +120,15 @@ void readseg ( uchar* pAddr, uint count, uint offset )
 	endPAddr = pAddr + count;
 
 	// Round down to sector boundary.
-	pAddr -= offset % SECTSIZE;
+	pAddr -= offset % SECTOR_SIZE;
 
 	// Translate from bytes to sectors; kernel starts at sector 1.
-	offset = ( offset / SECTSIZE ) + 1;
+	offset = ( offset / SECTOR_SIZE ) + 1;
 
 	// If this is too slow, we could read lots of sectors at a time.
 	// We'd write more to memory than asked, but it doesn't matter --
 	// we load in increasing order.
-	for ( ; pAddr < endPAddr; pAddr += SECTSIZE )
+	for ( ; pAddr < endPAddr; pAddr += SECTOR_SIZE )
 	{
 		readsect( pAddr, offset );
 
@@ -147,7 +143,7 @@ void readseg ( uchar* pAddr, uint count, uint offset )
 void waitdisk ( void )
 {
 	// Wait for disk ready
-	while ( ( inb( 0x1F7 ) & 0xC0 ) != IDE_DRDY )
+	while ( ( inb( REG_STATUS ) & ( IDE_STATUS_BSY | IDE_STATUS_DRDY ) ) != IDE_STATUS_DRDY )
 	{
 		//
 	}
@@ -160,17 +156,17 @@ void readsect ( void* dst, uint offset )
 	// Issue command
 	waitdisk();
 
-	outb( 0x1F2, 1 );   // number of sectors
-	outb( 0x1F3, offset );
-	outb( 0x1F4, offset >> 8 );
-	outb( 0x1F5, offset >> 16 );
-	outb( 0x1F6, ( offset >> 24 ) | 0xE0 );
+	outb( REG_SECTOR_COUNT, 1 );   // number of sectors
+	outb( REG_SECTOR_NUMBER, offset );
+	outb( REG_LOW_ADDRESS,   offset >> 8 );
+	outb( REG_HIGH_ADDRESS,  offset >> 16 );
+	outb( REG_DRIVE_SELECT,  ( offset >> 24 ) | USE_LBA_ADDR );
 
-	outb( 0x1F7, IDE_CMD_READ );
+	outb( REG_STATUS, IDE_CMD_READ );
 
 
 	// Read data
 	waitdisk();
 
-	insl( 0x1F0, dst, SECTSIZE / 4 );
+	insl( REG_DATA, dst, SECTOR_SIZE / 4 );
 }
