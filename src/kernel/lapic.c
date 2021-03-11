@@ -8,7 +8,7 @@
 #include "defs.h"
 #include "date.h"
 #include "memlayout.h"
-#include "traps.h"
+#include "trap.h"
 #include "mmu.h"
 #include "x86.h"
 

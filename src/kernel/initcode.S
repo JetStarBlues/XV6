@@ -2,7 +2,7 @@
 # This code runs in user space.
 
 #include "syscall.h"
-#include "traps.h"
+#include "trap.h"
 
 
 # exec( char* path, char* argv [] )

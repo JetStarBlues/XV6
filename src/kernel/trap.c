@@ -5,7 +5,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
-#include "traps.h"
+#include "trap.h"
 #include "spinlock.h"
 
 /* There are three cases when control must be transferred from a user

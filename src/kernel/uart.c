@@ -3,7 +3,7 @@
 
 #include "types.h"
 #include "defs.h"
-#include "traps.h"
+#include "trap.h"
 #include "x86.h"
 
 #define COM1 0x3f8

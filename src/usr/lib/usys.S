@@ -1,5 +1,5 @@
 #include "kernel/syscall.h"
-#include "kernel/traps.h"
+#include "kernel/trap.h"
 
 # User code makes a system call with "int $T_SYSCALL"
 # System call number is in %eax, and arguments are on the stack.

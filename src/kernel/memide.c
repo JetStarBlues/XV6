@@ -7,7 +7,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
-#include "traps.h"
+#include "trap.h"
 #include "spinlock.h"
 #include "sleeplock.h"
 #include "date.h"

@@ -57,7 +57,7 @@ _KERN_HEADERS =  \
 	stat.h       \
 	syscall.h    \
 	termios.h    \
-	traps.h      \
+	trap.h       \
 	types.h      \
 	vga.h        \
 	x86.h

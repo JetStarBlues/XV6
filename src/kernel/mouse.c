@@ -1,7 +1,7 @@
 #include "types.h"
 #include "x86.h"
 #include "defs.h"
-#include "traps.h"
+#include "trap.h"
 #include "ps2.h"
 #include "mouse.h"
 
