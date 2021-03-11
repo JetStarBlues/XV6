@@ -26,6 +26,12 @@
 
 #ifndef __ASSEMBLER__
 
+/*
+	Diagram from Intel 80386 DX datasheet
+
+	TODO p.37
+*/
+
 // Segment Descriptor
 struct segdesc
 {
@@ -133,7 +139,7 @@ struct segdesc
 
 	Page directory entry:
 
-		31..11 - physical address of page table
+		31..12 - physical address of page table
 		11..9  - unused
 		    8  - flag | global          | Something about TLB update...
 		    7  - flag | page size       | If 0, page has size of 4KiB. If 1, 4MiB.
@@ -149,7 +155,7 @@ struct segdesc
 
 	Page table entry:
 
-		31..11 - physical address of page_size block of memory
+		31..12 - physical address of page_size block of memory
 		11..9  - unused
 		    8  - flag | global          | Something about TLB update...
 		    7  - flag | ?               | Something about physical attribute table...
