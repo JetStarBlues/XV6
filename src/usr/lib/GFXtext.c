@@ -193,7 +193,7 @@ void GFXText_printChar ( uchar ch )
 	x = cursorCol * FONT_WIDTH;
 	y = cursorRow * FONT_HEIGHT;
 
-	// printf( 1, "%d -> %d, %d\n", ( int ) ch, x, y );
+	// printf( stdout, "%d -> %d, %d\n", ( int ) ch, x, y );
 
 	drawFontChar( ch, x, y );
 }

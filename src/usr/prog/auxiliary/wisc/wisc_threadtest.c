@@ -11,14 +11,14 @@ int main ( int argc, char* argv [] )
 {
 	x = 0;
 
-	printf( 1, "Stack is at %p\n", stack );
+	printf( stdout, "Stack is at %p\n", stack );
 
 	// int tid = fork();  // new process
 	int tid = clone( stack );  // new thread
 
 	if ( tid < 0 )
 	{
-		printf( 2, "error!\n" );
+		printf( stderr, "error!\n" );
 	}
 	else if ( tid == 0 )  // child
 	{
@@ -37,7 +37,7 @@ int main ( int argc, char* argv [] )
 				For threads, since share address space, when child
 				modifies 'x' parent should see it.
 			*/
-			printf( 1, "x = %d\n", x );
+			printf( stdout, "x = %d\n", x );
 
 			sleep( 100 );
 		}

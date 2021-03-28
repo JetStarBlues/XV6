@@ -155,7 +155,7 @@ void runcmd ( struct cmd* cmd )
 			{
 				exec( ecmd->argv[ 0 ], ecmd->argv );
 
-				printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
+				printf( stderr, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 			}
 
 
@@ -175,7 +175,7 @@ void runcmd ( struct cmd* cmd )
 				{
 					exec( ecmd->argv[ 0 ], ecmd->argv );
 
-					printf( 2, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
+					printf( stderr, "sh: exec %s failed\n", ecmd->argv[ 0 ] );
 				}
 
 				else
@@ -187,7 +187,7 @@ void runcmd ( struct cmd* cmd )
 					{
 						exec( binLocation, ecmd->argv );
 
-						printf( 2, "sh: exec %s failed\n", binLocation );
+						printf( stderr, "sh: exec %s failed\n", binLocation );
 					}
 
 					else
@@ -199,13 +199,13 @@ void runcmd ( struct cmd* cmd )
 						{
 							exec( binLocation, ecmd->argv );
 
-							printf( 2, "sh: exec %s failed\n", binLocation );
+							printf( stderr, "sh: exec %s failed\n", binLocation );
 						}
 
 						else
 						{
 							// Binary not found
-							printf( 2, "%s: command not found\n", ecmd->argv[ 0 ] );
+							printf( stderr, "%s: command not found\n", ecmd->argv[ 0 ] );
 						}
 					}
 				}
@@ -233,7 +233,7 @@ void runcmd ( struct cmd* cmd )
 
 			if ( open( rcmd->file, rcmd->mode ) < 0 )
 			{
-				printf( 2, "sh: open %s failed\n", rcmd->file );
+				printf( stderr, "sh: open %s failed\n", rcmd->file );
 
 				exit();
 			}
@@ -258,7 +258,7 @@ void runcmd ( struct cmd* cmd )
 			if ( fork1() == 0 )
 			{
 				// Set stdout to write end of pipe
-				close( 1 );
+				close( stdout );
 				dup( p[ 1 ] );  /* First 'close' file descriptor 1 so that it becomes available.
 				                   Then use 'dup' to:
 				                     . duplicate the pipe's read end (struct file),
@@ -276,7 +276,7 @@ void runcmd ( struct cmd* cmd )
 			if ( fork1() == 0 )
 			{
 				// Set stdin to read end of pipe
-				close( 0 );
+				close( stdin );
 				dup( p[ 0 ] );
 
 				// Close unused file descriptors
@@ -337,7 +337,7 @@ void runcmd ( struct cmd* cmd )
 
 int getcmd ( char* buf, int nbuf )
 {
-	printf( 2, "$ " );
+	printf( stdout, "$ " );
 
 	memset( buf, 0, nbuf );
 
@@ -382,7 +382,7 @@ int main ( void )
 
 			if ( chdir( buf + 3 ) < 0 )
 			{
-				printf( 2, "sh: cannot cd %s\n", buf + 3 );
+				printf( stderr, "sh: cannot cd %s\n", buf + 3 );
 			}
 
 			continue;
@@ -402,7 +402,7 @@ int main ( void )
 
 void panic ( char* s )
 {
-	printf( 2, "%s\n", s );
+	printf( stderr, "%s\n", s );
 
 	exit();
 }
@@ -616,11 +616,11 @@ struct cmd* parsecmd ( char* s )
 
 	if ( s != es )
 	{
-		/*printf( 2, "sh: leftovers - %s\n", s );  // ??
+		/*printf( stderr, "sh: leftovers - %s\n", s );  // ??
 
 		panic( "sh: syntax" );*/
 
-		printf( 2, "sh: leftovers - %s", s );  // ??
+		printf( stderr, "sh: leftovers - %s", s );  // ??
 
 		panic( "" );
 	}
@@ -863,7 +863,7 @@ struct cmd* nulterminate ( struct cmd* cmd )
 }
 
 
-// __ ... _______________________________________________________
+// __ Find ______________________________________________________
 
 #define SHFIND_DEBUG 0
 
@@ -876,7 +876,7 @@ int stat2 ( char* path, struct stat* st )
 
 	if ( fd < 0 )
 	{
-		printf( 2, "stat2: cannot open %s\n", path );
+		printf( stderr, "stat2: cannot open %s\n", path );
 
 		return - 1;
 	}
@@ -918,7 +918,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( strlen( filename ) > FILENAMESZ )
 	{
-		printf( 2, "shfind: invalid filename %s\n", filename );
+		printf( stderr, "shfind: invalid filename %s\n", filename );
 
 		return - 1;
 	}
@@ -927,14 +927,14 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( dirFd < 0 )
 	{
-		printf( 2, "shfind: cannot open %s\n", dirpath );
+		printf( stderr, "shfind: cannot open %s\n", dirpath );
 
 		return - 1;
 	}
 
 	if ( fstat( dirFd, &dirStat ) < 0 )
 	{
-		printf( 2, "shfind: cannot fstat %s\n", dirpath );
+		printf( stderr, "shfind: cannot fstat %s\n", dirpath );
 
 		close( dirFd );
 
@@ -943,7 +943,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( dirStat.type != T_DIR )
 	{
-		printf( 2, "shfind: expecting second argument to be directory\n" );
+		printf( stderr, "shfind: expecting second argument to be directory\n" );
 
 		close( dirFd );
 
@@ -953,7 +953,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( SHFIND_DEBUG )
 	{
-		printf( 1, "%s\n", dirpath );
+		printf( stdout, "%s\n", dirpath );
 	}
 
 	subDirectories  = NULL;
@@ -970,7 +970,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 		if ( SHFIND_DEBUG )
 		{
-			printf( 1, "\t%s\n", dirEntry.name );
+			printf( stdout, "\t%s\n", dirEntry.name );
 		}
 
 		// Skip the "." entry
@@ -1010,7 +1010,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 		{
 			if ( SHFIND_DEBUG )
 			{
-				printf( 1, "%s\n", dirEntryPath );
+				printf( stdout, "%s\n", dirEntryPath );
 			}
 
 			foundMatch = 1;
@@ -1024,7 +1024,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 		// Get info about the file
 		if ( stat2( dirEntryPath, &dirEntryStat ) < 0 )
 		{
-			printf( 2, "shfind: cannot stat2 %s\n", dirEntryPath );
+			printf( stderr, "shfind: cannot stat2 %s\n", dirEntryPath );
 
 			foundMatch = - 1;  // error
 
@@ -1050,7 +1050,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 			if ( ptr == NULL )
 			{
-				printf( 2, "shfind: realloc failed\n" );
+				printf( stderr, "shfind: realloc failed\n" );
 
 				foundMatch = - 1;  // error
 

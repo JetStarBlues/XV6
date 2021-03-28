@@ -7,7 +7,7 @@ int main ( int argc, char* argv [] )
 {
 	char buf [ INPUTBUFSZ ];
 
-	printf( 1, "Hi there!\nWhat's your name?\n" );
+	printf( stdout, "Hi there!\nWhat's your name?\n" );
 
 	// memset( buf, 0, INPUTBUFSZ );
 
@@ -15,7 +15,7 @@ int main ( int argc, char* argv [] )
 
 	buf[ strlen( buf ) - 1 ] = 0;  // remove newline char '\n'
 
-	printf( 1, "Pleasure to meet you %s!\n", buf );
+	printf( stdout, "Pleasure to meet you %s!\n", buf );
 
 	exit();
 }

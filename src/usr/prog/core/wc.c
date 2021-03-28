@@ -50,16 +50,16 @@ void wc ( int fd, char* name )
 
 	if ( n < 0 )
 	{
-		printf( 2, "wc: read error\n" );
+		printf( stderr, "wc: read error\n" );
 
 		exit();
 	}
 
-	// printf( 1, "%d %d %d %s\n", l, w, c, name );
-	printf( 1, "file  : %s\n", name );
-	printf( 1, "lines : %d\n", l );
-	printf( 1, "words : %d\n", w );
-	printf( 1, "bytes : %d\n", c );
+	// printf( stdout, "%d %d %d %s\n", l, w, c, name );
+	printf( stdout, "file  : %s\n", name );
+	printf( stdout, "lines : %d\n", l );
+	printf( stdout, "words : %d\n", w );
+	printf( stdout, "bytes : %d\n", c );
 }
 
 int main ( int argc, char* argv [] )
@@ -69,7 +69,7 @@ int main ( int argc, char* argv [] )
 	// Use stdin as input
 	if ( argc <= 1 )
 	{
-		wc( 0, "" );
+		wc( stdin, "" );
 
 		exit();
 	}
@@ -78,7 +78,7 @@ int main ( int argc, char* argv [] )
 	{
 		if ( ( fd = open( argv[ i ], O_RDONLY ) ) < 0 )
 		{
-			printf( 2, "wc: cannot open %s\n", argv[ i ] );
+			printf( stderr, "wc: cannot open %s\n", argv[ i ] );
 
 			exit();
 		}

@@ -24,20 +24,20 @@ int main ( int argc, char* argv [] )
 
 	if ( imagefd < 0 )
 	{
-		printf( 2, "graphics_test: cannot open image\n" );
+		printf( stderr, "graphics_test: cannot open image\n" );
 
 		exit();
 	}
 
 
 	// Retrieve contents of image file
-	printf( 1, "Reading image from disk...\n" );
+	printf( stdout, "Reading image from disk...\n" );
 
 	imgbuf = ( char* ) malloc( SCREEN_WIDTHxHEIGHT );
 
 	if ( imgbuf == NULL )
 	{
-		printf( 2, "graphics_test: failed to malloc\n" );
+		printf( stderr, "graphics_test: failed to malloc\n" );
 
 		exit();
 	}
@@ -46,7 +46,7 @@ int main ( int argc, char* argv [] )
 
 	if ( bytesRead != SCREEN_WIDTHxHEIGHT )
 	{
-		printf( 2,
+		printf( stderr,
 
 			"graphics_test: expected to read %d bytes, but read %d\n",
 			SCREEN_WIDTHxHEIGHT,
@@ -62,7 +62,7 @@ int main ( int argc, char* argv [] )
 
 
 	// Blit the image
-	printf( 1, "Drawing image...\n" );
+	printf( stdout, "Drawing image...\n" );
 
 	GFX_blit( ( uchar* ) imgbuf );
 
@@ -94,7 +94,7 @@ int main ( int argc, char* argv [] )
 	free( imgbuf );  // deallocate memory, so it can be used for other things (no garbage collection)
 
 	//
-	printf( 1, "Hasta luego!\n" );
+	printf( stdout, "Hasta luego!\n" );
 
 	exit();
 }

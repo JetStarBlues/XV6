@@ -17,9 +17,9 @@ void cat ( int fd )
 			break;
 		}
 
-		if ( write( 1, buf, n ) != n )
+		if ( write( stdout, buf, n ) != n )
 		{
-			printf( 2, "cat: write error\n" );
+			printf( stderr, "cat: write error\n" );
 
 			exit();
 		}
@@ -27,7 +27,7 @@ void cat ( int fd )
 
 	if ( n < 0 )
 	{
-		printf( 2, "cat: read error\n" );
+		printf( stderr, "cat: read error\n" );
 
 		exit();
 	}
@@ -40,7 +40,7 @@ int main ( int argc, char* argv [] )
 	// Use stdin as input (ex. from pipe)
 	if ( argc <= 1 )
 	{
-		cat( 0 );
+		cat( stdin );
 
 		exit();
 	}
@@ -51,7 +51,7 @@ int main ( int argc, char* argv [] )
 
 		if ( fd < 0 )
 		{
-			printf( 2, "cat: cannot open %s\n", argv[ i ] );
+			printf( stderr, "cat: cannot open %s\n", argv[ i ] );
 
 			exit();
 		}

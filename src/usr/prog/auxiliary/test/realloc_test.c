@@ -21,7 +21,7 @@ int main ( int argc, char* argv [] )
 
 	if ( p == NULL )
 	{
-		printf( 2, "realloc failed\n" );
+		printf( stderr, "realloc failed\n" );
 		exit();
 	}
 
@@ -30,7 +30,7 @@ int main ( int argc, char* argv [] )
 	vowels[ 3 ] = 'o';
 	vowels[ 4 ] = 'u';
 
-	printf( 1,
+	printf( stdout,
 
 		"vowels: %c%c%c%c%c\n",
 		vowels[ 0 ],
@@ -52,7 +52,7 @@ int main ( int argc, char* argv [] )
 
 	if ( p2 == NULL )
 	{
-		printf( 2, "realloc failed\n" );
+		printf( stderr, "realloc failed\n" );
 		exit();
 	}
 
@@ -61,7 +61,7 @@ int main ( int argc, char* argv [] )
 	numbers[ 3 ] = 98;
 	numbers[ 4 ] = 99;
 
-	printf( 1,
+	printf( stdout,
 
 		"numbers: %d %d %d %d %d \n",
 		numbers[ 0 ],

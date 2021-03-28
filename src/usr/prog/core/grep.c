@@ -38,7 +38,7 @@ int main ( int argc, char* argv [] )
 
 	if ( argc <= 1 )
 	{
-		printf( 2, "Usage: grep pattern [file ...]\n" );
+		printf( stderr, "Usage: grep pattern [file ...]\n" );
 
 		exit();
 	}
@@ -48,7 +48,7 @@ int main ( int argc, char* argv [] )
 	// Look for pattern in stdin
 	if ( argc <= 2 )
 	{
-		grep( pattern, 0, NULL );
+		grep( pattern, stdin, NULL );
 
 		exit();
 	}
@@ -62,7 +62,7 @@ int main ( int argc, char* argv [] )
 
 		if ( fd < 0 )
 		{
-			printf( 2, "grep: cannot open %s\n", path );
+			printf( stderr, "grep: cannot open %s\n", path );
 
 			// Skip problem file
 			// continue;
@@ -124,12 +124,12 @@ static int getbyte ( int fd )
 		// Error
 		else if ( n < 0 )
 		{
-			// printf( 2, "getbyte: read error\n" );
+			// printf( stderr, "getbyte: read error\n" );
 
 			return - 2;
 		}
 
-		// printf( 1, "getbyte: read %d bytes\n", n );
+		// printf( stdout, "getbyte: read %d bytes\n", n );
 
 		bufp = buf;
 	}
@@ -236,10 +236,10 @@ static void grep ( char* regexp, int fd, char* filename )
 
 			if ( filename != NULL )
 			{
-				printf( 1, "%s:", filename );
+				printf( stdout, "%s:", filename );
 			}
 
-			printf( 1, "%s\n", buf );
+			printf( stdout, "%s\n", buf );
 		}
 	}
 }

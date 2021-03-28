@@ -21,14 +21,14 @@ int main ( int argc, char* argv [] )
 
 	if ( displayfd < 0 )
 	{
-		printf( 2, "poke_disp_test: cannot open display\n" );
+		printf( stderr, "poke_disp_test: cannot open display\n" );
 
 		exit();
 	}
 
 
 	//
-	printf( 1, "Switching to graphics mode...\n" );
+	printf( stdout, "Switching to graphics mode...\n" );
 
 	// Switch to graphics mode
 	ioctl( displayfd, DISP_IOCTL_SETMODE, VGA_GFXMODE );
@@ -38,7 +38,7 @@ int main ( int argc, char* argv [] )
 
 
 	//
-	printf( 1, "Clearing screen...\n" );
+	printf( stdout, "Clearing screen...\n" );
 
 	vgaBuffer = ( char* ) GFXBUFFER;
 
@@ -46,7 +46,7 @@ int main ( int argc, char* argv [] )
 
 
 	//
-	printf( 1, "Poking colors...\n" );
+	printf( stdout, "Poking colors...\n" );
 
 	// Draw colored squares
 	w = 10;
@@ -60,7 +60,7 @@ int main ( int argc, char* argv [] )
 			{
 				*( vgaBuffer + ( y * SCREEN_WIDTH ) + x ) = color;  // poke
 
-				// printf( 1, "c %d at (%d, %d)\n", color, x, y );
+				// printf( stdout, "c %d at (%d, %d)\n", color, x, y );
 			}
 
 			color += 1;
@@ -90,7 +90,7 @@ int main ( int argc, char* argv [] )
 	// Switch to text mode
 	ioctl( displayfd, DISP_IOCTL_SETMODE, VGA_TXTMODE );
 
-	printf( 1, "Hasta luego!\n" );
+	printf( stdout, "Hasta luego!\n" );
 
 
 	//

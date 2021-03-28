@@ -12,7 +12,7 @@ void stackoverflow ( void )
 
 	array[ SZ - 1 ] = 255;
 
-	printf( 1, "%d\n", array[ SZ - 1 ] );
+	printf( stdout, "%d\n", array[ SZ - 1 ] );
 }
 
 int main ( int argc, char* argv [] )

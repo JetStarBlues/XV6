@@ -48,13 +48,13 @@ int main ( void )
 	*/
 	for ( ;; )
 	{
-		printf( 1, "init: starting /bin/sh\n\n" );
+		printf( stdout, "init: starting /bin/sh\n\n" );
 
 		pid = fork();
 
 		if ( pid < 0 )
 		{
-			printf( 2, "init: fork failed\n\n" );
+			printf( stderr, "init: fork failed\n\n" );
 
 			exit();
 		}
@@ -64,7 +64,7 @@ int main ( void )
 		{
 			exec( "/bin/sh", argv );
 
-			printf( 2, "init: exec /bin/sh failed\n\n" );
+			printf( stderr, "init: exec /bin/sh failed\n\n" );
 
 			exit();
 		}
@@ -100,7 +100,7 @@ int main ( void )
 			   has children, the children are passed on to init
 			   ('p->parent = initproc')
 			*/
-			printf( 1, "init: found abandoned zombie (pid = %d)!\n", wpid );
+			printf( stdout, "init: found abandoned zombie (pid = %d)!\n", wpid );
 		}
 	}
 }

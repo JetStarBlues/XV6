@@ -20,7 +20,7 @@ int main ( int argc, char* argv [] )
 	   What is standard behaviour?
 	*/
 
-	printf( 1, "%d (0x%x)\n", *x, *x );
+	printf( stdout, "%d (0x%x)\n", *x, *x );
 
 	exit();
 }

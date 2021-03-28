@@ -29,13 +29,13 @@ void GFX_init ( void )
 
 	if ( displayfd < 0 )
 	{
-		printf( 2, "GFX_init: cannot open display\n" );
+		printf( stderr, "GFX_init: cannot open display\n" );
 
 		exit();
 	}
 
 
-	printf( 1, "Switching to graphics mode...\n" );
+	printf( stdout, "Switching to graphics mode...\n" );
 
 	// Switch to graphics mode
 	ioctl( displayfd, DISP_IOCTL_SETMODE, VGA_GFXMODE );
@@ -53,7 +53,7 @@ void GFX_exit ( void )
 	// Switch to text mode
 	ioctl( displayfd, DISP_IOCTL_SETMODE, VGA_TXTMODE );
 
-	printf( 1, "Switched to text mode\n" );
+	printf( stdout, "Switched to text mode\n" );
 
 
 	//

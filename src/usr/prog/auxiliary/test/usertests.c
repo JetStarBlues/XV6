@@ -2754,7 +2754,7 @@ void argp_test ()
 
 	if ( fd < 0 )
 	{
-		printf( 2, "argp test: open failed\n" );
+		printf( stderr, "argp test: open failed\n" );
 
 		exit();
 	}

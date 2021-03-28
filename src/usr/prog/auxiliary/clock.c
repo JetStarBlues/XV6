@@ -11,9 +11,9 @@ int main ( int argc, char* argv [] )
 
 	gettime( &d );
 
-	printf( 1, "The time is:\n\n" );
+	printf( stdout, "The time is:\n\n" );
 
-	printf( 1,
+	printf( stdout,
 
 		"  %2d:%02d:%02d\n"
 		"  %s, %s %d, %d\n",
@@ -25,9 +25,9 @@ int main ( int argc, char* argv [] )
 		d.year
 	);
 
-	printf( 1, "\n" );
+	printf( stdout, "\n" );
 
-	printf( 1,
+	printf( stdout,
 
 		"rtcdate:\n"
 		"  second   - %d\n"

@@ -336,7 +336,7 @@ char* gets ( char* buf, int max )
 	for ( i = 0; ( i + 1 ) < max;  )
 	{
 		// Read one byte from stdin
-		nRead = read( 0, &c, 1 );
+		nRead = read( stdin, &c, 1 );
 
 		// Read error...
 		if ( nRead < 1 )

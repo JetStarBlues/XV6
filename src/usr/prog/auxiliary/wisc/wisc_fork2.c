@@ -10,9 +10,9 @@ int main ( int argc, char* argv [] )
 	int   pid;
 	char* argv2 [ 2 ];
 
-	printf( 1, "Hello 1\n" );
+	printf( stdout, "Hello 1\n" );
 
-	close( 1 );  // close stdout
+	close( stdout );  // close stdout
 
 	// Note, slower than writing to stdout... hasn't frozen
 	fd = open( "output", O_CREATE | O_WRONLY | O_TRUNC );
@@ -23,7 +23,7 @@ int main ( int argc, char* argv [] )
 	// Child
 	if ( pid == 0 )
 	{
-		printf( 1, "child (pid = %d)\n", getpid() );
+		printf( stdout, "child (pid = %d)\n", getpid() );
 
 		argv2[ 0 ] = "ls";
 		argv2[ 1 ] = 0;
@@ -37,7 +37,7 @@ int main ( int argc, char* argv [] )
 	{
 		wait();
 
-		printf( 1, "parent (pid = %d)\n", getpid() );
+		printf( stdout, "parent (pid = %d)\n", getpid() );
 
 		close( fd );
 	}

@@ -5,8 +5,8 @@
 
 int main ( int argc, char* argv [] )
 {
-	printf( 1, "Hello world!\n" );
-	printf( 1, "My pid is %d\n", getpid() );
+	printf( stdout, "Hello world!\n" );
+	printf( stdout, "My pid is %d\n", getpid() );
 
 	exit();
 }

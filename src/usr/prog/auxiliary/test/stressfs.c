@@ -20,7 +20,7 @@ int main ( int argc, char* argv [] )
 	char data [ 512 ];
 	char path [] = "stressfs0";
 
-	printf( 1, "stressfs starting\n" );
+	printf( stdout, "stressfs starting\n" );
 
 	memset( data, 'a', sizeof( data ) );
 
@@ -32,7 +32,7 @@ int main ( int argc, char* argv [] )
 		}
 	}
 
-	printf( 1, "write %d\n", i );
+	printf( stdout, "write %d\n", i );
 
 	path[ 8 ] += i;
 
@@ -47,7 +47,7 @@ int main ( int argc, char* argv [] )
 
 	close( fd );
 
-	printf( 1, "read\n" );
+	printf( stdout, "read\n" );
 
 	fd = open( path, O_RDONLY );
 

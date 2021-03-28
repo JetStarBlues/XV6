@@ -51,12 +51,12 @@ static int getbyte ( int fd )
 		// Error
 		else if ( n < 0 )
 		{
-			// printf( 2, "getbyte: read error\n" );
+			// printf( stderr, "getbyte: read error\n" );
 
 			return - 2;
 		}
 
-		// printf( 1, "getbyte: read %d bytes\n", n );
+		// printf( stdout, "getbyte: read %d bytes\n", n );
 
 		bufp = buf;
 	}
@@ -102,12 +102,12 @@ static int skipbytes ( int fd, int nbytes )
 
 		if ( n < 0 )
 		{
-			printf( 2, "hexdump: skipbytes: read error\n" );
+			printf( stderr, "hexdump: skipbytes: read error\n" );
 
 			exit();
 		}
 
-		// printf( 1, "hexdump: skipbytes: skipped %d bytes\n", n );
+		// printf( stdout, "hexdump: skipbytes: skipped %d bytes\n", n );
 
 		nSkipped = n;
 	}
@@ -125,12 +125,12 @@ static int skipbytes ( int fd, int nbytes )
 
 				if ( n < 0 )
 				{
-					printf( 2, "hexdump: skipbytes: read error\n" );
+					printf( stderr, "hexdump: skipbytes: read error\n" );
 
 					exit();
 				}
 
-				// printf( 1, "hexdump: skipbytes: skipped %d bytes\n", n );
+				// printf( stdout, "hexdump: skipbytes: skipped %d bytes\n", n );
 
 				nToRead  -= n;
 				nSkipped += n;
@@ -141,12 +141,12 @@ static int skipbytes ( int fd, int nbytes )
 
 				if ( n < 0 )
 				{
-					printf( 2, "hexdump: skipbytes: read error\n" );
+					printf( stderr, "hexdump: skipbytes: read error\n" );
 
 					exit();
 				}
 
-				// printf( 1, "hexdump: skipbytes: skipped %d bytes\n", n );
+				// printf( stdout, "hexdump: skipbytes: skipped %d bytes\n", n );
 
 				nToRead  -= n;
 				nSkipped += n;
@@ -165,13 +165,13 @@ int hexdump ( int fd, int start, int nbytes )
 	int           addr;
 	int           isEOI;
 
-	printf( 1, "hexdump: fd %d, start %d, nbytes %d\n", fd, start, nbytes );
+	printf( stdout, "hexdump: fd %d, start %d, nbytes %d\n", fd, start, nbytes );
 
 
 	// Check that start is valid
 	if ( start < 0 )  // upper bound?
 	{
-		printf( 2, "hexdump: invalid start (%d)", start );
+		printf( stderr, "hexdump: invalid start (%d)", start );
 
 		return - 1;
 	}
@@ -179,7 +179,7 @@ int hexdump ( int fd, int start, int nbytes )
 	// Check that nbytes is valid
 	if ( nbytes < 0 )
 	{
-		printf( 2, "hexdump: invalid nbytes (%d)", nbytes );
+		printf( stderr, "hexdump: invalid nbytes (%d)", nbytes );
 
 		return - 1;
 	}
@@ -224,7 +224,7 @@ int hexdump ( int fd, int start, int nbytes )
 
 		if ( b < - 1 )
 		{
-			printf( 2, "getbyte error\n" );
+			printf( stderr, "getbyte error\n" );
 
 			exit();
 		}
@@ -238,7 +238,7 @@ int hexdump ( int fd, int start, int nbytes )
 		// Otherwise add byte to buffer
 		else
 		{
-			// printf( 1, "addr:%d i:%d j:%d b:%x\n", addr, i, j, b );
+			// printf( stdout, "addr:%d i:%d j:%d b:%x\n", addr, i, j, b );
 
 			bpl[ j ] = ( unsigned char ) b;
 
@@ -253,7 +253,7 @@ int hexdump ( int fd, int start, int nbytes )
 		if ( ( j == BYTESPERLINE ) || ( i == nbytes ) || isEOI )
 		{
 			// Print address
-			printf( 1, "%08x: ", addr - j );
+			printf( stdout, "%08x: ", addr - j );
 
 
 			// Print bytes in hexadecimal
@@ -262,43 +262,43 @@ int hexdump ( int fd, int start, int nbytes )
 				// Add space after 8 bytes for legibility
 				if ( k == 8 )
 				{
-					printf( 1, " " );
+					printf( stdout, " " );
 				}
 
 				// Print byte
-				printf( 1, " %02x", bpl[ k ] );
+				printf( stdout, " %02x", bpl[ k ] );
 			}
 			for ( k = j; k < BYTESPERLINE; k += 1 )
 			{
 				// Add space after 8 bytes for legibility
 				if ( k == 8 )
 				{
-					printf( 1, " " );
+					printf( stdout, " " );
 				}
 
 				// Print byte placeholder
-				printf( 1, "   " );
+				printf( stdout, "   " );
 			}
 
 
 			// Print bytes in ASCII
-			printf( 1, "  |" );
+			printf( stdout, "  |" );
 
 			for ( k = 0; k < j; k += 1 )
 			{
 				// Print char if in printable range
 				if ( ( bpl[ k ] >= 32 ) && ( bpl[ k ] <= 126 ) )
 				{
-					printf( 1, "%c", bpl[ k ] );
+					printf( stdout, "%c", bpl[ k ] );
 				}
 				// Otherwise print placeholder
 				else
 				{
-					printf( 1, "." );
+					printf( stdout, "." );
 				}
 			}
 
-			printf( 1, "|\n" );
+			printf( stdout, "|\n" );
 
 
 			// Zero bpl
@@ -312,7 +312,7 @@ int hexdump ( int fd, int start, int nbytes )
 	}
 
 	// Print last address
-	printf( 1, "%08x:\n", addr );
+	printf( stdout, "%08x:\n", addr );
 
 	return 0;
 }
@@ -331,11 +331,11 @@ int main ( int argc, char* argv [] )
 		    show usage message...
 		*/
 
-		hexdump( 0, 0, 0 );
+		hexdump( stdin, 0, 0 );
 	}
 	else if ( argc == 3 )  // " | hexdump start nbytes"
 	{
-		hexdump( 0, atoi( argv[ 1 ] ), atoi( argv[ 2 ] ) );
+		hexdump( stdin, atoi( argv[ 1 ] ), atoi( argv[ 2 ] ) );
 	}
 
 	// Use specified file as input
@@ -345,7 +345,7 @@ int main ( int argc, char* argv [] )
 
 		if ( fd < 0 )
 		{
-			printf( 2, "hexdump: cannot open %s\n", argv[ 1 ] );
+			printf( stderr, "hexdump: cannot open %s\n", argv[ 1 ] );
 		}
 
 		if ( argc == 2 )   // "hexdump filename"
@@ -361,7 +361,7 @@ int main ( int argc, char* argv [] )
 	//
 	else
 	{
-		printf( 2,
+		printf( stderr,
 
 			"Usage:\n"
 			"   hexdump filename\n"

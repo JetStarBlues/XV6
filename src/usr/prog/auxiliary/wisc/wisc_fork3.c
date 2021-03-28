@@ -9,7 +9,7 @@ int main ( int argc, char* argv [] )
 
 	int pid;
 
-	printf( 1, "Hello 1\n" );
+	printf( stdout, "Hello 1\n" );
 
 	pid = fork();
 
@@ -18,7 +18,7 @@ int main ( int argc, char* argv [] )
 	{
 		// sleep( 200 );  // ticks
 
-		// printf( 1, "child (pid = %d)\n", getpid() );
+		// printf( stdout, "child (pid = %d)\n", getpid() );
 
 
 		int pid2;
@@ -32,11 +32,11 @@ int main ( int argc, char* argv [] )
 		{
 			sleep( 200 );
 
-			printf( 1, "grandchild (pid = %d)\n", getpid() );
+			printf( stdout, "grandchild (pid = %d)\n", getpid() );
 		}
 		else if ( pid2 > 0 )
 		{
-			printf( 1, "child (pid = %d)\n", getpid() );
+			printf( stdout, "child (pid = %d)\n", getpid() );
 
 			wait();  // wait for grandchild
 		}
@@ -51,10 +51,10 @@ int main ( int argc, char* argv [] )
 
 		wait();  // wait for child
 
-		printf( 1, "parent (pid = %d)\n", getpid() );
+		printf( stdout, "parent (pid = %d)\n", getpid() );
 	}
 
-	printf( 1, "All reach here (pid = %d)\n", getpid() );
+	printf( stdout, "All reach here (pid = %d)\n", getpid() );
 
 	exit();
 }

@@ -23,7 +23,7 @@ int stat2 ( char* path, struct stat* st )
 
 	if ( fd < 0 )
 	{
-		printf( 2, "stat2: cannot open %s\n", path );
+		printf( stderr, "stat2: cannot open %s\n", path );
 
 		return - 1;
 	}
@@ -65,7 +65,7 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 
 	if ( strlen( filename ) > FILENAMESZ )
 	{
-		printf( 2, "find: invalid filename %s\n", filename );
+		printf( stderr, "find: invalid filename %s\n", filename );
 
 		return - 1;
 	}
@@ -74,14 +74,14 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 
 	if ( dirFd < 0 )
 	{
-		printf( 2, "find: cannot open %s\n", dirpath );
+		printf( stderr, "find: cannot open %s\n", dirpath );
 
 		return - 1;
 	}
 
 	if ( fstat( dirFd, &dirStat ) < 0 )
 	{
-		printf( 2, "find: cannot fstat %s\n", dirpath );
+		printf( stderr, "find: cannot fstat %s\n", dirpath );
 
 		close( dirFd );
 
@@ -90,7 +90,7 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 
 	if ( dirStat.type != T_DIR )
 	{
-		printf( 2, "find: expecting second argument to be directory\n" );
+		printf( stderr, "find: expecting second argument to be directory\n" );
 
 		close( dirFd );
 
@@ -100,7 +100,7 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 
 	if ( DEBUG )
 	{
-		printf( 1, "%s\n", dirpath );
+		printf( stdout, "%s\n", dirpath );
 	}
 
 	subDirectories  = NULL;
@@ -117,7 +117,7 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 
 		if ( DEBUG )
 		{
-			printf( 1, "\t%s\n", dirEntry.name );
+			printf( stdout, "\t%s\n", dirEntry.name );
 		}
 
 		// Skip the "." entry
@@ -155,7 +155,7 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 		// Compare names
 		if ( strcmp( dirEntryName, filename ) == 0 )
 		{
-			printf( 1, "%s\n", dirEntryPath );
+			printf( stdout, "%s\n", dirEntryPath );
 
 			foundMatch = 1;
 
@@ -169,7 +169,7 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 		// Get info about the file
 		if ( stat2( dirEntryPath, &dirEntryStat ) < 0 )
 		{
-			printf( 2, "find: cannot stat2 %s\n", dirEntryPath );
+			printf( stderr, "find: cannot stat2 %s\n", dirEntryPath );
 
 			foundMatch = - 1;  // error
 
@@ -195,7 +195,7 @@ int find ( char* filename, char* dirpath, int recursiveSearch )
 
 			if ( ptr == NULL )
 			{
-				printf( 2, "find: realloc failed\n" );
+				printf( stderr, "find: realloc failed\n" );
 
 				foundMatch = - 1;  // error
 
@@ -285,7 +285,7 @@ int main ( int argc, char* argv [] )
 		}
 		else
 		{
-			printf( 2, "find: unknown flag (%s)\n", argv[ i ] );
+			printf( stderr, "find: unknown flag (%s)\n", argv[ i ] );
 
 			exit();
 		}
@@ -318,7 +318,7 @@ int main ( int argc, char* argv [] )
 
 badArgs:
 
-	printf( 2, "Usage: find [flags] filename [dirpath]\n" );
+	printf( stderr, "Usage: find [flags] filename [dirpath]\n" );
 
 	exit();
 }

@@ -64,7 +64,7 @@ char* fmtname ( char* path )
 	/* Shouldn't be possible. 'open' would have failed */
 	else
 	{
-		printf( 2, "ls: fmtname: unexpected filename %s\n", p );
+		printf( stderr, "ls: fmtname: unexpected filename %s\n", p );
 
 		exit();
 	}
@@ -82,14 +82,14 @@ void ls ( char* path )
 
 	if ( fd < 0 )
 	{
-		printf( 2, "ls: cannot open %s\n", path );
+		printf( stderr, "ls: cannot open %s\n", path );
 
 		return;
 	}
 
 	if ( fstat( fd, &st ) < 0 )
 	{
-		printf( 2, "ls: cannot stat %s\n", path );
+		printf( stderr, "ls: cannot stat %s\n", path );
 
 		close( fd );
 
@@ -100,7 +100,7 @@ void ls ( char* path )
 	{
 		case T_FILE:
 
-			printf( 1, "\n" );  // Do nothing, ls was called on a file...
+			printf( stdout, "\n" );  // Do nothing, ls was called on a file...
 
 			break;
 
@@ -108,7 +108,7 @@ void ls ( char* path )
 
 			if ( strlen( path ) + 1 + FILENAMESZ + 1 > sizeof buf )
 			{
-				printf( 2, "ls: path too long\n" );
+				printf( stderr, "ls: path too long\n" );
 
 				break;
 			}
@@ -143,12 +143,12 @@ void ls ( char* path )
 
 				if ( stat( buf, &st ) < 0 )
 				{
-					printf( 2, "ls: cannot stat %s\n", buf );
+					printf( stderr, "ls: cannot stat %s\n", buf );
 
 					continue;
 				}
 
-				printf( 1,
+				printf( stdout,
 
 					"%s   %4s   %5d   %9d   "
 					"%s %2d %4d %2d:%02d"
@@ -170,8 +170,8 @@ int main ( int argc, char* argv [] )
 {
 	int i;
 
-	printf( 1, "%-14s | %4s | %5s | %9s | %17s\n", "name", "type", "inum", "size", "mtime" );
-	printf( 1, "--------------------------------------------------------------\n" );
+	printf( stdout, "%-14s | %4s | %5s | %9s | %17s\n", "name", "type", "inum", "size", "mtime" );
+	printf( stdout, "--------------------------------------------------------------\n" );
 
 	if ( argc < 2 )
 	{

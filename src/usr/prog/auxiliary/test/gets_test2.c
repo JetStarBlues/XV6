@@ -7,7 +7,7 @@ int main ( int argc, char* argv [] )
 {
 	char buf [ INPUTBUFSZ ];
 
-	printf( 1, "What's the secret phrase?\n" );
+	printf( stdout, "What's the secret phrase?\n" );
 
 	while ( 1 )
 	{
@@ -22,10 +22,10 @@ int main ( int argc, char* argv [] )
 			break;
 		}
 
-		printf( 1, "Try again\n" );
+		printf( stdout, "Try again\n" );
 	}
 
-	printf( 1, "Correct!\n", buf );
+	printf( stdout, "Correct!\n", buf );
 
 	exit();
 }

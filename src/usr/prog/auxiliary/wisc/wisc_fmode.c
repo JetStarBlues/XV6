@@ -8,7 +8,7 @@ int main ( int argc, char* argv [] )
 {
 	int fd;
 
-	printf( 1, "Hello 1\n" );
+	printf( stdout, "Hello 1\n" );
 
 
 	fd = open( "output", O_CREATE | O_WRONLY | O_TRUNC );

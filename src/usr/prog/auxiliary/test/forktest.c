@@ -15,7 +15,7 @@ void forktest ( void )
 {
 	int n, pid;
 
-	_printf( 1, "fork test\n" );
+	_printf( stdout, "fork test\n" );
 
 	for ( n = 0; n < N; n += 1 )
 	{
@@ -34,7 +34,7 @@ void forktest ( void )
 
 	if ( n == N )
 	{
-		_printf( 1, "fork test: fork claimed to work %d times!\n", N );
+		_printf( stdout, "fork test: fork claimed to work %d times!\n", N );
 
 		exit();
 	}
@@ -43,7 +43,7 @@ void forktest ( void )
 	{
 		if ( wait() < 0 )
 		{
-			_printf( 1, "fork test: wait stopped early\n" );
+			_printf( stdout, "fork test: wait stopped early\n" );
 
 			exit();
 		}
@@ -51,12 +51,12 @@ void forktest ( void )
 
 	if ( wait() != - 1 )
 	{
-		_printf( 1, "fork test: wait got too many\n" );
+		_printf( stdout, "fork test: wait got too many\n" );
 
 		exit();
 	}
 
-	_printf( 1, "fork test: OK\n" );
+	_printf( stdout, "fork test: OK\n" );
 }
 
 int main ( void )

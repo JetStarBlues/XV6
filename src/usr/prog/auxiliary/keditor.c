@@ -461,7 +461,7 @@ void printString ( char* s, int wrap, char* hlInfo )
 
 		//
 		GFXText_printChar( *s );
-		// printf( 1, "%c", *s );
+		// printf( stdout, "%c", *s );
 
 
 		// Advance cursor
@@ -1097,7 +1097,7 @@ void openFile ( char* filename )
 	{
 		// Use 'getline' to read a line from the file
 		lineLen = getline( &line, &lineBufSize, fd );
-		// printf( 1, "getline returned: (%d) %s\n", lineLen, line );
+		// printf( stdout, "getline returned: (%d) %s\n", lineLen, line );
 
 		//
 		if ( lineLen < 0 )

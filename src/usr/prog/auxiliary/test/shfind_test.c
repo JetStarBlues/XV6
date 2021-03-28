@@ -22,7 +22,7 @@ int stat2 ( char* path, struct stat* st )
 
 	if ( fd < 0 )
 	{
-		printf( 2, "stat2: cannot open %s\n", path );
+		printf( stderr, "stat2: cannot open %s\n", path );
 
 		return - 1;
 	}
@@ -64,7 +64,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( strlen( filename ) > FILENAMESZ )
 	{
-		printf( 2, "shfind: invalid filename %s\n", filename );
+		printf( stderr, "shfind: invalid filename %s\n", filename );
 
 		return - 1;
 	}
@@ -73,14 +73,14 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( dirFd < 0 )
 	{
-		printf( 2, "shfind: cannot open %s\n", dirpath );
+		printf( stderr, "shfind: cannot open %s\n", dirpath );
 
 		return - 1;
 	}
 
 	if ( fstat( dirFd, &dirStat ) < 0 )
 	{
-		printf( 2, "shfind: cannot fstat %s\n", dirpath );
+		printf( stderr, "shfind: cannot fstat %s\n", dirpath );
 
 		close( dirFd );
 
@@ -89,7 +89,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( dirStat.type != T_DIR )
 	{
-		printf( 2, "shfind: expecting second argument to be directory\n" );
+		printf( stderr, "shfind: expecting second argument to be directory\n" );
 
 		close( dirFd );
 
@@ -99,7 +99,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 	if ( SHFIND_DEBUG )
 	{
-		printf( 1, "%s\n", dirpath );
+		printf( stdout, "%s\n", dirpath );
 	}
 
 	subDirectories  = NULL;
@@ -116,7 +116,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 		if ( SHFIND_DEBUG )
 		{
-			printf( 1, "\t%s\n", dirEntry.name );
+			printf( stdout, "\t%s\n", dirEntry.name );
 		}
 
 		// Skip the "." entry
@@ -156,7 +156,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 		{
 			if ( SHFIND_DEBUG )
 			{
-				printf( 1, "%s\n", dirEntryPath );
+				printf( stdout, "%s\n", dirEntryPath );
 			}
 
 			foundMatch = 1;
@@ -170,7 +170,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 		// Get info about the file
 		if ( stat2( dirEntryPath, &dirEntryStat ) < 0 )
 		{
-			printf( 2, "shfind: cannot stat2 %s\n", dirEntryPath );
+			printf( stderr, "shfind: cannot stat2 %s\n", dirEntryPath );
 
 			foundMatch = - 1;  // error
 
@@ -196,7 +196,7 @@ int shfind ( char* filename, char* dirpath, char** foundpath, int recursiveSearc
 
 			if ( ptr == NULL )
 			{
-				printf( 2, "shfind: realloc failed\n" );
+				printf( stderr, "shfind: realloc failed\n" );
 
 				foundMatch = - 1;  // error
 
@@ -254,7 +254,7 @@ int main ( int argc, char* argv [] )
 
 	if ( ( argc < 2 ) || ( argc > 3 ) )
 	{
-		printf( 2, "Usage: shfind filename dirpath\n" );
+		printf( stderr, "Usage: shfind filename dirpath\n" );
 
 		exit();
 	}
@@ -272,7 +272,7 @@ int main ( int argc, char* argv [] )
 		shfind( argv[ 1 ], argv[ 2 ], &match, recursiveSearch );
 	}
 
-	printf( 1, "foundpath: %s\n", match );
+	printf( stdout, "foundpath: %s\n", match );
 
 	exit();
 }
