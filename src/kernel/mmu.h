@@ -137,17 +137,23 @@ struct segdesc
 /*
 	See https://wiki.osdev.org/Paging
 
+	xv6-book figure 2-1:
+		"
+		Page directory and page table entries are identical except for
+		the Dirty bit (which is always zero in a PDE)
+		"
+
 	Page directory entry:
 
 		31..12 - physical address of page table
 		11..9  - unused
-		    8  - flag | global          | Something about TLB update...
+		    8  - flag | unused          | .
 		    7  - flag | page size       | If 0, page has size of 4KiB. If 1, 4MiB.
 		    6  - flag | unused          | .
 		    5  - flag | accessed        | If 1, page has been accessed for read or write. Up to OS to clear the bit.
 		    4  - flag | cache disabled  | If 0, page cache is enabled
 		    3  - flag | write through   | If 1, write-through caching is enabled. If 0, write-back caching
-		    2  - flag | user/supervisor | If 0, only supervisor can access page
+		    2  - flag | supervisor/user | If 0, only supervisor can access page
 		    1  - flag | read/write      | If 0, page is read-only
 		    0  - flag | present         | If 1, page is actually in physical memory. For ex, when a page is
 		                                | swapped out, it is no longer in physical memory. When a page is called,
@@ -157,13 +163,13 @@ struct segdesc
 
 		31..12 - physical address of page_size block of memory
 		11..9  - unused
-		    8  - flag | global          | Something about TLB update...
-		    7  - flag | ?               | Something about physical attribute table...
+		    8  - flag | don't care      | .
+		    7  - flag | don't care      | .
 		    6  - flag | dirty           | If 1, indicates page has been written to. Up to OS to clear the bit.
 		    5  - flag | accessed        | If 1, page has been accessed for read or write. Up to OS to clear the bit.
 		    4  - flag | cache disabled  | If 0, page cache is enabled
 		    3  - flag | write through   | If 1, write-through caching is enabled. If 0, write-back caching
-		    2  - flag | user/supervisor | If 0, only supervisor can access page
+		    2  - flag | supervisor/user | If 0, only supervisor can access page
 		    1  - flag | read/write      | If 0, page is read-only
 		    0  - flag | present         | If 1, page is actually in physical memory. For ex, when a page is
 		                                | swapped out, it is no longer in physical memory. When a page is called,
@@ -171,15 +177,15 @@ struct segdesc
 */
 
 // Page directory entry flags
-#define PDE_P  0x001   // Present
-#define PDE_W  0x002   // Writeable
-#define PDE_U  0x004   // User
-#define PDE_PS 0x080   // Page Size. Enables 4Mbyte "super" page
+#define PDE_P  0x01   // Present
+#define PDE_W  0x02   // Writeable
+#define PDE_U  0x04   // User
+#define PDE_PS 0x80   // Page Size. Enables 4Mbyte "super" page
 
 // Page table entry flags
-#define PTE_P  0x001   // Present
-#define PTE_W  0x002   // Writeable
-#define PTE_U  0x004   // User
+#define PTE_P  0x01   // Present
+#define PTE_W  0x02   // Writeable
+#define PTE_U  0x04   // User
 
 // Address in page directory entry
 #define PDE_ADDR( pde )  ( ( uint ) ( pde ) & ~ 0xFFF )

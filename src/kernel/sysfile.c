@@ -66,7 +66,7 @@ static int argfd ( int n, int* pfd, struct file** pf )
 }
 
 // Allocate a file descriptor for the given file.
-// Takes over file reference from caller on success.
+// Takes over file reference from caller on success. ???
 /*
    Allocates the first available file descriptor in the
    current process's list of file descriptors...
@@ -98,23 +98,23 @@ static int fdalloc ( struct file* f )
 int sys_dup ( void )
 {
 	struct file* f;
-	int          fd;
+	int          newfd;
 
 	if ( argfd( 0, 0, &f ) < 0 )
 	{
 		return - 1;
 	}
 
-	fd = fdalloc( f );
+	newfd = fdalloc( f );  // in addition to existing...
 
-	if ( fd < 0 )
+	if ( newfd < 0 )
 	{
 		return - 1;
 	}
 
-	filedup( f );
+	filedup( f );  // increment ref count of file f
 
-	return fd;
+	return newfd;
 }
 
 int sys_read ( void )
@@ -411,7 +411,7 @@ bad:
      . mkdir
        . makes a new directory
 
-     . mkdev
+     . mkdev?/mknod?
        . makes a new device file
 */
 static struct inode* create ( char* path, short type, short major, short minor )
@@ -909,10 +909,9 @@ int sys_pipe ( void )
 int sys_ioctl ( void )
 {
 	struct file* f;
-	int          fd;
 	int          request;
 
-	if ( argfd( 0, &fd, &f ) < 0    ||
+	if ( argfd( 0, 0, &f ) < 0      ||
 		 argint( 1, &request ) < 0 )
 	{
 		return - 1;
@@ -948,7 +947,6 @@ int sys_ioctl ( void )
 int sys_lseek ( void )
 {
 	struct file* f;
-	int          fd;
 	int          whence;
 	uint         offset;
 	uint         newOffset;
@@ -961,7 +959,7 @@ int sys_lseek ( void )
 
 
 	// Get args from user stack
-	if ( argfd( 0, &fd, &f ) < 0               ||
+	if ( argfd( 0, 0, &f ) < 0                 ||
 		 argint( 1, ( int* ) ( &offset ) ) < 0 ||
 		 argint( 1, &whence ) < 0 )
 	{
